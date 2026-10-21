@@ -1,0 +1,21 @@
+# local configuration and secrets
+.env
+.env.*
+!.env.example
+*.secert
+
+# frontend dependencies and build cache
+web/node_modules/
+web/.vite/
+web/*.tsbuildinfo
+
+# Vite output; keep the committed placeholder index.html
+internal/web/dist/assets/
+internal/web/dist/*.js
+internal/web/dist/*.css
+
+# local binaries
+/guild
+/guild-go
+*.log
+.DS_Store

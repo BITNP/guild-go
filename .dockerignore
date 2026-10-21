@@ -1,0 +1,12 @@
+.git
+.gitignore
+.env
+.env.*
+*.secert
+web/node_modules
+web/.vite
+internal/web/dist/assets
+guild
+guild-go
+*.log
+.DS_Store
