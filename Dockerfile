@@ -11,8 +11,8 @@ RUN mkdir -p internal/web && cd web && pnpm build
 FROM golang:1.27-alpine AS build
 WORKDIR /src
 ENV CGO_ENABLED=0
-ENV GOPRIVATE=git.bitnp.net
 COPY go.mod go.sum ./
+COPY third_party ./third_party
 RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal

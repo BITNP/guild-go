@@ -35,3 +35,6 @@ require (
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/text v0.29.0 // indirect
 )
+
+// bitnp-authz 以源码快照内嵌，构建时不再访问 git.bitnp.net。
+replace git.bitnp.net/BITNP/bitnp-authz => ./third_party/bitnp-authz

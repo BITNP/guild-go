@@ -19,7 +19,7 @@ Guild of Pioneers 的 Go 重写版：一个仓库、一个 Go 二进制、一个
 - 外部 PostgreSQL（16+）
 - Keycloak confidential client
 - S3 兼容桶（用于评论图片）
-- 能访问 `git.bitnp.net` 的 Go 构建环境；`Makefile` / Dockerfile 已设置 `GOPRIVATE=git.bitnp.net`
+- Go 1.27+（无需访问 `git.bitnp.net`：`bitnp-authz` 已内嵌在 `third_party/`）
 
 复制环境变量并填写：
 
@@ -80,7 +80,7 @@ docker build -t guild-go .
 docker compose up -d --build
 ```
 
-`compose.yaml` 只启动应用；PostgreSQL、S3、Keycloak 都是外部服务。镜像使用多阶段构建：Node 构建前端 → Go 通过 `GOPRIVATE` 拉取私有 `bitnp-authz` 并 embed 前端编译 → Alpine 非 root 运行。仓库不提交 `vendor/`。
+`compose.yaml` 只启动应用；PostgreSQL、S3、Keycloak 都是外部服务。镜像使用多阶段构建：Node 构建前端 → Go 从 `third_party/bitnp-authz` 编译并 embed 前端 → Alpine 非 root 运行。仓库不提交 `vendor/`，只把 `bitnp-authz` 一个模块的源码内嵌在 `third_party/`，其余依赖仍走 Go module proxy。
 
 ## 仓库结构
 
@@ -95,6 +95,7 @@ internal/database/      pgxpool + 嵌入式迁移
 internal/httpapi/       路由、错误、静态 SPA、中间件
 internal/web/           go:embed 前端 dist
 web/                    Vue 3 + Vite 前端
+third_party/bitnp-authz/  内嵌的 bitnp-authz Go 源码快照
 doc/API.md              API 契约
 ```
 

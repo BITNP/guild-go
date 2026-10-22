@@ -1,5 +1,3 @@
-git.bitnp.net/BITNP/bitnp-authz v0.0.0-20261019160408-643da5d210aa h1:ps++F2ZeZ08wx53wLNeM3GWY3NyiPyowiGHJE+pnC+o=
-git.bitnp.net/BITNP/bitnp-authz v0.0.0-20261019160408-643da5d210aa/go.mod h1:YU6RKwQ2wTIuhUUtmK6UXUA4BAs7MIY4Oeocvu6gWTs=
 github.com/aws/aws-sdk-go-v2 v1.47.3 h1:HRoT/MkNi3bjO5xF4dCzLzvVmkvRGHj3/cLINDnJejk=
 github.com/aws/aws-sdk-go-v2 v1.47.3/go.mod h1:xSl+OSI5ZUw6bSMupWc218zE5Pl+65MCCu3ySWFY99A=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.22 h1:oiEmPz/YMMeh/JvAE8xSxNCIsvWE6lpFe4ZPlyFykQI=

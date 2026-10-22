@@ -1,5 +1,3 @@
-export GOPRIVATE ?= git.bitnp.net
-
 .PHONY: dev-backend dev-frontend build test fmt tidy docker
 
 dev-backend:
