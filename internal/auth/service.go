@@ -116,7 +116,8 @@ func (s *Service) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := displayName(claims, subject)
-	email := verifiedEmail(claims)
+	email, _ := claims["email"].(string)
+	email = strings.TrimSpace(email)
 	picture := safePicture(claims)
 	sessionID, _, err := s.Sessions.Create(subject, name, email, picture, permissions)
 	if err != nil {
@@ -174,17 +175,6 @@ func displayName(claims map[string]any, subject string) string {
 		}
 	}
 	return subject
-}
-
-func verifiedEmail(claims map[string]any) string {
-	verified, _ := claims["email_verified"].(bool)
-	if !verified {
-		return ""
-	}
-	if email, ok := claims["email"].(string); ok {
-		return strings.TrimSpace(email)
-	}
-	return ""
 }
 
 func safePicture(claims map[string]any) string {

@@ -15,7 +15,7 @@ type Session struct {
 	ID          string
 	Subject     string
 	Name        string
-	Email       string
+	Email       string // Display-only provider email; not an identity or authorization key.
 	Picture     string
 	Permissions authz.SitePermissions
 	CSRF        string

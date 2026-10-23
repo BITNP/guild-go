@@ -147,6 +147,8 @@ E_member(n) = union D_member(d) for d in S(n) ∪ E_leader(n)
 
 默认 scopes 需要包含 `openid profile email roles`，并确保 `roles` scope 的 mapper 把 realm roles 写入 ID token（`realm_access.roles`）。应用只认 `permission-*` 角色做授权，`position-*` 只用于展示。
 
+邮箱 mapper 需将 `email` 写入 ID token。邮箱仅向本人展示，不要求 `email_verified` 为 `true`，也不用于识别用户或判断权限。
+
 其他用户的姓名/头像/职务由只读 service account 查询 Admin API：
 
 ```text
