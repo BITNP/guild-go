@@ -310,7 +310,11 @@ func TestTreePermissionsCommentsAndAttachments(t *testing.T) {
 
 	// Attachment upload and authenticated read.
 	imageBytes := testPNG(t)
-	withImage, err := f.comments.Create(ctx, f.alice, child.ID, "see image", []comments.Upload{{Data: imageBytes}})
+	imageID, err := f.comments.UploadImage(ctx, f.alice, child.ID, imageBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	withImage, err := f.comments.Create(ctx, f.alice, child.ID, "see image", []int64{imageID})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
@@ -24,11 +22,6 @@ const (
 	maxBodyRunes    = 5000
 )
 
-// Upload is one validated-in-service comment image.
-type Upload struct {
-	Data []byte
-}
-
 // Service implements comment, reaction and attachment use cases.
 type Service struct {
 	repo   *Repository
@@ -42,74 +35,44 @@ func NewService(repo *Repository, userService *users.Service, checker *access.Ch
 	return &Service{repo: repo, users: userService, access: checker, store: store}
 }
 
-// Create stores a comment and its images.
-func (s *Service) Create(ctx context.Context, session auth.Session, nodeID int64, body string, uploads []Upload) (Comment, error) {
+func (s *Service) requireCommenter(ctx context.Context, session auth.Session, nodeID int64) error {
 	exists, err := s.access.NodeExists(ctx, nodeID)
 	if err != nil {
-		return Comment{}, err
+		return err
 	}
 	if !exists {
-		return Comment{}, apperr.NotFound("节点不存在")
+		return apperr.NotFound("节点不存在")
 	}
 	if !session.Permissions.SystemAdmin {
 		member, err := s.access.IsEffectiveMember(ctx, nodeID, session.Subject)
 		if err != nil {
-			return Comment{}, err
+			return err
 		}
 		if !member {
-			return Comment{}, apperr.Forbidden("只有节点有效成员可以评论")
+			return apperr.Forbidden("只有节点有效成员可以评论")
 		}
+	}
+	return nil
+}
+
+// Create publishes a comment using previously uploaded images.
+func (s *Service) Create(ctx context.Context, session auth.Session, nodeID int64, body string, attachmentIDs []int64) (Comment, error) {
+	if err := s.requireCommenter(ctx, session, nodeID); err != nil {
+		return Comment{}, err
 	}
 	body = strings.TrimSpace(body)
 	if utf8.RuneCountInString(body) > maxBodyRunes {
 		return Comment{}, apperr.BadRequest("评论不能超过 5000 字")
 	}
-	if len(uploads) > storage.MaxAttachments {
+	if len(attachmentIDs) > storage.MaxAttachments {
 		return Comment{}, apperr.BadRequest("每条评论最多 4 张图片")
 	}
-	if body == "" && len(uploads) == 0 {
+	if body == "" && len(attachmentIDs) == 0 {
 		return Comment{}, apperr.BadRequest("评论内容不能为空")
 	}
-	contentTypes := make([]string, len(uploads))
-	for index, upload := range uploads {
-		contentType, err := storage.DetectImageType(upload.Data)
-		if err != nil {
-			return Comment{}, apperr.BadRequest(err.Error())
-		}
-		contentTypes[index] = contentType
-	}
-
-	commentID, err := s.repo.Create(ctx, nodeID, session.Subject, body)
+	commentID, err := s.repo.Create(ctx, nodeID, session.Subject, body, attachmentIDs)
 	if err != nil {
 		return Comment{}, err
-	}
-	uploadedKeys := make([]string, 0, len(uploads))
-	cleanup := func() {
-		for _, key := range uploadedKeys {
-			deleteCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			_ = s.store.Delete(deleteCtx, key)
-			cancel()
-		}
-		_, _ = s.repo.Delete(context.Background(), commentID)
-	}
-	for index, upload := range uploads {
-		key, err := storage.NewCommentKey(time.Now())
-		if err != nil {
-			cleanup()
-			return Comment{}, err
-		}
-		uploadCtx, cancel := context.WithTimeout(ctx, storage.TimeoutForUpload)
-		err = s.store.Put(uploadCtx, key, upload.Data, contentTypes[index])
-		cancel()
-		if err != nil {
-			cleanup()
-			return Comment{}, fmt.Errorf("store comment image: %w", err)
-		}
-		uploadedKeys = append(uploadedKeys, key)
-		if err := s.repo.AddAttachment(ctx, commentID, key, contentTypes[index], int64(len(upload.Data))); err != nil {
-			cleanup()
-			return Comment{}, err
-		}
 	}
 	return s.one(ctx, session, commentID)
 }
@@ -165,13 +128,7 @@ func (s *Service) Delete(ctx context.Context, session auth.Session, commentID in
 	if err != nil {
 		return err
 	}
-	for _, key := range keys {
-		deleteCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if err := s.store.Delete(deleteCtx, key); err != nil {
-			slog.Warn("delete comment attachment failed", "key", key, "error", err)
-		}
-		cancel()
-	}
+	s.deleteObjects(keys)
 	return nil
 }
 

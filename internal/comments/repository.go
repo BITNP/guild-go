@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"git.bitnp.net/BITNP/guild-go/internal/apperr"
 	"git.bitnp.net/BITNP/guild-go/internal/database"
 )
 
@@ -38,12 +39,30 @@ type AttachmentRow struct {
 	SizeBytes   int64
 }
 
-// Create inserts a comment and returns its id.
-func (r *Repository) Create(ctx context.Context, nodeID int64, author, body string) (int64, error) {
+// Create publishes a comment and claims its images in the requested order atomically.
+func (r *Repository) Create(ctx context.Context, nodeID int64, author, body string, attachmentIDs []int64) (int64, error) {
 	var id int64
-	err := r.pool.QueryRow(ctx,
-		`INSERT INTO comments (node_id, author_subject, body) VALUES ($1,$2,$3) RETURNING id`,
-		nodeID, author, body).Scan(&id)
+	err := database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx,
+			`INSERT INTO comments (node_id, author_subject, body) VALUES ($1,$2,$3) RETURNING id`,
+			nodeID, author, body).Scan(&id); err != nil {
+			return err
+		}
+		for position, attachmentID := range attachmentIDs {
+			tag, err := tx.Exec(ctx, `
+				UPDATE comment_attachments
+				SET comment_id=$1, position=$2, pending_node_id=NULL, uploader_subject=NULL
+				WHERE id=$3 AND comment_id IS NULL AND pending_node_id=$4 AND uploader_subject=$5
+				  AND created_at > now() - interval '24 hours'`, id, position, attachmentID, nodeID, author)
+			if err != nil {
+				return err
+			}
+			if tag.RowsAffected() != 1 {
+				return apperr.BadRequest("图片不可用或已过期，请移除后重新添加")
+			}
+		}
+		return nil
+	})
 	return id, err
 }
 
@@ -96,12 +115,31 @@ func (r *Repository) List(ctx context.Context, nodeID int64, before *int64, limi
 	return result, hasMore, nil
 }
 
-// AddAttachment records an uploaded object.
-func (r *Repository) AddAttachment(ctx context.Context, commentID int64, key, contentType string, size int64) error {
-	_, err := r.pool.Exec(ctx, `
-		INSERT INTO comment_attachments (comment_id, object_key, content_type, size_bytes)
-		VALUES ($1,$2,$3,$4)`, commentID, key, contentType, size)
-	return err
+// AddUpload records one image awaiting publication.
+func (r *Repository) AddUpload(ctx context.Context, nodeID int64, subject, key, contentType string, size int64) (int64, error) {
+	var id int64
+	err := r.pool.QueryRow(ctx, `
+		INSERT INTO comment_attachments (pending_node_id, uploader_subject, object_key, content_type, size_bytes)
+		VALUES ($1,$2,$3,$4,$5) RETURNING id`, nodeID, subject, key, contentType, size).Scan(&id)
+	return id, err
+}
+
+// DeleteUpload removes an unpublished image owned by the caller.
+func (r *Repository) DeleteUpload(ctx context.Context, id int64, subject string) (string, error) {
+	var key string
+	err := r.pool.QueryRow(ctx, `DELETE FROM comment_attachments
+		WHERE id=$1 AND comment_id IS NULL AND uploader_subject=$2 RETURNING object_key`, id, subject).Scan(&key)
+	return key, err
+}
+
+// DeleteExpiredUploads removes images abandoned for at least a day.
+func (r *Repository) DeleteExpiredUploads(ctx context.Context) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `DELETE FROM comment_attachments
+		WHERE comment_id IS NULL AND created_at <= now() - interval '24 hours' RETURNING object_key`)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[string])
 }
 
 // AttachmentsForComments returns attachments grouped by comment id.
@@ -114,7 +152,7 @@ func (r *Repository) AttachmentsForComments(ctx context.Context, commentIDs []in
 		SELECT id, comment_id, object_key, content_type, size_bytes
 		FROM comment_attachments
 		WHERE comment_id = ANY($1)
-		ORDER BY comment_id, id`, commentIDs)
+		ORDER BY comment_id, position, id`, commentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +172,7 @@ func (r *Repository) AttachmentByID(ctx context.Context, id int64) (AttachmentRo
 	var row AttachmentRow
 	err := r.pool.QueryRow(ctx, `
 		SELECT id, comment_id, object_key, content_type, size_bytes
-		FROM comment_attachments WHERE id=$1`, id).
+		FROM comment_attachments WHERE id=$1 AND comment_id IS NOT NULL`, id).
 		Scan(&row.ID, &row.CommentID, &row.ObjectKey, &row.ContentType, &row.SizeBytes)
 	return row, err
 }

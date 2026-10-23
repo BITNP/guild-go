@@ -460,14 +460,27 @@ E_member(n) = 本节点及所有后代的直接成员（含负责人）∪ E_lea
 
 ### `POST /api/nodes/{id}/comments`
 
-要求节点有效成员或系统管理员 + CSRF。`multipart/form-data`：
+要求节点有效成员或系统管理员 + CSRF。JSON 请求体：
 
 | 字段 | 说明 |
 | --- | --- |
 | `body` | 纯文本，≤ 5000 字，可为空但必须至少有一张图片 |
-| `files` | 0–4 个图片文件，每个 ≤ 5MB |
+| `attachmentIds` | 0–4 个已上传图片 ID，按展示顺序排列 |
 
-允许的图片类型：JPEG、PNG、WebP、GIF。服务端根据文件头检测，拒绝 SVG。成功 201 + `Comment`。
+图片必须由当前用户上传到当前节点，尚未用于其他评论，且上传未超过 24 小时。
+评论与图片关联在同一事务中完成；失败时保留已上传图片，重试发表无需再次上传。成功 201 + `Comment`。
+
+### `POST /api/nodes/{id}/comment-images`
+
+要求节点有效成员或系统管理员 + CSRF。`multipart/form-data` 的 `file` 字段只接收一个文件，≤ 5MB。
+允许 JPEG、PNG、WebP、GIF；服务端根据文件头检测，拒绝 SVG。
+成功 201 + `{"id": 123}`，供发表评论时使用。每张图片独立上传和重试，上传本身不创建评论。
+未发表的图片不开放读取，24 小时后过期；服务启动时及每小时清理过期图片。
+
+### `DELETE /api/comment-images/{id}`
+
+要求上传者 + CSRF。删除自己尚未发表的图片及 S3 对象，返回 204。
+图片不存在、不属于自己或已发表时返回 404。
 
 ### `DELETE /api/comments/{id}`
 

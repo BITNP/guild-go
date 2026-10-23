@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"git.bitnp.net/BITNP/guild-go/internal/apperr"
-	"git.bitnp.net/BITNP/guild-go/internal/comments"
 	"git.bitnp.net/BITNP/guild-go/internal/storage"
 )
 
@@ -51,12 +50,15 @@ func (s *Server) createComment(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
-	body, uploads, err := readCommentForm(w, r)
-	if err != nil {
+	var request struct {
+		Body          string  `json:"body"`
+		AttachmentIDs []int64 `json:"attachmentIds"`
+	}
+	if err := decodeJSON(w, r, &request); err != nil {
 		writeError(w, r, err)
 		return
 	}
-	result, err := s.comments.Create(r.Context(), session, nodeID, body, uploads)
+	result, err := s.comments.Create(r.Context(), session, nodeID, request.Body, request.AttachmentIDs)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -150,39 +152,73 @@ func (s *Server) getAttachment(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, reader)
 }
 
-func readCommentForm(w http.ResponseWriter, r *http.Request) (string, []comments.Upload, error) {
-	maxBytes := int64(storage.MaxAttachments*storage.MaxAttachmentBytes) + (2 << 20)
-	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
+func (s *Server) uploadCommentImage(w http.ResponseWriter, r *http.Request) {
+	session, ok := currentSession(r)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
+		return
+	}
+	nodeID, err := parseID(r, "id")
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	data, err := readCommentImage(w, r)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	id, err := s.comments.UploadImage(r.Context(), session, nodeID, data)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]int64{"id": id})
+}
+
+func (s *Server) deleteCommentUpload(w http.ResponseWriter, r *http.Request) {
+	session, ok := currentSession(r)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
+		return
+	}
+	id, err := parseID(r, "id")
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	if err := s.comments.DeleteUpload(r.Context(), session, id); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func readCommentImage(w http.ResponseWriter, r *http.Request) ([]byte, error) {
+	r.Body = http.MaxBytesReader(w, r.Body, storage.MaxAttachmentBytes+(1<<20))
+	if err := r.ParseMultipartForm(storage.MaxAttachmentBytes); err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			return "", nil, apperr.TooLarge("附件总大小超过限制")
+			return nil, apperr.TooLarge("单张图片不能超过 5MB")
 		}
-		return "", nil, apperr.BadRequest("评论表单格式不正确")
+		return nil, apperr.BadRequest("图片上传格式不正确")
 	}
-	if r.MultipartForm != nil {
-		defer r.MultipartForm.RemoveAll()
+	defer r.MultipartForm.RemoveAll()
+	files := r.MultipartForm.File["file"]
+	if len(files) != 1 || len(r.MultipartForm.File) != 1 {
+		return nil, apperr.BadRequest("每次只能上传一张图片")
 	}
-	body := r.FormValue("body")
-	files := r.MultipartForm.File["files"]
-	if len(files) > storage.MaxAttachments {
-		return "", nil, apperr.BadRequest("每条评论最多 4 张图片")
+	file, err := files[0].Open()
+	if err != nil {
+		return nil, apperr.BadRequest("无法读取上传图片")
 	}
-	uploads := make([]comments.Upload, 0, len(files))
-	for _, header := range files {
-		file, err := header.Open()
-		if err != nil {
-			return "", nil, apperr.BadRequest("无法读取上传图片")
-		}
-		data, err := io.ReadAll(io.LimitReader(file, storage.MaxAttachmentBytes+1))
-		_ = file.Close()
-		if err != nil {
-			return "", nil, apperr.BadRequest("无法读取上传图片")
-		}
-		if len(data) > storage.MaxAttachmentBytes {
-			return "", nil, apperr.TooLarge("单张图片不能超过 5MB")
-		}
-		uploads = append(uploads, comments.Upload{Data: data})
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, storage.MaxAttachmentBytes+1))
+	if err != nil {
+		return nil, apperr.BadRequest("无法读取上传图片")
 	}
-	return body, uploads, nil
+	if len(data) > storage.MaxAttachmentBytes {
+		return nil, apperr.TooLarge("单张图片不能超过 5MB")
+	}
+	return data, nil
 }

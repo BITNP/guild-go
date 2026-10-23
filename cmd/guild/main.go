@@ -80,6 +80,7 @@ func main() {
 
 	go sessions.StartCleanup(ctx)
 	go pending.StartCleanup(ctx)
+	go commentService.StartUploadCleanup(ctx)
 
 	httpServer := &http.Server{
 		Addr:              cfg.Addr,

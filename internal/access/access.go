@@ -240,8 +240,8 @@ WITH RECURSIVE subtree AS (
 )
 SELECT a.object_key
 FROM comment_attachments a
-JOIN comments c ON c.id = a.comment_id
-JOIN subtree s ON s.id = c.node_id
+LEFT JOIN comments c ON c.id = a.comment_id
+JOIN subtree s ON s.id = COALESCE(c.node_id, a.pending_node_id)
 ORDER BY a.id`
 	rows, err := c.pool.Query(ctx, query, nodeID)
 	if err != nil {

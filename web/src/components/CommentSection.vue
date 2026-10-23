@@ -115,7 +115,7 @@ function closeDelete() {
       <span class="text-xs text-faint">最新在前</span>
     </div>
 
-    <CommentComposer v-if="canComment" :node-id="nodeId" @created="onCreated" />
+    <CommentComposer v-if="canComment" :key="nodeId" :node-id="nodeId" @created="onCreated" />
     <p v-else class="rounded-md border border-line bg-surface-2 px-3 py-2 text-xs text-muted">
       如需发表评论，请联系负责人将你添加为成员。
     </p>

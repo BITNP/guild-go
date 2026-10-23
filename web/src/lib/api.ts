@@ -322,17 +322,22 @@ export function fetchComments(
 export function createComment(
   nodeId: number,
   body: string,
-  files: File[],
+  attachmentIds: number[],
 ): Promise<Comment> {
-  const form = new FormData()
-  form.set('body', body)
-  for (const file of files) {
-    form.append('files', file)
-  }
   return apiFetch<Comment>(`/api/nodes/${nodeId}/comments`, {
     method: 'POST',
-    body: form,
+    body: JSON.stringify({ body, attachmentIds }),
   })
+}
+
+export function uploadCommentImage(nodeId: number, file: File): Promise<{ id: number }> {
+  const form = new FormData()
+  form.set('file', file)
+  return apiFetch(`/api/nodes/${nodeId}/comment-images`, { method: 'POST', body: form })
+}
+
+export function deleteCommentUpload(id: number): Promise<void> {
+  return apiFetch(`/api/comment-images/${id}`, { method: 'DELETE' })
 }
 
 export function deleteComment(id: number): Promise<void> {
