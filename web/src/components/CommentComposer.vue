@@ -119,14 +119,22 @@ onBeforeUnmount(clearFiles)
           <img :src="preview" alt="" class="h-16 w-16 object-cover">
         </button>
         <button
+          v-if="!submitting"
           type="button"
           class="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-ink text-white"
           :aria-label="`移除第 ${index + 1} 张图片`"
-          :disabled="submitting"
           @click="removeFile(index)"
         >
           <X class="h-2.5 w-2.5" />
         </button>
+        <div
+          v-else
+          class="absolute inset-0 flex items-center justify-center rounded-md bg-ink/50"
+          role="progressbar"
+          :aria-label="`正在上传第 ${index + 1} 张图片`"
+        >
+          <Loader2 class="h-6 w-6 animate-spin text-white motion-reduce:animate-none" aria-hidden="true" />
+        </div>
       </div>
     </div>
 
