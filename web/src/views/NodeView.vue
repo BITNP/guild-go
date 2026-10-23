@@ -163,7 +163,7 @@ watch(nodeId, () => load())
           <div class="grid min-w-0 flex-1 basis-56 grid-cols-[2rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1">
             <button
               type="button"
-              class="flex h-8 w-8 items-center justify-center rounded-full transition-colors disabled:cursor-default"
+              class="flex h-8 w-8 translate-y-px items-center justify-center rounded-full transition-colors disabled:cursor-default"
               :class="detail.completedAt ? 'text-ok' : 'text-muted enabled:hover:text-ok'"
               :disabled="!canEdit || toggling"
               :aria-label="detail.completedAt ? '标记为未完成' : '标记为已完成'"
