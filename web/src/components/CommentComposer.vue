@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, ref, useId } from 'vue'
-import { ImagePlus, Loader2, Send, X } from '@lucide/vue'
+import { ref, useId } from 'vue'
+import { ImagePlus, Loader2, Send } from '@lucide/vue'
+import ImageUploadPreviews from '@/components/ImageUploadPreviews.vue'
 import { createComment, type Comment } from '@/lib/api'
 import { errorMessage } from '@/lib/utils'
-
-const ImageViewer = defineAsyncComponent(() => import('@/components/ImageViewer.vue'))
 
 const props = defineProps<{
   nodeId: number
@@ -17,12 +16,10 @@ const emit = defineEmits<{
 const inputId = useId()
 const body = ref('')
 const files = ref<File[]>([])
-const previews = ref<string[]>([])
-const imageIndex = ref<number | null>(null)
-const images = computed(() => previews.value.map((src, index) => ({ src, alt: files.value[index]!.name })))
 const fileInput = ref<HTMLInputElement | null>(null)
 const submitting = ref(false)
 const error = ref<string | null>(null)
+const uploadError = ref<string | null>(null)
 
 const MAX_FILES = 4
 const MAX_SIZE = 5 * 1024 * 1024
@@ -32,18 +29,12 @@ function openPicker() {
   fileInput.value?.click()
 }
 
-function clearFiles() {
-  imageIndex.value = null
-  for (const url of previews.value) URL.revokeObjectURL(url)
-  files.value = []
-  previews.value = []
-}
-
 function onFiles(event: Event) {
   const input = event.target as HTMLInputElement
   const selected = [...(input.files ?? [])]
   input.value = ''
   error.value = null
+  uploadError.value = null
   for (const file of selected) {
     if (files.value.length >= MAX_FILES) {
       error.value = '每条评论最多 4 张图片'
@@ -57,20 +48,19 @@ function onFiles(event: Event) {
       error.value = '单张图片不能超过 5MB'
       continue
     }
-    files.value.push(file)
-    previews.value.push(URL.createObjectURL(file))
+    files.value = [...files.value, file]
   }
 }
 
 function removeFile(index: number) {
-  URL.revokeObjectURL(previews.value[index]!)
-  previews.value.splice(index, 1)
-  files.value.splice(index, 1)
+  files.value = files.value.filter((_, i) => i !== index)
+  uploadError.value = null
 }
 
 async function submit() {
   if (submitting.value) return
   error.value = null
+  uploadError.value = null
   if (!body.value.trim() && files.value.length === 0) {
     error.value = '请输入评论或添加图片'
     return
@@ -79,10 +69,11 @@ async function submit() {
   try {
     const comment = await createComment(props.nodeId, body.value, files.value)
     body.value = ''
-    clearFiles()
+    files.value = []
     emit('created', comment)
   } catch (err) {
-    error.value = errorMessage(err)
+    if (files.value.length) uploadError.value = errorMessage(err)
+    else error.value = errorMessage(err)
   } finally {
     submitting.value = false
   }
@@ -94,8 +85,6 @@ function onKeydown(event: KeyboardEvent) {
     void submit()
   }
 }
-
-onBeforeUnmount(clearFiles)
 </script>
 
 <template>
@@ -113,30 +102,7 @@ onBeforeUnmount(clearFiles)
       @keydown="onKeydown"
     />
 
-    <div v-if="previews.length" class="flex flex-wrap gap-2 px-3 pb-2">
-      <div v-for="(preview, index) in previews" :key="preview" class="relative">
-        <button type="button" class="block cursor-zoom-in overflow-hidden rounded-md border border-line hover:border-accent" :aria-label="`预览图片 ${index + 1}`" aria-haspopup="dialog" :disabled="submitting" @click="imageIndex = index">
-          <img :src="preview" alt="" class="h-16 w-16 object-cover">
-        </button>
-        <button
-          v-if="!submitting"
-          type="button"
-          class="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-ink text-white"
-          :aria-label="`移除第 ${index + 1} 张图片`"
-          @click="removeFile(index)"
-        >
-          <X class="h-2.5 w-2.5" />
-        </button>
-        <div
-          v-else
-          class="absolute inset-0 flex items-center justify-center rounded-md bg-ink/50"
-          role="progressbar"
-          :aria-label="`正在上传第 ${index + 1} 张图片`"
-        >
-          <Loader2 class="h-6 w-6 animate-spin text-white motion-reduce:animate-none" aria-hidden="true" />
-        </div>
-      </div>
-    </div>
+    <ImageUploadPreviews :files="files" :uploading="submitting" :error="uploadError" @remove="removeFile" @retry="submit" />
 
     <div class="flex flex-wrap items-center gap-2 border-t border-line px-3 py-2">
       <button type="button" class="btn btn-ghost btn-xs" :disabled="submitting || files.length >= MAX_FILES" @click="openPicker">
@@ -161,6 +127,5 @@ onBeforeUnmount(clearFiles)
 
     <p :id="`${inputId}-hint`" class="border-t border-line px-3 py-2 text-xs leading-5 text-muted">最多 4 张图片，每张不超过 5 MB；支持 JPEG、PNG、WebP、GIF。<span class="ml-1 hidden sm:inline">Ctrl / ⌘ + Enter 发表</span></p>
     <p v-if="error" role="alert" class="border-t border-danger/20 bg-danger-soft px-3 py-1.5 text-xs text-danger">{{ error }}</p>
-    <ImageViewer v-if="imageIndex !== null" :images="images" :index="imageIndex" @close="imageIndex = null" />
   </div>
 </template>
