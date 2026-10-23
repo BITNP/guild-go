@@ -190,6 +190,29 @@ func (s *Service) ToggleReaction(ctx context.Context, commentID int64, subject, 
 	return s.repo.ToggleReaction(ctx, commentID, subject, emoji)
 }
 
+// ReactionUsers lists the people who used an emoji. Every admitted user may view them.
+func (s *Service) ReactionUsers(ctx context.Context, session auth.Session, commentID int64, emoji string) ([]users.Summary, error) {
+	if !ValidEmoji(emoji) {
+		return nil, apperr.BadRequest("不支持的表情")
+	}
+	exists, err := s.repo.Exists(ctx, commentID)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, apperr.NotFound("评论不存在")
+	}
+	subjects, err := s.repo.ReactionSubjects(ctx, commentID, emoji)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]users.Summary, 0, len(subjects))
+	for _, subject := range subjects {
+		result = append(result, s.users.SummaryFor(ctx, session, subject))
+	}
+	return result, nil
+}
+
 // GetAttachment returns the stream for one image.
 func (s *Service) GetAttachment(ctx context.Context, id int64) (io.ReadCloser, string, int64, error) {
 	row, err := s.repo.AttachmentByID(ctx, id)

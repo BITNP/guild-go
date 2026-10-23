@@ -82,6 +82,25 @@ func (s *Server) deleteComment(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) reactionUsers(w http.ResponseWriter, r *http.Request) {
+	session, ok := currentSession(r)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
+		return
+	}
+	id, err := parseID(r, "id")
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	result, err := s.comments.ReactionUsers(r.Context(), session, id, r.PathValue("emoji"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (s *Server) toggleReaction(w http.ResponseWriter, r *http.Request) {
 	session, ok := currentSession(r)
 	if !ok {

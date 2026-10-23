@@ -346,6 +346,13 @@ export function toggleReaction(id: number, emoji: string): Promise<{ reactions: 
   )
 }
 
+export function fetchReactionUsers(id: number, emoji: string): Promise<UserSummary[]> {
+  return apiFetch<UserSummary[]>(
+    `/api/comments/${id}/reactions/${encodeURIComponent(emoji)}`,
+    { cache: 'no-store' },
+  )
+}
+
 export function fetchUsers(): Promise<UserSummary[]> {
   return apiFetch<UserSummary[]>('/api/users', { cache: 'no-store' })
 }

@@ -171,9 +171,21 @@ func (r *Repository) ReactionsForComments(ctx context.Context, commentIDs []int6
 	return result, nil
 }
 
+// ReactionSubjects returns the people who used an emoji, in reaction order.
+func (r *Repository) ReactionSubjects(ctx context.Context, commentID int64, emoji string) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT subject FROM comment_reactions
+		WHERE comment_id=$1 AND emoji=$2
+		ORDER BY created_at, subject`, commentID, emoji)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[string])
+}
+
 // ToggleReaction toggles one emoji for one user and returns the new summary.
 func (r *Repository) ToggleReaction(ctx context.Context, commentID int64, subject, emoji string) ([]Reaction, error) {
-	var result []Reaction
+	result := make([]Reaction, 0)
 	err := database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
 		tag, err := tx.Exec(ctx, `
 			DELETE FROM comment_reactions

@@ -85,6 +85,75 @@ func session(subject string, permissions authz.SitePermissions) auth.Session {
 	return auth.Session{Subject: subject, Name: subject, Permissions: permissions}
 }
 
+func TestReactionUsers(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	root, err := f.nodes.Create(ctx, f.admin, nodes.CreateRequest{Title: "Reactions"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	comment, err := f.comments.Create(ctx, f.admin, root.ID, "First", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := f.comments.Create(ctx, f.admin, root.ID, "Second", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, reaction := range []struct {
+		commentID int64
+		subject   string
+		emoji     string
+	}{
+		{comment.ID, "dave", "thumbs_up"},
+		{comment.ID, "alice", "thumbs_up"},
+		{comment.ID, "carol", "heart"},
+		{other.ID, "bob", "thumbs_up"},
+	} {
+		if _, err := f.comments.ToggleReaction(ctx, reaction.commentID, reaction.subject, reaction.emoji); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f.dave.Name = "Dave Display Name"
+	f.dave.Picture = "https://example.com/dave.png"
+	people, err := f.comments.ReactionUsers(ctx, f.dave, comment.ID, "thumbs_up")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(people) != 2 || people[0].Subject != "dave" || people[1].Subject != "alice" {
+		t.Fatalf("people for first comment's thumbs up: %+v", people)
+	}
+	if people[0].UserName != f.dave.Name || people[0].Avatar == nil || *people[0].Avatar != f.dave.Picture {
+		t.Fatalf("current user's display data: %+v", people[0])
+	}
+	if people[1].UserName != "alice" || people[1].Positions == nil {
+		t.Fatalf("directory fallback: %+v", people[1])
+	}
+	if _, err := f.comments.ToggleReaction(ctx, comment.ID, "dave", "thumbs_up"); err != nil {
+		t.Fatal(err)
+	}
+	people, err = f.comments.ReactionUsers(ctx, f.dave, comment.ID, "thumbs_up")
+	if err != nil || len(people) != 1 || people[0].Subject != "alice" {
+		t.Fatalf("people after cancellation: %+v, %v", people, err)
+	}
+	if _, err := f.comments.ToggleReaction(ctx, comment.ID, "alice", "thumbs_up"); err != nil {
+		t.Fatal(err)
+	}
+	people, err = f.comments.ReactionUsers(ctx, f.dave, comment.ID, "thumbs_up")
+	if err != nil || people == nil || len(people) != 0 {
+		t.Fatalf("empty people must be an array: %+v, %v", people, err)
+	}
+	if _, err := f.comments.ReactionUsers(ctx, f.dave, comment.ID, "unsupported"); apperr.From(err).Status != 400 {
+		t.Fatalf("unsupported emoji: %v", err)
+	}
+	if err := f.comments.Delete(ctx, f.admin, comment.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.comments.ReactionUsers(ctx, f.dave, comment.ID, "thumbs_up"); apperr.From(err).Status != 404 {
+		t.Fatalf("deleted comment: %v", err)
+	}
+}
+
 func TestTreePermissionsCommentsAndAttachments(t *testing.T) {
 	f := setup(t)
 	ctx := context.Background()
@@ -167,7 +236,7 @@ func TestTreePermissionsCommentsAndAttachments(t *testing.T) {
 		t.Fatalf("reaction summary: %+v", reactions)
 	}
 	reactions, err = f.comments.ToggleReaction(ctx, rootComment.ID, "dave", "thumbs_up")
-	if err != nil || len(reactions) != 0 {
+	if err != nil || reactions == nil || len(reactions) != 0 {
 		t.Fatalf("reaction toggle off: %+v %v", reactions, err)
 	}
 

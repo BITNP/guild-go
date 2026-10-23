@@ -473,6 +473,12 @@ E_member(n) = 本节点及所有后代的直接成员（含负责人）∪ E_lea
 
 要求评论作者或系统管理员 + CSRF。删除评论、反应、附件元数据和 S3 对象。返回 204。
 
+### `GET /api/comments/{id}/reactions/{emoji}`
+
+要求登录。任意准入成员都可查看指定表情的人员，按回应时间从早到晚排列。
+返回 `UserSummary[]`（`subject`、`userName`、`avatar`、`positions`），不包含邮箱和权限。
+无人使用该表情时返回 `[]`；评论不存在返回 404，表情不受支持返回 400。
+
 ### `PUT /api/comments/{id}/reactions/{emoji}`
 
 要求登录 + CSRF。任意准入成员都可反应。`emoji` 取值：

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref } from 'vue'
-import { SmilePlus, Trash2 } from '@lucide/vue'
+import { computed, defineAsyncComponent, ref, useId } from 'vue'
+import { ChevronDown, SmilePlus, Trash2 } from '@lucide/vue'
+import ReactionUsers from '@/components/ReactionUsers.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import type { Comment } from '@/lib/api'
 import { formatDateTime, linkify, reactionEmoji, reactionKeys, timeAgo } from '@/lib/utils'
@@ -17,6 +18,9 @@ const emit = defineEmits<{
 }>()
 
 const picker = ref<HTMLDetailsElement | null>(null)
+const peopleId = useId()
+const selectedReaction = ref<string | null>(null)
+let peopleTrigger: HTMLButtonElement | null = null
 const imageIndex = ref<number | null>(null)
 const images = computed(() => props.comment.attachments.map((attachment, index) => ({
   src: attachment.url,
@@ -27,8 +31,19 @@ const activeReactions = computed(() => props.comment.reactions.filter((reaction)
 const primaryPosition = computed(() => props.comment.author.positions[0]?.label ?? '')
 
 function react(emoji: string) {
+  selectedReaction.value = null
   emit('reaction', props.comment, emoji)
   if (picker.value) picker.value.open = false
+}
+
+function togglePeople(emoji: string, event: MouseEvent) {
+  peopleTrigger = event.currentTarget as HTMLButtonElement
+  selectedReaction.value = selectedReaction.value === emoji ? null : emoji
+}
+
+function closePeople() {
+  selectedReaction.value = null
+  peopleTrigger?.focus()
 }
 </script>
 
@@ -94,26 +109,43 @@ function react(emoji: string) {
         </div>
 
         <div class="relative mt-2 flex flex-wrap items-center gap-1">
-          <button
+          <div
             v-for="reaction in activeReactions"
             :key="reaction.emoji"
-            type="button"
-            class="inline-flex h-6 items-center gap-1 rounded-full border px-1.5 text-xs transition-colors"
+            class="inline-flex items-center rounded-full border text-xs"
             :class="reaction.reactedByMe
               ? 'border-accent/30 bg-accent-soft text-accent'
-              : 'border-line bg-surface-2 text-ink-soft hover:border-accent/30'"
-            :title="reactionEmoji[reaction.emoji]?.label"
-            :aria-label="`${reactionEmoji[reaction.emoji]?.label}，${reaction.count} 人`"
-            :aria-pressed="reaction.reactedByMe"
-            @click="emit('reaction', comment, reaction.emoji)"
+              : 'border-line bg-surface-2 text-ink-soft'"
           >
-            <span>{{ reactionEmoji[reaction.emoji]?.symbol ?? reaction.emoji }}</span>
-            <span>{{ reaction.count }}</span>
-          </button>
+            <button
+              type="button"
+              class="flex h-8 min-w-8 items-center justify-center rounded-l-full px-2 hover:bg-accent/10"
+              :title="`${reaction.reactedByMe ? '取消' : ''}${reactionEmoji[reaction.emoji]?.label}`"
+              :aria-label="reactionEmoji[reaction.emoji]?.label"
+              :aria-pressed="reaction.reactedByMe"
+              @click="react(reaction.emoji)"
+            >
+              {{ reactionEmoji[reaction.emoji]?.symbol ?? reaction.emoji }}
+            </button>
+            <button
+              type="button"
+              class="flex h-8 min-w-9 items-center justify-center gap-0.5 rounded-r-full border-l border-current/15 pr-2 pl-1.5 hover:bg-accent/10"
+              :class="selectedReaction === reaction.emoji && 'bg-accent/10'"
+              :title="`查看${reactionEmoji[reaction.emoji]?.label}的人员`"
+              :aria-label="`查看${reactionEmoji[reaction.emoji]?.label}的人员，${reaction.count} 人`"
+              :aria-expanded="selectedReaction === reaction.emoji"
+              :aria-controls="peopleId"
+              @click="togglePeople(reaction.emoji, $event)"
+              @keydown.esc.stop="selectedReaction && closePeople()"
+            >
+              <span>{{ reaction.count }}</span>
+              <ChevronDown class="h-3 w-3" :class="selectedReaction === reaction.emoji && 'rotate-180'" />
+            </button>
+          </div>
 
           <details ref="picker" @keydown.esc.stop="picker && (picker.open = false)" @focusout="!picker?.contains($event.relatedTarget as Node) && picker && (picker.open = false)">
             <summary
-              class="flex h-6 w-6 cursor-pointer list-none items-center justify-center rounded-full border border-line bg-surface text-faint hover:border-accent/30 hover:text-accent"
+              class="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-full border border-line bg-surface text-faint hover:border-accent/30 hover:text-accent"
               title="添加表情"
               aria-label="添加表情"
             >
@@ -134,6 +166,7 @@ function react(emoji: string) {
             </div>
           </details>
         </div>
+        <ReactionUsers v-if="selectedReaction" :id="peopleId" :key="selectedReaction" :comment-id="comment.id" :emoji="selectedReaction" @close="closePeople" />
       </div>
     </div>
     <ImageViewer v-if="imageIndex !== null" :images="images" :index="imageIndex" @close="imageIndex = null" />
