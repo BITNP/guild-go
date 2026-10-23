@@ -10,8 +10,8 @@
   --color-line-strong: #c8d1dc;
   --color-ink: #17202b;
   --color-ink-soft: #3c495a;
-  --color-muted: #6b7788;
-  --color-faint: #97a2b1;
+  --color-muted: #5e6b7b;
+  --color-faint: #687587;
   --color-accent: #1f5fbf;
   --color-accent-hover: #184e9e;
   --color-accent-soft: #e8f0ff;
@@ -54,6 +54,39 @@
     cursor: pointer;
   }
 
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  :where(button, a, summary, input, textarea, select, [tabindex]):focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+  }
+
+  :where(h1, h2, h3, p, dd) {
+    overflow-wrap: anywhere;
+  }
+
+  summary::-webkit-details-marker {
+    display: none;
+  }
+
+  dialog::backdrop {
+    background: rgb(23 32 43 / 35%);
+  }
+
+  body:has(dialog[open]) {
+    overflow: hidden;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation: none !important;
+      transition: none !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   ::selection {
     background: #cfe0ff;
   }
@@ -75,12 +108,16 @@
 
 @layer components {
   .btn {
-    @apply inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-line bg-surface px-2.5 text-[13px] font-medium text-ink-soft shadow-sm transition-colors;
+    @apply inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-line-strong bg-surface px-2.5 py-1 text-[13px] font-medium leading-5 text-ink-soft transition-colors;
     @apply hover:bg-surface-2 disabled:pointer-events-none disabled:opacity-50;
   }
 
   .btn-primary {
     @apply border-accent bg-accent text-white hover:bg-accent-hover hover:border-accent-hover;
+  }
+
+  .btn > svg, .icon-btn > svg {
+    flex-shrink: 0;
   }
 
   .btn-danger {
@@ -92,25 +129,25 @@
   }
 
   .btn-xs {
-    @apply h-7 px-2 text-xs;
+    @apply min-h-7 px-2 text-xs;
   }
 
   .icon-btn {
-    @apply inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:bg-surface-3 hover:text-ink;
+    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:bg-surface-3 hover:text-ink disabled:pointer-events-none disabled:opacity-40;
   }
 
   .input {
-    @apply h-8 w-full rounded-md border border-line bg-surface px-2.5 text-[13px] text-ink outline-none transition;
+    @apply h-9 min-w-0 w-full rounded-md border border-line-strong bg-surface px-2.5 text-[13px] text-ink outline-none transition-colors;
     @apply placeholder:text-faint focus:border-accent focus:ring-2 focus:ring-accent/15;
   }
 
   .textarea {
-    @apply w-full resize-y rounded-md border border-line bg-surface px-2.5 py-2 text-[13px] leading-6 text-ink outline-none transition;
+    @apply w-full resize-y rounded-md border border-line-strong bg-surface px-2.5 py-2 text-[13px] leading-6 text-ink outline-none transition-colors;
     @apply placeholder:text-faint focus:border-accent focus:ring-2 focus:ring-accent/15;
   }
 
   .select {
-    @apply h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-ink-soft outline-none focus:border-accent;
+    @apply h-9 min-w-0 rounded-md border border-line-strong bg-surface px-2 text-[13px] text-ink-soft outline-none focus:border-accent focus:ring-2 focus:ring-accent/15;
   }
 
   .panel {
@@ -118,11 +155,12 @@
   }
 
   .section-label {
-    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-muted;
+    @apply text-[13px] font-semibold text-ink;
   }
 
   .tag {
-    @apply inline-flex items-center rounded border border-line bg-surface-2 px-1.5 py-0.5 text-[11px] leading-4 text-ink-soft;
+    @apply inline-flex max-w-full items-center break-words rounded border border-line bg-surface-2 px-1.5 py-0.5 text-xs leading-4 text-ink-soft;
+    overflow-wrap: anywhere;
   }
 
   .tag-accent {
@@ -150,10 +188,24 @@
   }
 
   .rail-title {
-    @apply text-[12px] font-semibold text-ink;
+    @apply text-[13px] font-semibold text-ink;
   }
 
   .link {
     @apply text-accent underline decoration-accent/30 underline-offset-2 hover:decoration-accent;
+  }
+
+  .status-icon {
+    @apply flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted;
+  }
+
+  @media (pointer: coarse) {
+    .btn, .icon-btn {
+      min-height: 40px;
+    }
+
+    .icon-btn {
+      min-width: 40px;
+    }
   }
 }

@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowRight, ShieldCheck } from '@lucide/vue'
+import { ArrowRight, ListTree, MessageSquare, Users } from '@lucide/vue'
 import { useAuth } from '@/composables/useAuth'
 import { safeReturnTo } from '@/lib/utils'
 
 const route = useRoute()
 const router = useRouter()
-const { state, refresh, login } = useAuth()
+const { state, error: connectionError, refresh, login } = useAuth()
 
 const returnTo = computed(() => safeReturnTo(route.query.redirect))
 const errorMessage = computed(() => {
@@ -16,15 +16,15 @@ const errorMessage = computed(() => {
     return '登录服务暂时不可用，请稍后重试。'
   }
   if (code === 'not_member') {
-    return '这个账号没有公会访问权限。如果你应该拥有权限，请联系管理员检查 Keycloak 角色。'
+    return '此账号暂无公会访问权限，请联系部门管理员开通。'
   }
   if (code === 'no_roles') {
-    return '身份提供方没有返回 realm 角色。请联系管理员检查 roles scope。'
+    return '未能获取账号权限，请联系管理员检查登录配置。'
   }
   if (code) {
     return '登录已取消或无法完成，请重试。'
   }
-  return ''
+  return connectionError.value ? '无法连接登录服务，请稍后重试。' : ''
 })
 
 onMounted(async () => {
@@ -38,14 +38,26 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex min-h-full items-center justify-center bg-canvas p-5">
-    <div class="w-full max-w-sm">
-      <div class="panel px-6 py-7">
-        <div class="flex flex-col items-center text-center">
-          <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-accent text-lg font-bold text-white shadow-sm">先</div>
-          <h1 class="mt-3 text-lg font-semibold tracking-tight text-ink">公会</h1>
-          <p class="mt-1 text-[12px] text-muted">用 BITNP 统一身份登录，继续管理节点与讨论。</p>
+  <main class="flex min-h-full items-center justify-center bg-canvas p-4 sm:p-8">
+    <div class="panel grid w-full max-w-3xl overflow-hidden sm:grid-cols-2">
+      <section class="border-b border-line bg-accent-soft/50 p-6 sm:border-b-0 sm:border-r sm:p-8" aria-labelledby="product-name">
+        <div class="flex items-center gap-3">
+          <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-accent text-xl font-bold text-white" aria-hidden="true">公</div>
+          <div>
+            <h1 id="product-name" class="text-2xl font-semibold tracking-tight text-ink">公会</h1>
+            <p class="mt-0.5 text-xs text-muted">Guild of Pioneers</p>
+          </div>
         </div>
+        <p class="mt-5 text-sm text-ink-soft">网协的工作协作空间</p>
+        <ul class="mt-4 flex flex-col gap-3 text-[13px] text-ink-soft">
+          <li class="flex items-center gap-2.5"><ListTree class="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />拆分节点，安排工作</li>
+          <li class="flex items-center gap-2.5"><Users class="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />分配负责人和成员</li>
+          <li class="flex items-center gap-2.5"><MessageSquare class="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />在评论中同步进展</li>
+        </ul>
+      </section>
+
+      <section class="flex flex-col justify-center p-6 sm:p-8" aria-labelledby="login-title">
+        <h2 id="login-title" class="text-lg font-semibold text-ink">登录公会</h2>
 
         <p
           v-if="errorMessage"
@@ -57,20 +69,15 @@ onMounted(async () => {
 
         <button
           type="button"
-          class="btn btn-primary mt-5 h-9 w-full"
+          class="btn btn-primary mt-5 min-h-11 w-full text-sm"
           :disabled="state === 'active'"
           @click="login(returnTo)"
         >
-          使用 BITNP 登录
+          使用网协通行证登录
           <ArrowRight class="h-4 w-4" />
         </button>
-
-        <p class="mt-4 flex items-start gap-1.5 text-[10px] leading-5 text-faint">
-          <ShieldCheck class="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>访问权限来自 Keycloak 的 permission-* realm 角色；职务仅用于展示。登录会话保存在本站内存中。</span>
-        </p>
-      </div>
-      <p class="mt-3 text-center text-[10px] text-faint">Guild of Pioneers · guild-go</p>
+        <p class="mt-3 text-xs leading-5 text-muted">将跳转至网协通行证完成登录。</p>
+      </section>
     </div>
-  </div>
+  </main>
 </template>

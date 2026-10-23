@@ -1,79 +1,66 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { X } from '@lucide/vue'
 
 const props = withDefaults(defineProps<{
   open: boolean
   title: string
   wide?: boolean
-  zClass?: string
+  busy?: boolean
+  side?: 'left' | 'right'
 }>(), {
   wide: false,
-  zClass: 'z-50',
+  busy: false,
 })
 
 const emit = defineEmits<{
   close: []
 }>()
 
-const panel = ref<HTMLElement | null>(null)
+const panel = ref<HTMLDialogElement | null>(null)
+const titleId = useId()
 
 function close() {
-  emit('close')
+  if (!props.busy) emit('close')
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') close()
+function syncOpen() {
+  if (props.open && !panel.value?.open) panel.value?.showModal()
+  else if (!props.open && panel.value?.open) panel.value.close()
 }
 
-watch(() => props.open, async (open) => {
-  if (open) {
-    document.body.classList.add('overflow-hidden')
-    window.addEventListener('keydown', onKeydown)
-    await nextTick()
-    panel.value?.focus()
-  } else {
-    document.body.classList.remove('overflow-hidden')
-    window.removeEventListener('keydown', onKeydown)
-  }
-}, { immediate: true })
-
-onBeforeUnmount(() => {
-  document.body.classList.remove('overflow-hidden')
-  window.removeEventListener('keydown', onKeydown)
-})
+watch(() => props.open, syncOpen, { flush: 'post' })
+onMounted(syncOpen)
+onBeforeUnmount(() => panel.value?.close())
 </script>
 
 <template>
   <Teleport to="body">
-    <div
-      v-if="open"
-      class="fixed inset-0 flex items-start justify-center overflow-y-auto bg-ink/35 p-4 backdrop-blur-[1px] sm:p-8"
-      :class="zClass"
+    <dialog
+      ref="panel"
+      :aria-labelledby="titleId"
+      :aria-busy="busy"
+      class="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] flex-col overflow-hidden rounded-lg border border-line bg-surface p-0 text-ink shadow-lg open:flex"
+      :class="side
+        ? ['h-dvh max-h-dvh max-w-80 rounded-none', side === 'left' ? 'mr-auto ml-0' : 'mr-0 ml-auto']
+        : wide ? 'max-w-3xl' : 'max-w-xl'"
+      @cancel.prevent="close"
       @click.self="close"
     >
-      <section
-        ref="panel"
-        tabindex="-1"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="title"
-        class="my-auto flex w-full flex-col rounded-lg border border-line bg-surface shadow-xl outline-none"
-        :class="wide ? 'max-w-3xl' : 'max-w-xl'"
-      >
-        <header class="flex items-center justify-between gap-4 border-b border-line px-4 py-3">
-          <h2 class="text-sm font-semibold text-ink">{{ title }}</h2>
-          <button type="button" class="icon-btn" aria-label="关闭" @click="close">
+      <template v-if="open">
+        <header class="flex shrink-0 items-center justify-between gap-3 border-b border-line px-4 py-3">
+          <h2 :id="titleId" class="min-w-0 text-sm font-semibold">{{ title }}</h2>
+          <button type="button" class="icon-btn" :disabled="busy" aria-label="关闭" @click="close">
             <X class="h-4 w-4" />
           </button>
         </header>
-        <div class="max-h-[calc(100vh-10rem)] overflow-y-auto px-4 py-4">
+        <div class="min-h-0 overflow-y-auto" :class="side ? 'flex-1' : 'px-4 py-4'">
           <slot />
         </div>
-        <footer v-if="$slots.footer" class="flex items-center justify-end gap-2 border-t border-line bg-surface-2 px-4 py-3">
+        <footer v-if="$slots.footer" class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-line px-4 py-3">
           <slot name="footer" />
         </footer>
-      </section>
-    </div>
+      </template>
+    </dialog>
   </Teleport>
 </template>

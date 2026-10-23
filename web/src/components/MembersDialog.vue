@@ -35,7 +35,9 @@ const saving = ref(false)
 const error = ref<string | null>(null)
 const pickerGroup = ref<'leader' | 'member' | null>(null)
 
-const userMap = computed(() => new Map(users.value.map((user) => [user.subject, user])))
+const userMap = computed(() => new Map(
+  [...props.node.directLeaders, ...props.node.directMembers, ...users.value].map((user) => [user.subject, user]),
+))
 const pickerOpen = computed({
   get: () => pickerGroup.value !== null,
   set: (value: boolean) => { if (!value) pickerGroup.value = null },
@@ -55,6 +57,8 @@ function userFor(subject: string): UserSummary {
 
 watch(() => props.open, async (open) => {
   if (!open) return
+  pickerGroup.value = null
+  effective.value = null
   tab.value = 'direct'
   error.value = null
   leaders.value = props.node.directLeaders.map((user) => user.subject)
@@ -85,6 +89,7 @@ function remove(group: 'leader' | 'member', subject: string) {
 }
 
 async function save() {
+  if (saving.value) return
   error.value = null
   if (leaders.value.length === 0) {
     error.value = '节点至少需要一个直接负责人'
@@ -104,29 +109,31 @@ async function save() {
 </script>
 
 <template>
-  <BaseModal :open="open" title="节点成员" wide @close="emit('close')">
+  <BaseModal :open="open" title="管理成员" :busy="saving" wide @close="emit('close')">
     <div class="flex flex-col gap-3">
-      <div class="flex items-center gap-1 rounded-md border border-line bg-surface-2 p-0.5 text-[11px]">
+      <div class="flex items-center gap-1 rounded-md border border-line bg-surface-2 p-0.5 text-xs">
         <button
           type="button"
           class="flex-1 rounded px-2 py-1"
-          :class="tab === 'direct' ? 'bg-surface text-ink shadow-sm' : 'text-muted'"
+          :class="tab === 'direct' ? 'bg-accent-soft text-accent font-medium' : 'text-muted'"
+          :aria-pressed="tab === 'direct'"
           @click="tab = 'direct'"
         >
-          直接成员（可编辑）
+          直接成员
         </button>
         <button
           type="button"
           class="flex-1 rounded px-2 py-1"
-          :class="tab === 'inherited' ? 'bg-surface text-ink shadow-sm' : 'text-muted'"
+          :class="tab === 'inherited' ? 'bg-accent-soft text-accent font-medium' : 'text-muted'"
+          :aria-pressed="tab === 'inherited'"
           @click="tab = 'inherited'"
         >
-          有效成员（含继承）
+          全部成员（含继承）
         </button>
       </div>
 
-      <p class="rounded-md border border-line bg-surface-2 px-3 py-2 text-[11px] leading-5 text-muted">
-        负责人管理权向下继承，成员身份向上继承。只保存直接关系，继承关系实时计算。
+      <p class="rounded-md border border-line bg-surface-2 px-3 py-2 text-xs leading-5 text-muted">
+        负责人可管理此节点及下级节点。成员可在此节点及上级节点发表评论。
       </p>
 
       <template v-if="tab === 'direct'">
@@ -134,21 +141,21 @@ async function save() {
 
         <section class="rounded-md border border-line">
           <header class="flex items-center justify-between border-b border-line px-2.5 py-1.5">
-            <span class="text-[11px] font-semibold text-muted">直接负责人</span>
-            <button type="button" class="btn btn-xs" @click="pickerGroup = 'leader'">
+            <span class="text-xs font-semibold text-muted">直接负责人</span>
+            <button type="button" class="btn btn-ghost btn-xs" :disabled="loading || saving || users.length === 0" @click="pickerGroup = 'leader'">
               <UserPlus class="h-3.5 w-3.5" /> 添加
             </button>
           </header>
           <div class="flex min-h-10 flex-wrap gap-1.5 p-2">
-            <span v-if="leaders.length === 0" class="text-[11px] text-faint">至少需要保留一个负责人</span>
+            <span v-if="leaders.length === 0" class="text-xs text-faint">至少需要保留一个负责人</span>
             <span
               v-for="subject in leaders"
               :key="subject"
-              class="inline-flex items-center gap-1 rounded border border-line bg-surface-2 py-0.5 pl-0.5 pr-1 text-[11px]"
+              class="inline-flex items-center gap-1 rounded border border-line bg-surface-2 py-0.5 pl-0.5 pr-1 text-xs"
             >
               <UserAvatar :name="userFor(subject).userName" :avatar="userFor(subject).avatar" size-class="h-4 w-4 text-[8px]" />
               {{ userFor(subject).userName }}
-              <button type="button" class="text-faint hover:text-danger" @click="remove('leader', subject)">
+              <button type="button" class="icon-btn h-6 w-6 hover:text-danger" :disabled="saving" :aria-label="`移除 ${userFor(subject).userName}`" @click="remove('leader', subject)">
                 <X class="h-3 w-3" />
               </button>
             </span>
@@ -157,21 +164,21 @@ async function save() {
 
         <section class="rounded-md border border-line">
           <header class="flex items-center justify-between border-b border-line px-2.5 py-1.5">
-            <span class="text-[11px] font-semibold text-muted">直接成员</span>
-            <button type="button" class="btn btn-xs" @click="pickerGroup = 'member'">
+            <span class="text-xs font-semibold text-muted">直接成员</span>
+            <button type="button" class="btn btn-ghost btn-xs" :disabled="loading || saving || users.length === 0" @click="pickerGroup = 'member'">
               <UserPlus class="h-3.5 w-3.5" /> 添加
             </button>
           </header>
           <div class="flex min-h-10 flex-wrap gap-1.5 p-2">
-            <span v-if="members.length === 0" class="text-[11px] text-faint">暂无直接成员</span>
+            <span v-if="members.length === 0" class="text-xs text-faint">暂无直接成员</span>
             <span
               v-for="subject in members"
               :key="subject"
-              class="inline-flex items-center gap-1 rounded border border-line bg-surface-2 py-0.5 pl-0.5 pr-1 text-[11px]"
+              class="inline-flex items-center gap-1 rounded border border-line bg-surface-2 py-0.5 pl-0.5 pr-1 text-xs"
             >
               <UserAvatar :name="userFor(subject).userName" :avatar="userFor(subject).avatar" size-class="h-4 w-4 text-[8px]" />
               {{ userFor(subject).userName }}
-              <button type="button" class="text-faint hover:text-danger" @click="remove('member', subject)">
+              <button type="button" class="icon-btn h-6 w-6 hover:text-danger" :disabled="saving" :aria-label="`移除 ${userFor(subject).userName}`" @click="remove('member', subject)">
                 <X class="h-3 w-3" />
               </button>
             </span>
@@ -180,16 +187,16 @@ async function save() {
       </template>
 
       <template v-else>
-        <p v-if="loadingEffective" class="flex items-center gap-1 text-xs text-muted"><Loader2 class="h-3.5 w-3.5 animate-spin" /> 正在计算继承关系…</p>
+        <p v-if="loadingEffective" class="flex items-center gap-1 text-xs text-muted"><Loader2 class="h-3.5 w-3.5 animate-spin" /> 正在加载成员…</p>
         <div v-else-if="effective" class="grid gap-3 sm:grid-cols-2">
           <section class="rounded-md border border-line">
-            <header class="border-b border-line px-2.5 py-1.5 text-[11px] font-semibold text-muted">有效负责人</header>
+            <header class="border-b border-line px-2.5 py-1.5 text-xs font-semibold text-muted">全部负责人</header>
             <div class="divide-y divide-line">
               <div v-for="entry in effective.leaders" :key="entry.user.subject" class="flex items-start gap-2 px-2.5 py-1.5">
                 <UserAvatar :name="entry.user.userName" :avatar="entry.user.avatar" size-class="h-5 w-5 text-[8px]" />
                 <div class="min-w-0">
                   <p class="truncate text-[12px] text-ink">{{ entry.user.userName }}</p>
-                  <p class="text-[10px] text-faint">
+                  <p class="text-xs text-faint">
                     {{ entry.direct ? '直接负责人' : `继承自 ${entry.sources.map((source) => source.title).join('、')}` }}
                   </p>
                 </div>
@@ -197,13 +204,13 @@ async function save() {
             </div>
           </section>
           <section class="rounded-md border border-line">
-            <header class="border-b border-line px-2.5 py-1.5 text-[11px] font-semibold text-muted">有效成员</header>
+            <header class="border-b border-line px-2.5 py-1.5 text-xs font-semibold text-muted">全部成员</header>
             <div class="max-h-64 divide-y divide-line overflow-y-auto">
               <div v-for="entry in effective.members" :key="entry.user.subject" class="flex items-start gap-2 px-2.5 py-1.5">
                 <UserAvatar :name="entry.user.userName" :avatar="entry.user.avatar" size-class="h-5 w-5 text-[8px]" />
                 <div class="min-w-0">
                   <p class="truncate text-[12px] text-ink">{{ entry.user.userName }}</p>
-                  <p class="text-[10px] text-faint">
+                  <p class="text-xs text-faint">
                     {{ entry.direct ? '直接成员' : `继承自 ${entry.sources.map((source) => source.title).join('、')}` }}
                   </p>
                 </div>
@@ -211,14 +218,14 @@ async function save() {
             </div>
           </section>
         </div>
-        <p class="text-[11px] text-faint">系统管理员可评论节点，但不计入有效成员。</p>
+        <p class="text-xs text-muted">这里显示已保存的成员关系，包含上级节点负责人和下级节点成员。</p>
       </template>
 
-      <p v-if="error" class="rounded-md border border-danger/20 bg-danger-soft px-3 py-1.5 text-[11px] text-danger">{{ error }}</p>
+      <p v-if="error" class="rounded-md border border-danger/20 bg-danger-soft px-3 py-1.5 text-xs text-danger" role="alert">{{ error }}</p>
     </div>
 
     <template #footer>
-      <button type="button" class="btn" :disabled="saving" @click="emit('close')">关闭</button>
+      <button type="button" class="btn" :disabled="saving" @click="emit('close')">{{ tab === 'direct' ? '取消' : '关闭' }}</button>
       <button v-if="tab === 'direct'" type="button" class="btn btn-primary" :disabled="saving" @click="save">
         <Loader2 v-if="saving" class="h-3.5 w-3.5 animate-spin" />
         {{ saving ? '保存中…' : '保存成员' }}

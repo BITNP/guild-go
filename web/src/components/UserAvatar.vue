@@ -8,7 +8,7 @@ const props = withDefaults(defineProps<{
   sizeClass?: string
 }>(), {
   avatar: null,
-  sizeClass: 'h-6 w-6 text-[10px]',
+  sizeClass: 'h-6 w-6 text-xs',
 })
 
 const failed = ref(false)

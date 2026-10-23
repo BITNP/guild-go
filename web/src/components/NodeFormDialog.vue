@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, useId, watch } from 'vue'
 import { Loader2, UserPlus, X } from '@lucide/vue'
 import BaseModal from '@/components/BaseModal.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
@@ -35,6 +35,7 @@ const emit = defineEmits<{
   saved: [node: NodeDetail]
 }>()
 
+const formId = useId()
 const title = ref('')
 const description = ref('')
 const dueLocal = ref('')
@@ -56,7 +57,7 @@ const dialogTitle = computed(() => {
 })
 const contextText = computed(() => {
   if (!isCreate.value) return props.node?.breadcrumb.map((item) => item.title).join(' / ') ?? ''
-  if (props.parentId == null) return '根节点只有 manager 可以创建'
+  if (props.parentId == null) return ''
   return props.parentTitle ? `父节点：${props.parentTitle}` : '创建为当前节点的子节点'
 })
 const pickerOpen = computed({
@@ -133,13 +134,14 @@ function removeSubject(group: 'leader' | 'member', subject: string) {
 }
 
 async function submit() {
+  if (saving.value) return
   formError.value = null
   const cleanTitle = title.value.trim()
   if (!cleanTitle) {
     formError.value = '标题不能为空'
     return
   }
-  if (cleanTitle.length > 200) {
+  if ([...cleanTitle].length > 200) {
     formError.value = '标题不能超过 200 字'
     return
   }
@@ -177,58 +179,58 @@ async function submit() {
 </script>
 
 <template>
-  <BaseModal :open="open" :title="dialogTitle" wide @close="close">
-    <form class="flex flex-col gap-4" @submit.prevent="submit">
-      <p class="rounded-md border border-line bg-surface-2 px-3 py-2 text-xs text-muted">
+  <BaseModal :open="open" :title="dialogTitle" :busy="saving" wide @close="close">
+    <form :id="formId" class="flex flex-col gap-4" @submit.prevent="submit">
+      <p v-if="contextText" class="text-xs text-muted">
         {{ contextText }}
       </p>
 
       <label class="flex flex-col gap-1">
-        <span class="text-[11px] font-medium text-muted">标题</span>
-        <input v-model="title" class="input" maxlength="200" placeholder="例如：秋季招新" autofocus>
+        <span class="text-[13px] font-medium">标题 <span class="text-xs font-normal text-muted">（必填，最多 200 字）</span></span>
+        <input v-model="title" class="input" required placeholder="例如：秋季招新" autofocus>
       </label>
 
       <label class="flex flex-col gap-1">
-        <span class="text-[11px] font-medium text-muted">描述</span>
-        <textarea v-model="description" class="textarea" rows="5" placeholder="目标、背景、验收标准…" />
+        <span class="text-xs font-medium text-muted">描述</span>
+        <textarea v-model="description" class="textarea" rows="4" placeholder="说明需要完成的工作" />
       </label>
 
       <div class="grid gap-3 sm:grid-cols-2">
         <label class="flex flex-col gap-1">
-          <span class="text-[11px] font-medium text-muted">预期完成时间</span>
+          <span class="text-xs font-medium text-muted">预期完成时间</span>
           <input v-model="dueLocal" type="datetime-local" class="input">
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-[11px] font-medium text-muted">标签</span>
-          <input v-model="tagsText" class="input" placeholder="用逗号分隔，最多 10 个">
+          <span class="text-xs font-medium text-muted">标签</span>
+          <input v-model="tagsText" class="input" placeholder="例如：招新，宣传">
+          <span class="text-xs text-muted">用逗号分隔，最多 10 个，每个不超过 32 字</span>
         </label>
       </div>
 
-      <label v-if="!isCreate" class="flex items-center gap-2 rounded-md border border-line bg-surface-2 px-3 py-2 text-[13px]">
+      <label v-if="!isCreate" class="flex items-center gap-2 text-[13px]">
         <input v-model="completed" type="checkbox" class="h-4 w-4 accent-[var(--color-ok)]">
         <span>标记为已完成</span>
-        <span class="ml-auto text-[11px] text-muted">完成时自动记录实际完成时间</span>
       </label>
 
       <template v-if="isCreate">
         <div class="grid gap-3 sm:grid-cols-2">
           <section class="rounded-md border border-line">
             <header class="flex items-center justify-between border-b border-line px-2.5 py-1.5">
-              <span class="text-[11px] font-semibold text-muted">负责人</span>
-              <button type="button" class="btn btn-xs" @click="pickerGroup = 'leader'">
+              <span class="text-xs font-semibold text-muted">负责人</span>
+              <button type="button" class="btn btn-ghost btn-xs" :disabled="usersLoading || !!usersError" @click="pickerGroup = 'leader'">
                 <UserPlus class="h-3.5 w-3.5" /> 选择
               </button>
             </header>
             <div class="flex min-h-10 flex-wrap items-center gap-1.5 p-2">
-              <span v-if="leaders.length === 0" class="text-[11px] text-faint">未指定时创建者成为负责人</span>
+              <span v-if="leaders.length === 0" class="text-xs text-faint">不选择时，由你担任负责人</span>
               <span
                 v-for="subject in leaders"
                 :key="subject"
-                class="inline-flex items-center gap-1 rounded border border-line bg-surface-2 py-0.5 pl-0.5 pr-1 text-[11px]"
+                class="inline-flex items-center gap-1 rounded border border-line bg-surface-2 py-0.5 pl-0.5 pr-1 text-xs"
               >
                 <UserAvatar :name="userFor(subject).userName" :avatar="userFor(subject).avatar" size-class="h-4 w-4 text-[8px]" />
                 {{ userFor(subject).userName }}
-                <button type="button" class="text-faint hover:text-danger" @click="removeSubject('leader', subject)">
+                <button type="button" class="icon-btn h-6 w-6 hover:text-danger" :aria-label="`移除 ${userFor(subject).userName}`" @click="removeSubject('leader', subject)">
                   <X class="h-3 w-3" />
                 </button>
               </span>
@@ -237,38 +239,38 @@ async function submit() {
 
           <section class="rounded-md border border-line">
             <header class="flex items-center justify-between border-b border-line px-2.5 py-1.5">
-              <span class="text-[11px] font-semibold text-muted">成员</span>
-              <button type="button" class="btn btn-xs" @click="pickerGroup = 'member'">
+              <span class="text-xs font-semibold text-muted">成员</span>
+              <button type="button" class="btn btn-ghost btn-xs" :disabled="usersLoading || !!usersError" @click="pickerGroup = 'member'">
                 <UserPlus class="h-3.5 w-3.5" /> 选择
               </button>
             </header>
             <div class="flex min-h-10 flex-wrap items-center gap-1.5 p-2">
-              <span v-if="members.length === 0" class="text-[11px] text-faint">成员可查看并评论，不能编辑</span>
+              <span v-if="members.length === 0" class="text-xs text-faint">暂无成员</span>
               <span
                 v-for="subject in members"
                 :key="subject"
-                class="inline-flex items-center gap-1 rounded border border-line bg-surface-2 py-0.5 pl-0.5 pr-1 text-[11px]"
+                class="inline-flex items-center gap-1 rounded border border-line bg-surface-2 py-0.5 pl-0.5 pr-1 text-xs"
               >
                 <UserAvatar :name="userFor(subject).userName" :avatar="userFor(subject).avatar" size-class="h-4 w-4 text-[8px]" />
                 {{ userFor(subject).userName }}
-                <button type="button" class="text-faint hover:text-danger" @click="removeSubject('member', subject)">
+                <button type="button" class="icon-btn h-6 w-6 hover:text-danger" :aria-label="`移除 ${userFor(subject).userName}`" @click="removeSubject('member', subject)">
                   <X class="h-3 w-3" />
                 </button>
               </span>
             </div>
           </section>
         </div>
-        <p v-if="usersLoading" class="flex items-center gap-1 text-[11px] text-muted">
+        <p v-if="usersLoading" class="flex items-center gap-1 text-xs text-muted">
           <Loader2 class="h-3 w-3 animate-spin" /> 正在加载用户…
         </p>
-        <p v-else-if="usersError" class="text-[11px] text-danger">{{ usersError }}</p>
-        <p v-else class="text-[11px] text-faint">
-          成员/负责人继承规则：子节点成员自动成为祖先成员；祖先负责人自动管理后代。
+        <p v-else-if="usersError" class="text-xs text-danger">{{ usersError }}</p>
+        <p v-else class="text-xs text-faint">
+          负责人可管理此节点及下级节点。成员可在此节点及上级节点发表评论。
         </p>
       </template>
 
-      <p v-else class="text-[11px] text-faint">
-        负责人和成员在节点页的“成员”对话框中维护。
+      <p v-else class="text-xs text-faint">
+        如需调整负责人或成员，请在节点页选择“管理成员”。
       </p>
 
       <p v-if="formError" class="rounded-md border border-danger/20 bg-danger-soft px-3 py-2 text-xs text-danger" role="alert">
@@ -278,9 +280,9 @@ async function submit() {
 
     <template #footer>
       <button type="button" class="btn" :disabled="saving" @click="close">取消</button>
-      <button type="button" class="btn btn-primary" :disabled="saving" @click="submit">
+      <button type="submit" :form="formId" class="btn btn-primary" :disabled="saving">
         <Loader2 v-if="saving" class="h-3.5 w-3.5 animate-spin" />
-        {{ saving ? '保存中…' : (isCreate ? '创建' : '保存') }}
+        {{ saving ? '保存中…' : (isCreate ? '创建节点' : '保存修改') }}
       </button>
     </template>
   </BaseModal>

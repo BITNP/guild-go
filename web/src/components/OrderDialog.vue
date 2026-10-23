@@ -38,6 +38,7 @@ function move(index: number, direction: -1 | 1) {
 }
 
 async function save() {
+  if (saving.value) return
   saving.value = true
   error.value = null
   try {
@@ -53,31 +54,32 @@ async function save() {
 </script>
 
 <template>
-  <BaseModal :open="open" :title="parentId == null ? '调整根节点顺序' : `调整「${parentTitle}」的子节点顺序`" @close="emit('close')">
+  <BaseModal :open="open" :busy="saving" :title="parentId == null ? '调整根节点顺序' : '调整子节点顺序'" @close="emit('close')">
     <div class="flex flex-col gap-2">
-      <p class="text-[11px] text-muted">顺序只影响同一父节点下的直接子节点；点击箭头调整，保存后立即生效。</p>
+      <p v-if="parentTitle" class="text-xs text-muted">父节点：{{ parentTitle }}</p>
       <div class="overflow-hidden rounded-md border border-line">
         <div
           v-for="(item, index) in items"
           :key="item.id"
           class="flex items-center gap-2 border-b border-line px-2.5 py-1.5 last:border-b-0"
         >
-          <span class="w-5 text-right text-[10px] text-faint">{{ index + 1 }}</span>
-          <span class="min-w-0 flex-1 truncate text-[12px] text-ink">{{ item.title }}</span>
-          <button type="button" class="icon-btn" :disabled="index === 0" aria-label="上移" @click="move(index, -1)">
+          <span class="w-5 text-right text-xs text-faint">{{ index + 1 }}</span>
+          <span class="min-w-0 flex-1 break-words text-[13px] text-ink">{{ item.title }}</span>
+          <button type="button" class="icon-btn" :disabled="saving || index === 0" :aria-label="`上移 ${item.title}`" @click="move(index, -1)">
             <ArrowUp class="h-3.5 w-3.5" />
           </button>
-          <button type="button" class="icon-btn" :disabled="index === items.length - 1" aria-label="下移" @click="move(index, 1)">
+          <button type="button" class="icon-btn" :disabled="saving || index === items.length - 1" :aria-label="`下移 ${item.title}`" @click="move(index, 1)">
             <ArrowDown class="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
-      <p v-if="error" class="text-[11px] text-danger">{{ error }}</p>
+      <p v-if="items.length === 0" class="empty-state">暂无可排序的节点</p>
+      <p v-if="error" role="alert" class="text-xs text-danger">{{ error }}</p>
     </div>
 
     <template #footer>
       <button type="button" class="btn" :disabled="saving" @click="emit('close')">取消</button>
-      <button type="button" class="btn btn-primary" :disabled="saving" @click="save">
+      <button type="button" class="btn btn-primary" :disabled="saving || items.length < 2" @click="save">
         <Loader2 v-if="saving" class="h-3.5 w-3.5 animate-spin" />
         {{ saving ? '保存中…' : '保存顺序' }}
       </button>

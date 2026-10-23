@@ -108,10 +108,6 @@ function setRelation(value: 'all' | 'leader' | 'member') {
   relation.value = value
 }
 
-function onChevron(row: Row) {
-  if (row.node.childCount > 0) toggle(row.node.id)
-}
-
 function toggle(id: number) {
   const next = new Set(expanded.value)
   if (next.has(id)) next.delete(id)
@@ -125,11 +121,6 @@ function expandAll() {
 
 function collapseAll() {
   expanded.value = new Set()
-}
-
-function openNode(id: number) {
-  router.push({ name: 'node', params: { id } })
-  emit('navigate')
 }
 
 async function onCreated(node: NodeDetail) {
@@ -152,7 +143,7 @@ function relationLabel(node: NodeSummary): string {
       <div class="flex items-center gap-1.5">
         <label class="relative min-w-0 flex-1">
           <Search class="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" />
-          <input v-model="search" class="input h-7 pl-7 text-xs" placeholder="搜索节点或标签">
+          <input v-model="search" class="input pl-7" aria-label="搜索节点或标签" placeholder="搜索节点或标签">
         </label>
         <button
           v-if="isManager"
@@ -167,27 +158,28 @@ function relationLabel(node: NodeSummary): string {
       </div>
 
       <div class="flex items-center gap-1">
-        <div class="flex flex-1 rounded-md border border-line bg-surface-2 p-0.5 text-[11px]">
+        <div class="flex flex-1 rounded-md border border-line bg-surface-2 p-0.5 text-xs">
           <button
             v-for="item in relationOptions"
             :key="item.value"
             type="button"
             class="flex-1 rounded px-1.5 py-1 transition-colors"
-            :class="relation === item.value ? 'bg-surface text-ink shadow-sm' : 'text-muted hover:text-ink'"
+            :class="relation === item.value ? 'bg-accent-soft text-accent font-medium' : 'text-muted hover:text-ink'"
+            :aria-pressed="relation === item.value"
             @click="setRelation(item.value)"
           >
             {{ item.label }}
           </button>
         </div>
-        <button class="icon-btn" title="展开全部" aria-label="展开全部" @click="expandAll">
+        <button :disabled="filterActive" class="icon-btn" title="展开全部" aria-label="展开全部" @click="expandAll">
           <ChevronsUpDown class="h-3.5 w-3.5" />
         </button>
-        <button class="icon-btn" title="收起全部" aria-label="收起全部" @click="collapseAll">
+        <button :disabled="filterActive" class="icon-btn" title="收起全部" aria-label="收起全部" @click="collapseAll">
           <ChevronsDownUp class="h-3.5 w-3.5" />
         </button>
       </div>
 
-      <select v-model="tag" class="select h-7 w-full text-xs" aria-label="按标签筛选">
+      <select v-model="tag" class="select w-full text-xs" aria-label="按标签筛选">
         <option value="">全部标签</option>
         <option v-for="item in allTags" :key="item" :value="item"># {{ item }}</option>
       </select>
@@ -195,67 +187,50 @@ function relationLabel(node: NodeSummary): string {
 
     <div class="min-h-0 flex-1 overflow-y-auto px-1.5 py-1.5">
       <p v-if="loading && nodes.length === 0" class="px-2 py-3 text-xs text-muted">正在加载节点树…</p>
-      <p v-else-if="error" class="px-2 py-3 text-xs text-danger">{{ error }}</p>
+      <p v-else-if="error" class="px-2 py-3 text-xs text-danger" role="alert">{{ error }} <button type="button" class="underline" @click="reload">重试</button></p>
       <p v-else-if="rows.length === 0" class="px-2 py-6 text-center text-xs text-muted">
         {{ filterActive ? '没有匹配的节点' : '还没有节点' }}
       </p>
 
-      <button
+      <div
         v-for="row in rows"
         :key="row.node.id"
-        type="button"
-        class="group flex w-full items-center gap-1 rounded-md py-1.5 pr-1.5 text-left transition-colors"
+        class="flex min-w-0 items-center rounded-md"
         :class="activeId === row.node.id ? 'bg-accent-soft text-accent' : 'text-ink-soft hover:bg-surface-2'"
-        :style="{ paddingLeft: `${6 + row.depth * 13}px` }"
-        @click="openNode(row.node.id)"
+        :style="{ paddingLeft: `${4 + row.depth * 12}px`, minWidth: `${180 + row.depth * 12}px` }"
       >
-        <span
-          class="flex h-4 w-4 shrink-0 items-center justify-center rounded text-faint hover:bg-surface-3 hover:text-ink"
-          @click.stop="onChevron(row)"
-        >
-          <ChevronDown v-if="row.node.childCount > 0 && (filterActive || expanded.has(row.node.id))" class="h-3.5 w-3.5" />
-          <ChevronRight v-else-if="row.node.childCount > 0" class="h-3.5 w-3.5" />
-          <span v-else class="h-1 w-1 rounded-full bg-line-strong" />
-        </span>
-
-        <span
-          v-if="row.node.completedAt"
-          class="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-ok-soft text-ok"
-          title="已完成"
-        >
-          <Check class="h-2.5 w-2.5" />
-        </span>
-        <span
-          v-else
-          class="status-dot shrink-0"
-          :class="isOverdue(row.node.dueAt, row.node.completedAt) ? 'bg-warn' : 'bg-line-strong'"
-        />
-
-        <span class="min-w-0 flex-1 truncate text-[12.5px]" :class="row.node.completedAt ? 'text-muted' : ''">
-          {{ row.node.title }}
-        </span>
-
-        <span
-          v-if="relationLabel(row.node)"
-          class="shrink-0 rounded px-1 text-[9px] font-medium"
-          :class="row.node.myRelation === 'leader' ? 'bg-accent/10 text-accent' : 'bg-surface-3 text-muted'"
-        >
-          {{ relationLabel(row.node) }}
-        </span>
-
-        <span v-if="isOverdue(row.node.dueAt, row.node.completedAt)" class="shrink-0 text-warn" title="已逾期">
-          <Clock class="h-3 w-3" />
-        </span>
-
-        <span v-if="row.node.commentCount > 0" class="flex shrink-0 items-center gap-0.5 text-[10px] text-faint">
-          <MessageSquare class="h-2.5 w-2.5" />{{ row.node.commentCount }}
-        </span>
-      </button>
+        <button v-if="row.node.childCount > 0" type="button"
+          class="icon-btn h-7 w-6"
+          :aria-label="`${expanded.has(row.node.id) || filterActive ? '收起' : '展开'} ${row.node.title}`"
+          :aria-expanded="filterActive || expanded.has(row.node.id)"
+          :disabled="filterActive"
+          @click="toggle(row.node.id)">
+          <ChevronDown v-if="filterActive || expanded.has(row.node.id)" class="h-3.5 w-3.5" />
+          <ChevronRight v-else class="h-3.5 w-3.5" />
+        </button>
+        <span v-else class="w-6 shrink-0" />
+        <RouterLink :to="{ name: 'node', params: { id: row.node.id } }"
+          :aria-current="activeId === row.node.id ? 'page' : undefined"
+          :title="row.node.title"
+          class="flex min-w-0 flex-1 items-center gap-1.5 rounded py-2 pr-2"
+          @click="emit('navigate')">
+          <span class="flex h-4 w-4 shrink-0 items-center justify-center" :aria-label="row.node.completedAt ? '已完成' : '未完成'">
+            <Check v-if="row.node.completedAt" class="h-3.5 w-3.5 text-ok" />
+            <span v-else class="h-2 w-2 rounded-full" :class="isOverdue(row.node.dueAt, row.node.completedAt) ? 'bg-warn' : 'bg-line-strong'" />
+          </span>
+          <span class="min-w-0 flex-1 truncate text-[13px]" :class="row.node.completedAt ? 'text-muted' : ''">{{ row.node.title }}</span>
+          <span v-if="relationLabel(row.node)" class="shrink-0 text-xs" :class="row.node.myRelation === 'leader' ? 'text-accent' : 'text-muted'">{{ relationLabel(row.node) }}</span>
+          <Clock v-if="isOverdue(row.node.dueAt, row.node.completedAt)" class="h-3 w-3 shrink-0 text-warn" aria-label="已逾期" />
+          <span v-if="row.node.commentCount > 0" class="flex shrink-0 items-center gap-0.5 text-xs text-muted" :aria-label="`${row.node.commentCount} 条评论`">
+            <MessageSquare class="h-3 w-3" />{{ row.node.commentCount }}
+          </span>
+        </RouterLink>
+      </div>
     </div>
 
-    <div class="flex items-center justify-between border-t border-line px-3 py-1.5 text-[10px] text-faint">
+    <div class="flex items-center justify-between border-t border-line px-3 py-1.5 text-xs text-faint">
       <span>{{ nodes.length }} 个节点</span>
-      <span>{{ roots.length }} 棵树</span>
+      <span>{{ roots.length }} 个根节点</span>
     </div>
 
     <NodeFormDialog

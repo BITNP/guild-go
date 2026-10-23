@@ -4,7 +4,6 @@ import { Check, Search } from '@lucide/vue'
 import BaseModal from '@/components/BaseModal.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import type { UserSummary } from '@/lib/api'
-import { departmentLabel } from '@/lib/utils'
 
 const props = defineProps<{
   open: boolean
@@ -57,20 +56,20 @@ function toggle(subject: string) {
   <BaseModal
     :open="open"
     :title="title"
-    z-class="z-[60]"
     @close="emit('close')"
   >
     <div class="flex flex-col gap-3">
       <label class="relative block">
+        <span class="sr-only">搜索用户</span>
         <Search class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" />
-        <input v-model="query" class="input pl-8" placeholder="搜索姓名、职务或 subject" autofocus>
+        <input v-model="query" class="input pl-8" placeholder="搜索姓名或职务" autofocus>
       </label>
 
       <div v-if="selected.length" class="flex flex-wrap gap-1.5 rounded-md border border-line bg-surface-2 p-2">
         <span
           v-for="subject in selected"
           :key="subject"
-          class="inline-flex items-center gap-1 rounded border border-line bg-surface px-1.5 py-0.5 text-[11px]"
+          class="inline-flex items-center gap-1 rounded border border-line bg-surface px-1.5 py-0.5 text-xs"
         >
           <UserAvatar
             :name="users.find((user) => user.subject === subject)?.userName ?? subject"
@@ -88,22 +87,20 @@ function toggle(subject: string) {
           type="button"
           class="flex w-full items-center gap-2.5 border-b border-line px-2.5 py-2 text-left last:border-b-0 row-hover disabled:cursor-not-allowed disabled:opacity-45"
           :disabled="isExcluded(user.subject)"
+          :aria-pressed="selected.includes(user.subject)"
           @click="toggle(user.subject)"
         >
-          <UserAvatar :name="user.userName" :avatar="user.avatar" size-class="h-7 w-7 text-[10px]" />
+          <UserAvatar :name="user.userName" :avatar="user.avatar" size-class="h-7 w-7 text-xs" />
           <span class="min-w-0 flex-1">
             <span class="block truncate text-[13px] font-medium text-ink">{{ user.userName }}</span>
-            <span v-if="user.positions.length" class="block truncate text-[11px] text-muted">
+            <span v-if="user.positions.length" class="block truncate text-xs text-muted">
               {{ user.positions.map((position) => position.label).join(' · ') }}
-            </span>
-            <span v-else class="block truncate text-[11px] text-faint">
-              {{ user.subject }}
             </span>
           </span>
           <span
             v-if="isExcluded(user.subject)"
-            class="text-[11px] text-faint"
-          >已在另一组</span>
+            class="text-xs text-faint"
+          >已选为另一身份</span>
           <span
             v-else
             class="flex h-5 w-5 items-center justify-center rounded border"
@@ -116,13 +113,10 @@ function toggle(subject: string) {
         </button>
         <p v-if="filtered.length === 0" class="px-3 py-6 text-center text-xs text-muted">没有匹配的用户</p>
       </div>
-
-      <p class="text-[11px] text-muted">
-        成员显示名与职务来自 Keycloak；选择只保存 subject。
-        <span v-if="filtered.some((user) => user.positions.length)">
-          当前筛选包含职务：{{ [...new Set(filtered.flatMap((user) => user.positions.map((p) => departmentLabel(p.department)).filter(Boolean)))].join('、') }}
-        </span>
-      </p>
     </div>
+    <template #footer>
+      <span class="mr-auto text-xs text-muted">已选 {{ selected.length }} 人</span>
+      <button type="button" class="btn btn-primary" @click="emit('close')">完成选择</button>
+    </template>
   </BaseModal>
 </template>

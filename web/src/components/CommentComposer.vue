@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { onBeforeUnmount, ref, useId } from 'vue'
 import { ImagePlus, Loader2, Send, X } from '@lucide/vue'
 import { createComment, type Comment } from '@/lib/api'
 import { errorMessage } from '@/lib/utils'
@@ -12,6 +12,7 @@ const emit = defineEmits<{
   created: [comment: Comment]
 }>()
 
+const inputId = useId()
 const body = ref('')
 const files = ref<File[]>([])
 const previews = ref<string[]>([])
@@ -66,7 +67,7 @@ async function submit() {
   if (submitting.value) return
   error.value = null
   if (!body.value.trim() && files.value.length === 0) {
-    error.value = '写点什么，或添加一张图片'
+    error.value = '请输入评论或添加图片'
     return
   }
   submitting.value = true
@@ -93,13 +94,17 @@ onBeforeUnmount(clearFiles)
 </script>
 
 <template>
-  <div class="rounded-lg border border-line bg-surface">
+  <div class="rounded-lg border border-line-strong bg-surface focus-within:border-accent">
+    <label :for="inputId" class="block px-3 pt-3 text-[13px] font-medium">发表评论</label>
     <textarea
+      :id="inputId"
+      :disabled="submitting"
+      :aria-describedby="`${inputId}-hint`"
       v-model="body"
       class="w-full resize-y rounded-t-lg border-0 bg-transparent px-3 py-2.5 text-[13px] leading-6 text-ink outline-none placeholder:text-faint"
       rows="3"
       maxlength="5000"
-      placeholder="发表评论… 支持换行与 http(s) 链接，Ctrl/⌘ + Enter 发送"
+      placeholder="写下进展或问题…"
       @keydown="onKeydown"
     />
 
@@ -108,8 +113,9 @@ onBeforeUnmount(clearFiles)
         <img :src="preview" alt="待上传图片" class="h-16 w-16 rounded-md border border-line object-cover">
         <button
           type="button"
-          class="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-ink text-white"
-          aria-label="移除图片"
+          class="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-ink text-white"
+          :aria-label="`移除第 ${index + 1} 张图片`"
+          :disabled="submitting"
           @click="removeFile(index)"
         >
           <X class="h-2.5 w-2.5" />
@@ -117,10 +123,10 @@ onBeforeUnmount(clearFiles)
       </div>
     </div>
 
-    <div class="flex items-center gap-2 border-t border-line px-3 py-2">
-      <button type="button" class="btn btn-ghost btn-xs" :disabled="files.length >= MAX_FILES" @click="openPicker">
+    <div class="flex flex-wrap items-center gap-2 border-t border-line px-3 py-2">
+      <button type="button" class="btn btn-ghost btn-xs" :disabled="submitting || files.length >= MAX_FILES" @click="openPicker">
         <ImagePlus class="h-3.5 w-3.5" />
-        图片
+        添加图片
         <span class="text-faint">{{ files.length }}/{{ MAX_FILES }}</span>
       </button>
       <input
@@ -131,14 +137,14 @@ onBeforeUnmount(clearFiles)
         multiple
         @change="onFiles"
       >
-      <span class="text-[10px] text-faint">JPEG / PNG / WebP / GIF，单张 ≤ 5MB</span>
       <button type="button" class="btn btn-primary btn-xs ml-auto" :disabled="submitting" @click="submit">
         <Loader2 v-if="submitting" class="h-3.5 w-3.5 animate-spin" />
         <Send v-else class="h-3.5 w-3.5" />
-        {{ submitting ? '发送中…' : '发表' }}
+        {{ submitting ? '发表中…' : '发表评论' }}
       </button>
     </div>
 
-    <p v-if="error" class="border-t border-danger/20 bg-danger-soft px-3 py-1.5 text-[11px] text-danger">{{ error }}</p>
+    <p :id="`${inputId}-hint`" class="border-t border-line px-3 py-2 text-xs leading-5 text-muted">最多 4 张图片，每张不超过 5 MB；支持 JPEG、PNG、WebP、GIF。<span class="ml-1 hidden sm:inline">Ctrl / ⌘ + Enter 发表</span></p>
+    <p v-if="error" role="alert" class="border-t border-danger/20 bg-danger-soft px-3 py-1.5 text-xs text-danger">{{ error }}</p>
   </div>
 </template>

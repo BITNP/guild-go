@@ -9,11 +9,7 @@ import {
   Clock,
   ListTree,
   Loader2,
-  MessageSquare,
-  Pencil,
   Plus,
-  Trash2,
-  Users,
 } from '@lucide/vue'
 import AppShell from '@/components/AppShell.vue'
 import ChildRow from '@/components/ChildRow.vue'
@@ -142,237 +138,162 @@ watch(nodeId, () => load())
 
 <template>
   <AppShell>
-    <div class="flex flex-col gap-3 p-4 lg:p-5">
+    <div class="mx-auto flex max-w-5xl flex-col gap-4 p-4 lg:p-6">
       <p v-if="loading" class="flex items-center gap-2 py-10 text-[13px] text-muted">
         <Loader2 class="h-4 w-4 animate-spin" /> 正在加载节点…
       </p>
       <div v-else-if="error" class="rounded-md border border-danger/20 bg-danger-soft px-3 py-3 text-[12px] text-danger">
         {{ error }}
+        <button type="button" class="ml-2 underline" @click="load()">重试</button>
         <RouterLink :to="{ name: 'home' }" class="ml-2 underline">返回总览</RouterLink>
       </div>
 
       <template v-else-if="detail">
-        <header class="flex flex-col gap-2">
-          <div class="flex flex-wrap items-center gap-1 text-[11px] text-muted">
-            <RouterLink :to="{ name: 'home' }" class="hover:text-accent">总览</RouterLink>
-            <template v-for="item in detail.breadcrumb" :key="item.id">
-              <ChevronRight class="h-3 w-3 text-faint" />
-              <RouterLink :to="{ name: 'node', params: { id: item.id } }" class="max-w-48 truncate hover:text-accent">
-                {{ item.title }}
-              </RouterLink>
-            </template>
+        <nav aria-label="节点路径" class="flex flex-wrap items-center gap-1 text-xs text-muted">
+          <RouterLink :to="{ name: 'home' }" class="hover:text-accent">总览</RouterLink>
+          <template v-for="item in detail.breadcrumb" :key="item.id">
+            <ChevronRight class="h-3 w-3 text-faint" />
+            <RouterLink :to="{ name: 'node', params: { id: item.id } }" class="max-w-48 truncate hover:text-accent">
+              {{ item.title }}
+            </RouterLink>
+          </template>
+        </nav>
+
+        <header class="flex flex-wrap items-start justify-between gap-3">
+          <div class="grid min-w-0 flex-1 basis-56 grid-cols-[2rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1">
+            <button
+              type="button"
+              class="flex h-8 w-8 items-center justify-center rounded-full transition-colors disabled:cursor-default"
+              :class="detail.completedAt ? 'text-ok' : 'text-muted enabled:hover:text-ok'"
+              :disabled="!canEdit || toggling"
+              :aria-label="detail.completedAt ? '标记为未完成' : '标记为已完成'"
+              :aria-pressed="detail.completedAt != null"
+              :aria-busy="toggling"
+              :title="detail.completedAt ? '标记为未完成' : '标记为已完成'"
+              @click="toggleComplete"
+            >
+              <Loader2 v-if="toggling" class="h-5 w-5 animate-spin" />
+              <span v-else class="flex h-5 w-5 items-center justify-center rounded-full border"
+                :class="detail.completedAt ? 'border-ok bg-ok text-white' : 'border-current bg-surface'">
+                <Check v-if="detail.completedAt" class="h-3.5 w-3.5" />
+              </span>
+            </button>
+            <h1 class="min-w-0 text-xl font-semibold leading-8 text-ink"
+              :class="detail.completedAt ? 'text-muted line-through' : ''">
+              {{ detail.title }}
+            </h1>
+            <div v-if="detail.tags.length || detail.completedAt || detail.dueAt" class="col-start-2 flex flex-wrap items-center gap-1.5">
+              <span v-for="tag in detail.tags" :key="tag" class="tag">{{ tag }}</span>
+              <span v-if="detail.completedAt" class="tag border-ok/20 bg-ok-soft text-ok">
+                已完成 · {{ formatDateTime(detail.completedAt) }}
+              </span>
+              <span v-else-if="overdue" class="tag border-warn/20 bg-warn-soft text-warn">
+                <Clock class="mr-1 h-3 w-3 shrink-0" /> 已逾期 · {{ formatDateTime(detail.dueAt) }}
+              </span>
+              <span v-else-if="detail.dueAt" class="tag">
+                <CalendarDays class="mr-1 h-3 w-3 shrink-0" /> 预期完成 {{ formatDateTime(detail.dueAt) }}
+              </span>
+            </div>
           </div>
-
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div class="min-w-0">
-              <div class="flex items-start gap-2">
-                <button
-                  type="button"
-                  class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors disabled:cursor-default"
-                  :class="detail.completedAt
-                    ? 'border-ok bg-ok text-white'
-                    : 'border-line-strong bg-surface text-transparent hover:border-ok hover:text-ok'"
-                  :disabled="!canEdit || toggling"
-                  :title="detail.completedAt ? '重新打开' : '标记完成'"
-                  @click="toggleComplete"
-                >
-                  <Check class="h-3.5 w-3.5" />
-                </button>
-                <div class="min-w-0">
-                  <h1
-                    class="text-xl font-semibold leading-7 tracking-tight text-ink"
-                    :class="detail.completedAt ? 'text-muted line-through' : ''"
-                  >
-                    {{ detail.title }}
-                  </h1>
-                  <div class="mt-1 flex flex-wrap items-center gap-1.5">
-                    <span v-for="tag in detail.tags" :key="tag" class="tag"># {{ tag }}</span>
-                    <span v-if="detail.completedAt" class="inline-flex items-center gap-0.5 rounded bg-ok-soft px-1.5 py-0.5 text-[10px] text-ok">
-                      <Check class="h-2.5 w-2.5" /> 已完成 {{ formatDateTime(detail.completedAt) }}
-                    </span>
-                    <span v-else-if="overdue" class="inline-flex items-center gap-0.5 rounded bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">
-                      <Clock class="h-2.5 w-2.5" /> 已逾期 · 预期 {{ formatDateTime(detail.dueAt) }}
-                    </span>
-                    <span v-else-if="detail.dueAt" class="inline-flex items-center gap-0.5 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted">
-                      <CalendarDays class="h-2.5 w-2.5" /> 预期 {{ formatDateTime(detail.dueAt) }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-1.5">
-              <button v-if="canAddChild" type="button" class="btn" @click="createChildOpen = true">
-                <Plus class="h-3.5 w-3.5" /> 子节点
-              </button>
-              <button v-if="canEdit" type="button" class="btn" @click="editOpen = true">
-                <Pencil class="h-3.5 w-3.5" /> 编辑
-              </button>
-              <button v-if="canManageMembers" type="button" class="btn" @click="membersOpen = true">
-                <Users class="h-3.5 w-3.5" /> 成员
-              </button>
-              <button v-if="canReorderChildren && detail.children.length > 1" type="button" class="btn" @click="orderOpen = true">
-                <ArrowUpDown class="h-3.5 w-3.5" /> 排序
-              </button>
-              <button v-if="canDelete" type="button" class="btn text-danger hover:border-danger/40 hover:bg-danger-soft" @click="deleteOpen = true">
-                <Trash2 class="h-3.5 w-3.5" /> 删除
-              </button>
-            </div>
+          <div v-if="canEdit || canManageMembers || canDelete" class="flex flex-wrap items-center gap-1.5">
+            <button v-if="canEdit" type="button" class="btn" @click="editOpen = true">编辑节点</button>
+            <button v-if="canManageMembers" type="button" class="btn" @click="membersOpen = true">管理成员</button>
+            <button v-if="canDelete" type="button" class="btn btn-ghost text-danger hover:bg-danger-soft" @click="deleteOpen = true">删除节点</button>
           </div>
         </header>
 
-        <p v-if="actionError" class="rounded-md border border-danger/20 bg-danger-soft px-3 py-1.5 text-[11px] text-danger">{{ actionError }}</p>
+        <p v-if="actionError" class="rounded-md border border-danger/20 bg-danger-soft px-3 py-1.5 text-xs text-danger">{{ actionError }}</p>
 
-        <section class="panel px-3.5 py-3">
-          <p v-if="detail.description" class="whitespace-pre-wrap break-words text-[13px] leading-6 text-ink-soft">
-            {{ detail.description }}
-          </p>
-          <p v-else class="text-[12px] text-faint">暂无描述。</p>
-          <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line pt-2 text-[10px] text-faint">
-            <span class="inline-flex items-center gap-1">
-              <UserAvatar :name="detail.createdBy.userName" :avatar="detail.createdBy.avatar" size-class="h-4 w-4 text-[8px]" />
-              由 {{ detail.createdBy.userName }} 创建
-            </span>
-            <span>创建 {{ formatDateTime(detail.createdAt) }}</span>
-            <span>更新 {{ timeAgo(detail.updatedAt) }}</span>
-            <span>排序 #{{ detail.sortOrder + 1 }}</span>
-          </div>
+        <section v-if="detail.description" class="panel px-3.5 py-3" aria-label="节点说明">
+          <p class="whitespace-pre-wrap break-words text-sm leading-6 text-ink-soft">{{ detail.description }}</p>
         </section>
 
         <section class="panel overflow-hidden">
-          <header class="flex items-center justify-between border-b border-line px-3 py-2">
+          <header class="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2">
             <div class="flex items-center gap-1.5">
               <ListTree class="h-3.5 w-3.5 text-muted" />
               <h2 class="text-[12px] font-semibold text-ink">子节点</h2>
-              <span class="rounded bg-surface-3 px-1.5 py-0.5 text-[10px] text-muted">{{ detail.children.length }}</span>
+              <span class="rounded bg-surface-3 px-1.5 py-0.5 text-xs text-muted">{{ detail.children.length }}</span>
             </div>
-            <button v-if="canAddChild" type="button" class="btn btn-xs" @click="createChildOpen = true">
-              <Plus class="h-3 w-3" /> 新建
-            </button>
+            <div class="flex items-center gap-2">
+              <button v-if="canReorderChildren && detail.children.length > 1" type="button" class="btn btn-ghost btn-xs" @click="orderOpen = true">
+                <ArrowUpDown class="h-3.5 w-3.5" /> 调整顺序
+              </button>
+              <button v-if="canAddChild" type="button" class="btn btn-primary btn-xs" @click="createChildOpen = true">
+                <Plus class="h-3.5 w-3.5" /> 新建子节点
+              </button>
+            </div>
           </header>
           <ChildRow v-for="child in detail.children" :key="child.id" :child="child" />
-          <p v-if="detail.children.length === 0" class="empty-state">还没有子节点。{{ canAddChild ? '点击“新建”继续拆解。' : '' }}</p>
+          <p v-if="detail.children.length === 0" class="empty-state">暂无子节点</p>
         </section>
 
         <CommentSection
+          :key="detail.id"
           :node-id="detail.id"
           :can-comment="canComment"
           @changed="onCommentChanged"
         />
 
-        <div class="flex items-center gap-3 pb-2 text-[10px] text-faint">
-          <span>{{ detail.effectiveMemberCount }} 位有效成员</span>
-          <span>{{ detail.subtreeNodeCount }} 个节点（含子树）</span>
-          <span>{{ detail.subtreeCommentCount }} 条评论</span>
-        </div>
       </template>
     </div>
 
     <template #rail>
-      <div v-if="detail" class="flex flex-col gap-3 p-2.5">
-        <section class="panel px-3 py-2.5">
-          <h2 class="rail-title">状态</h2>
-          <dl class="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[11px]">
-            <dt class="text-muted">完成</dt>
-            <dd class="text-ink-soft">{{ detail.completedAt ? formatDateTime(detail.completedAt) : '未完成' }}</dd>
-            <dt class="text-muted">预期</dt>
-            <dd :class="overdue ? 'font-medium text-warn' : 'text-ink-soft'">{{ formatDateTime(detail.dueAt) }}</dd>
-            <dt class="text-muted">创建</dt>
-            <dd class="text-ink-soft">{{ formatDateTime(detail.createdAt) }}</dd>
-            <dt class="text-muted">更新</dt>
-            <dd class="text-ink-soft">{{ timeAgo(detail.updatedAt) }}</dd>
-            <dt class="text-muted">标签</dt>
-            <dd class="flex flex-wrap gap-1">
-              <span v-for="tag in detail.tags" :key="tag" class="tag">{{ tag }}</span>
-              <span v-if="detail.tags.length === 0" class="text-faint">—</span>
+      <div v-if="detail && !loading && !error" class="divide-y divide-line px-4">
+        <section class="py-4">
+          <h3 class="rail-title">状态与时间</h3>
+          <dl class="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-xs">
+            <dt class="text-muted">状态</dt>
+            <dd :class="detail.completedAt ? 'text-ok' : overdue ? 'text-warn' : 'text-ink-soft'">{{ detail.completedAt ? '已完成' : overdue ? '已逾期' : '未完成' }}</dd>
+            <dt class="text-muted">预期完成</dt>
+            <dd :class="overdue ? 'text-warn' : 'text-ink-soft'">{{ detail.dueAt ? formatDateTime(detail.dueAt) : '未设置' }}</dd>
+            <template v-if="detail.completedAt">
+              <dt class="text-muted">实际完成</dt>
+              <dd>{{ formatDateTime(detail.completedAt) }}</dd>
+            </template>
+            <dt class="text-muted">创建时间</dt>
+            <dd>{{ formatDateTime(detail.createdAt) }}</dd>
+            <dt class="text-muted">最近更新</dt>
+            <dd :title="formatDateTime(detail.updatedAt)">{{ timeAgo(detail.updatedAt) }}</dd>
+            <dt class="text-muted">创建者</dt>
+            <dd>
+              <RouterLink :to="{ name: 'user', params: { subject: detail.createdBy.subject } }" class="hover:text-accent">{{ detail.createdBy.userName }}</RouterLink>
             </dd>
           </dl>
         </section>
 
-        <section class="panel px-3 py-2.5">
-          <div class="flex items-center justify-between">
-            <h2 class="rail-title">负责人</h2>
-            <span class="text-[10px] text-faint">{{ detail.directLeaders.length }} 直接 · {{ detail.inheritedLeaderCount }} 继承</span>
-          </div>
-          <div class="mt-1.5 flex flex-col gap-1">
-            <RouterLink
-              v-for="leader in detail.directLeaders"
-              :key="leader.subject"
+        <section class="py-4">
+          <h3 class="rail-title">直接负责人</h3>
+          <div class="mt-2 flex flex-col gap-1">
+            <RouterLink v-for="leader in detail.directLeaders" :key="leader.subject"
               :to="{ name: 'user', params: { subject: leader.subject } }"
-              class="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-surface-2"
-            >
-              <UserAvatar :name="leader.userName" :avatar="leader.avatar" size-class="h-5 w-5 text-[8px]" />
-              <span class="truncate text-[12px] text-ink-soft">{{ leader.userName }}</span>
+              class="flex min-w-0 items-center gap-2 rounded py-1 hover:text-accent">
+              <UserAvatar :name="leader.userName" :avatar="leader.avatar" size-class="h-6 w-6 text-xs" />
+              <span class="min-w-0 break-words text-[13px]">{{ leader.userName }}</span>
             </RouterLink>
-            <p v-if="detail.directLeaders.length === 0" class="text-[11px] text-faint">暂无直接负责人</p>
           </div>
-          <div class="mt-2 border-t border-line pt-2">
-            <h3 class="text-[10px] font-medium text-muted">成员</h3>
-            <div class="mt-1 flex flex-col gap-1">
-              <RouterLink
-                v-for="member in detail.directMembers"
-                :key="member.subject"
-                :to="{ name: 'user', params: { subject: member.subject } }"
-                class="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-surface-2"
-              >
-                <UserAvatar :name="member.userName" :avatar="member.avatar" size-class="h-5 w-5 text-[8px]" />
-                <span class="truncate text-[12px] text-ink-soft">{{ member.userName }}</span>
-              </RouterLink>
-              <p v-if="detail.directMembers.length === 0" class="text-[11px] text-faint">暂无直接成员</p>
-            </div>
-          </div>
-          <button v-if="canManageMembers" type="button" class="btn btn-xs mt-2 w-full" @click="membersOpen = true">
-            <Users class="h-3 w-3" /> 管理成员与继承
-          </button>
-        </section>
-
-        <section class="panel px-3 py-2.5">
-          <h2 class="rail-title">数据</h2>
-          <div class="mt-1.5 grid grid-cols-2 gap-1.5 text-[11px]">
-            <div class="rounded border border-line bg-surface-2 px-2 py-1.5">
-              <p class="text-[10px] text-muted">有效成员</p>
-              <p class="font-semibold text-ink">{{ detail.effectiveMemberCount }}</p>
-            </div>
-            <div class="rounded border border-line bg-surface-2 px-2 py-1.5">
-              <p class="text-[10px] text-muted">子树节点</p>
-              <p class="font-semibold text-ink">{{ detail.subtreeNodeCount }}</p>
-            </div>
-            <div class="rounded border border-line bg-surface-2 px-2 py-1.5">
-              <p class="text-[10px] text-muted">评论</p>
-              <p class="font-semibold text-ink">{{ detail.subtreeCommentCount }}</p>
-            </div>
-            <div class="rounded border border-line bg-surface-2 px-2 py-1.5">
-              <p class="text-[10px] text-muted">附件</p>
-              <p class="font-semibold text-ink">{{ detail.subtreeAttachmentCount }}</p>
-            </div>
+          <p v-if="detail.inheritedLeaderCount" class="mt-2 text-xs leading-5 text-muted">另有 {{ detail.inheritedLeaderCount }} 位上级节点负责人可管理此节点。</p>
+          <h3 class="rail-title mt-4">直接成员</h3>
+          <div class="mt-2 flex flex-col gap-1">
+            <RouterLink v-for="member in detail.directMembers" :key="member.subject"
+              :to="{ name: 'user', params: { subject: member.subject } }"
+              class="flex min-w-0 items-center gap-2 rounded py-1 hover:text-accent">
+              <UserAvatar :name="member.userName" :avatar="member.avatar" size-class="h-6 w-6 text-xs" />
+              <span class="min-w-0 break-words text-[13px]">{{ member.userName }}</span>
+            </RouterLink>
+            <p v-if="!detail.directMembers.length" class="text-xs text-muted">暂无直接成员</p>
           </div>
         </section>
 
-        <section class="panel px-3 py-2.5">
-          <h2 class="rail-title">快捷操作</h2>
-          <div class="mt-1.5 flex flex-col gap-1">
-            <button v-if="canAddChild" type="button" class="btn btn-xs justify-start" @click="createChildOpen = true">
-              <Plus class="h-3 w-3" /> 新建子节点
-            </button>
-            <button v-if="canEdit" type="button" class="btn btn-xs justify-start" @click="editOpen = true">
-              <Pencil class="h-3 w-3" /> 编辑节点
-            </button>
-            <button v-if="canManageMembers" type="button" class="btn btn-xs justify-start" @click="membersOpen = true">
-              <Users class="h-3 w-3" /> 管理成员
-            </button>
-            <button v-if="canDelete" type="button" class="btn btn-xs justify-start text-danger" @click="deleteOpen = true">
-              <Trash2 class="h-3 w-3" /> 删除节点
-            </button>
-            <p v-if="!canEdit && !canDelete" class="text-[11px] text-faint">
-              你是只读访问。评论权限取决于有效成员身份。
-            </p>
-          </div>
+        <section class="py-4">
+          <h3 class="rail-title">包含下级节点</h3>
+          <dl class="mt-3 grid grid-cols-[1fr_auto] gap-x-4 gap-y-2 text-xs">
+            <dt class="text-muted">成员（含负责人）</dt><dd class="tabular-nums">{{ detail.effectiveMemberCount }}</dd>
+            <dt class="text-muted">节点</dt><dd class="tabular-nums">{{ detail.subtreeNodeCount }}</dd>
+            <dt class="text-muted">评论</dt><dd class="tabular-nums">{{ detail.subtreeCommentCount }}</dd>
+            <dt class="text-muted">图片</dt><dd class="tabular-nums">{{ detail.subtreeAttachmentCount }}</dd>
+          </dl>
         </section>
-
-        <div class="flex items-center gap-2 px-1 pb-2 text-[10px] text-faint">
-          <MessageSquare class="h-3 w-3" />
-          <span>子节点最新评论会显示在父节点页。</span>
-        </div>
       </div>
     </template>
   </AppShell>

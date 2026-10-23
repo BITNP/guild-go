@@ -22,20 +22,21 @@ defineProps<{
     <div class="flex items-start gap-2">
       <span
         v-if="child.completedAt"
-        class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-ok-soft text-ok"
+        class="status-icon bg-ok-soft text-ok"
         title="已完成"
       >
         <Check class="h-3 w-3" />
       </span>
       <span
         v-else
-        class="status-dot mt-1.5 shrink-0"
-        :class="isOverdue(child.dueAt, child.completedAt) ? 'bg-warn' : 'bg-line-strong'"
-      />
+        class="status-icon"
+        :class="isOverdue(child.dueAt, child.completedAt) ? 'text-warn' : 'text-muted'"
+        aria-label="未完成"
+      ><span class="h-3.5 w-3.5 rounded-full border border-current" /></span>
 
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span class="truncate text-[13px] font-medium text-ink" :class="child.completedAt ? 'text-muted line-through' : ''">
+          <span class="min-w-0 break-words text-[13px] font-medium text-ink" :class="child.completedAt ? 'text-muted line-through' : ''">
             {{ child.title }}
           </span>
           <span
@@ -43,23 +44,22 @@ defineProps<{
             :key="tag"
             class="tag"
           ># {{ tag }}</span>
-          <span v-if="isOverdue(child.dueAt, child.completedAt)" class="inline-flex items-center gap-0.5 rounded bg-warn-soft px-1 py-0.5 text-[10px] text-warn">
+          <span v-if="isOverdue(child.dueAt, child.completedAt)" class="inline-flex items-center gap-0.5 rounded bg-warn-soft px-1 py-0.5 text-xs text-warn">
             <Clock class="h-2.5 w-2.5" /> 已逾期
           </span>
-          <span v-else-if="child.dueAt && !child.completedAt" class="inline-flex items-center gap-0.5 text-[10px] text-muted">
+          <span v-else-if="child.dueAt && !child.completedAt" class="inline-flex items-center gap-0.5 text-xs text-muted">
             <Clock class="h-2.5 w-2.5" /> {{ formatDateTime(child.dueAt) }}
           </span>
         </div>
 
-        <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-faint">
+        <div v-if="child.childCount || child.commentCount" class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-faint">
           <span v-if="child.childCount > 0">{{ child.childCount }} 个子节点</span>
-          <span class="inline-flex items-center gap-0.5"><MessageSquare class="h-2.5 w-2.5" /> {{ child.commentCount }}</span>
-          <span v-if="child.latestCommentAt">最近评论 {{ timeAgo(child.latestCommentAt) }}</span>
+          <span v-if="child.commentCount" class="inline-flex items-center gap-1"><MessageSquare class="h-3 w-3" /> {{ child.commentCount }} 条评论</span>
         </div>
 
         <div
           v-if="child.latestComment"
-          class="mt-1.5 flex items-start gap-1.5 rounded border border-line/70 bg-surface-2/70 px-2 py-1.5"
+          class="mt-2 flex items-start gap-2 border-l-2 border-line pl-3"
         >
           <UserAvatar
             :name="child.latestComment.author.userName"
@@ -67,14 +67,14 @@ defineProps<{
             size-class="h-4 w-4 text-[8px]"
           />
           <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-1.5 text-[10px]">
+            <div class="flex items-center gap-1.5 text-xs">
               <span class="truncate font-medium text-ink-soft">{{ child.latestComment.author.userName }}</span>
-              <span class="text-faint">{{ timeAgo(child.latestComment.createdAt) }}</span>
-              <span v-if="child.latestComment.attachmentCount" class="text-faint">· {{ child.latestComment.attachmentCount }} 图</span>
+              <span class="shrink-0 text-faint">{{ timeAgo(child.latestComment.createdAt) }}</span>
+              <span v-if="child.latestComment.attachmentCount" class="text-faint">· {{ child.latestComment.attachmentCount }} 张图片</span>
             </div>
-            <p class="line-clamp-1 text-[11px] text-muted">{{ child.latestComment.bodyPreview || '（图片）' }}</p>
+            <p class="line-clamp-1 text-xs text-muted">{{ child.latestComment.bodyPreview || '图片评论' }}</p>
           </div>
-          <div v-if="child.latestComment.reactionSummary.length" class="flex shrink-0 items-center gap-1 text-[10px] text-muted">
+          <div v-if="child.latestComment.reactionSummary.length" class="flex shrink-0 items-center gap-1 text-xs text-muted">
             <span
               v-for="reaction in child.latestComment.reactionSummary.slice(0, 3)"
               :key="reaction.emoji"
@@ -84,7 +84,6 @@ defineProps<{
             </span>
           </div>
         </div>
-        <p v-else class="mt-1.5 text-[11px] text-faint">暂无评论</p>
       </div>
     </div>
   </RouterLink>

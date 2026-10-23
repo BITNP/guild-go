@@ -24,6 +24,7 @@ const emit = defineEmits<{
 const items = ref<Comment[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
+const loadError = ref<string | null>(null)
 const hasMore = ref(false)
 const nextBefore = ref<number | null>(null)
 const loadingMore = ref(false)
@@ -33,14 +34,14 @@ const deleteError = ref<string | null>(null)
 
 async function load() {
   loading.value = true
-  error.value = null
+  loadError.value = null
   try {
     const page = await fetchComments(props.nodeId)
     items.value = page.items
     hasMore.value = page.hasMore
     nextBefore.value = page.nextBefore
   } catch (err) {
-    error.value = errorMessage(err, '无法加载评论')
+    loadError.value = errorMessage(err, '无法加载评论')
   } finally {
     loading.value = false
   }
@@ -83,7 +84,7 @@ function askDelete(comment: Comment) {
 }
 
 async function confirmDelete() {
-  if (!deleteTarget.value) return
+  if (!deleteTarget.value || deleting.value) return
   deleting.value = true
   deleteError.value = null
   try {
@@ -110,20 +111,21 @@ function closeDelete() {
 <template>
   <section class="flex flex-col gap-2">
     <div class="flex items-center justify-between">
-      <h2 class="section-label">讨论 <span class="ml-1 text-faint">{{ items.length }}{{ hasMore ? '+' : '' }}</span></h2>
-      <span class="text-[10px] text-faint">最新在前</span>
+      <h2 class="section-label">评论 <span v-if="!loading && !loadError" class="ml-1 font-normal text-muted">{{ items.length }}{{ hasMore ? '+' : '' }}</span></h2>
+      <span class="text-xs text-faint">最新在前</span>
     </div>
 
     <CommentComposer v-if="canComment" :node-id="nodeId" @created="onCreated" />
-    <p v-else class="rounded-md border border-line bg-surface-2 px-3 py-2 text-[11px] text-muted">
-      你不是该节点的有效成员，只能查看讨论。负责人和成员可以发表评论。
+    <p v-else class="rounded-md border border-line bg-surface-2 px-3 py-2 text-xs text-muted">
+      如需发表评论，请联系负责人将你添加为成员。
     </p>
 
-    <p v-if="error" class="rounded-md border border-danger/20 bg-danger-soft px-3 py-1.5 text-[11px] text-danger">{{ error }}</p>
+    <p v-if="error" role="alert" class="rounded-md border border-danger/20 bg-danger-soft px-3 py-1.5 text-xs text-danger">{{ error }}</p>
 
     <div class="rounded-lg border border-line bg-surface">
       <p v-if="loading" class="empty-state"><Loader2 class="h-4 w-4 animate-spin" /> 正在加载评论…</p>
-      <p v-else-if="items.length === 0" class="empty-state">还没有评论，开始第一句讨论吧。</p>
+      <p v-else-if="loadError" class="empty-state text-danger" role="alert">{{ loadError }} <button type="button" class="btn mt-2" @click="load">重新加载</button></p>
+      <p v-else-if="items.length === 0" class="empty-state">暂无评论</p>
       <template v-else>
         <CommentItem
           v-for="comment in items"
@@ -144,14 +146,14 @@ function closeDelete() {
     <BaseModal
       :open="deleteTarget !== null"
       title="删除评论"
-      z-class="z-[60]"
+      :busy="deleting"
       @close="closeDelete"
     >
       <p class="text-[13px] text-ink-soft">确定删除这条评论吗？图片附件也会一并删除，操作不可撤销。</p>
       <p v-if="deleteTarget?.body" class="mt-2 rounded-md border border-line bg-surface-2 px-2.5 py-2 text-[12px] text-muted line-clamp-3">
         {{ deleteTarget.body }}
       </p>
-      <p v-if="deleteError" class="mt-2 text-[11px] text-danger">{{ deleteError }}</p>
+      <p v-if="deleteError" role="alert" class="mt-2 text-xs text-danger">{{ deleteError }}</p>
       <template #footer>
         <button type="button" class="btn" :disabled="deleting" @click="closeDelete">取消</button>
         <button type="button" class="btn btn-danger" :disabled="deleting" @click="confirmDelete">
