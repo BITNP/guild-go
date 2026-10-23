@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, defineAsyncComponent, ref } from 'vue'
 import { SmilePlus, Trash2 } from '@lucide/vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import type { Comment } from '@/lib/api'
 import { formatDateTime, linkify, reactionEmoji, reactionKeys, timeAgo } from '@/lib/utils'
+
+const ImageViewer = defineAsyncComponent(() => import('@/components/ImageViewer.vue'))
 
 const props = defineProps<{
   comment: Comment
@@ -15,6 +17,11 @@ const emit = defineEmits<{
 }>()
 
 const picker = ref<HTMLDetailsElement | null>(null)
+const imageIndex = ref<number | null>(null)
+const images = computed(() => props.comment.attachments.map((attachment, index) => ({
+  src: attachment.url,
+  alt: `评论图片 ${index + 1}`,
+})))
 const segments = computed(() => linkify(props.comment.body))
 const activeReactions = computed(() => props.comment.reactions.filter((reaction) => reaction.count > 0))
 const primaryPosition = computed(() => props.comment.author.positions[0]?.label ?? '')
@@ -68,21 +75,22 @@ function react(emoji: string) {
         </div>
 
         <div v-if="comment.attachments.length" class="mt-2 flex flex-wrap gap-2">
-          <a
+          <button
             v-for="(attachment, index) in comment.attachments"
             :key="attachment.id"
-            :href="attachment.url"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="block overflow-hidden rounded-md border border-line"
+            type="button"
+            :aria-label="`查看评论图片 ${index + 1}`"
+            aria-haspopup="dialog"
+            class="block cursor-zoom-in overflow-hidden rounded-md border border-line hover:border-accent"
+            @click="imageIndex = index"
           >
             <img
               :src="attachment.url"
-              :alt="`评论图片 ${index + 1}，点击查看原图`"
+              alt=""
               class="h-20 w-20 object-cover"
               loading="lazy"
             >
-          </a>
+          </button>
         </div>
 
         <div class="relative mt-2 flex flex-wrap items-center gap-1">
@@ -128,5 +136,6 @@ function react(emoji: string) {
         </div>
       </div>
     </div>
+    <ImageViewer v-if="imageIndex !== null" :images="images" :index="imageIndex" @close="imageIndex = null" />
   </article>
 </template>

@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, useId } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, useId } from 'vue'
 import { ImagePlus, Loader2, Send, X } from '@lucide/vue'
 import { createComment, type Comment } from '@/lib/api'
 import { errorMessage } from '@/lib/utils'
+
+const ImageViewer = defineAsyncComponent(() => import('@/components/ImageViewer.vue'))
 
 const props = defineProps<{
   nodeId: number
@@ -16,6 +18,8 @@ const inputId = useId()
 const body = ref('')
 const files = ref<File[]>([])
 const previews = ref<string[]>([])
+const imageIndex = ref<number | null>(null)
+const images = computed(() => previews.value.map((src, index) => ({ src, alt: files.value[index]!.name })))
 const fileInput = ref<HTMLInputElement | null>(null)
 const submitting = ref(false)
 const error = ref<string | null>(null)
@@ -29,6 +33,7 @@ function openPicker() {
 }
 
 function clearFiles() {
+  imageIndex.value = null
   for (const url of previews.value) URL.revokeObjectURL(url)
   files.value = []
   previews.value = []
@@ -110,7 +115,9 @@ onBeforeUnmount(clearFiles)
 
     <div v-if="previews.length" class="flex flex-wrap gap-2 px-3 pb-2">
       <div v-for="(preview, index) in previews" :key="preview" class="relative">
-        <img :src="preview" alt="待上传图片" class="h-16 w-16 rounded-md border border-line object-cover">
+        <button type="button" class="block cursor-zoom-in overflow-hidden rounded-md border border-line hover:border-accent" :aria-label="`预览图片 ${index + 1}`" aria-haspopup="dialog" :disabled="submitting" @click="imageIndex = index">
+          <img :src="preview" alt="" class="h-16 w-16 object-cover">
+        </button>
         <button
           type="button"
           class="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-ink text-white"
@@ -146,5 +153,6 @@ onBeforeUnmount(clearFiles)
 
     <p :id="`${inputId}-hint`" class="border-t border-line px-3 py-2 text-xs leading-5 text-muted">最多 4 张图片，每张不超过 5 MB；支持 JPEG、PNG、WebP、GIF。<span class="ml-1 hidden sm:inline">Ctrl / ⌘ + Enter 发表</span></p>
     <p v-if="error" role="alert" class="border-t border-danger/20 bg-danger-soft px-3 py-1.5 text-xs text-danger">{{ error }}</p>
+    <ImageViewer v-if="imageIndex !== null" :images="images" :index="imageIndex" @close="imageIndex = null" />
   </div>
 </template>
