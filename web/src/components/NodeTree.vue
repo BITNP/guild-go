@@ -1,243 +1,244 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, h, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  Check,
-  ChevronDown,
-  ChevronRight,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  Clock,
-  MessageSquare,
-  Plus,
-  Search,
-} from '@lucide/vue'
-import NodeFormDialog from '@/components/NodeFormDialog.vue'
+  NAlert,
+  NButton,
+  NEmpty,
+  NEllipsis,
+  NInput,
+  NInputGroup,
+  NRadioButton,
+  NRadioGroup,
+  NScrollbar,
+  NSelect,
+  NSpace,
+  NSpin,
+  NTag,
+  NText,
+  NTree,
+  type TreeOption,
+} from 'naive-ui'
+import { Check, Circle, Plus } from '@lucide/vue'
 import { useAuth } from '@/composables/useAuth'
 import { useNodeStore } from '@/composables/useNodeStore'
 import type { NodeDetail, NodeSummary } from '@/lib/api'
 import { isOverdue } from '@/lib/utils'
-
-const emit = defineEmits<{
-  navigate: []
-}>()
-
-const route = useRoute()
-const router = useRouter()
-const { isManager } = useAuth()
-const { nodes, loading, error, roots, childrenOf, byId, reload } = useNodeStore()
-
-const search = ref('')
-const relation = ref<'all' | 'leader' | 'member'>('all')
-const relationOptions: Array<{ value: 'all' | 'leader' | 'member'; label: string }> = [
-  { value: 'all', label: '全部' },
-  { value: 'leader', label: '我负责' },
-  { value: 'member', label: '我参与' },
-]
-const tag = ref('')
-const expanded = ref<Set<number>>(new Set())
-const createOpen = ref(false)
-const initialized = ref(false)
-
-const allTags = computed(() => {
-  const values = new Set<string>()
-  for (const node of nodes.value) {
-    for (const value of node.tags) values.add(value)
-  }
-  return [...values].sort((a, b) => a.localeCompare(b, 'zh-CN'))
-})
-
-const filterActive = computed(() => search.value.trim() !== '' || relation.value !== 'all' || tag.value !== '')
-
-const visibleIDs = computed(() => {
-  if (!filterActive.value) return null
-  const query = search.value.trim().toLowerCase()
-  const matched = new Set<number>()
+const NodeFormDialog = defineAsyncComponent(
+  () => import('@/components/NodeFormDialog.vue'),
+)
+const emit = defineEmits<{ navigate: [] }>()
+const route = useRoute(),
+  router = useRouter(),
+  { isManager } = useAuth()
+const { nodes, roots, childrenOf, byId, loading, error, reload } =
+  useNodeStore()
+const search = ref(''),
+  relation = ref('all'),
+  tag = ref<string | null>(null),
+  expanded = ref<number[]>([]),
+  initialized = ref(false),
+  createOpen = ref(false)
+const filtering = computed(
+  () => !!(search.value.trim() || relation.value !== 'all' || tag.value),
+)
+const tags = computed(() =>
+  [...new Set(nodes.value.flatMap((node) => node.tags))]
+    .sort((a, b) => a.localeCompare(b, 'zh-CN'))
+    .map((value) => ({ label: value, value })),
+)
+const visible = computed(() => {
+  if (!filtering.value) return null
+  const result = new Set<number>(),
+    query = search.value.trim().toLowerCase()
   for (const node of nodes.value) {
     if (relation.value === 'leader' && node.myRelation !== 'leader') continue
     if (relation.value === 'member' && !node.myRelation) continue
     if (tag.value && !node.tags.includes(tag.value)) continue
-    if (query && !node.title.toLowerCase().includes(query)
-      && !node.tags.some((value) => value.toLowerCase().includes(query))) continue
-    matched.add(node.id)
-  }
-  const result = new Set<number>()
-  for (const id of matched) {
-    let current = byId.value.get(id)
-    const guard = new Set<number>()
-    while (current && !guard.has(current.id)) {
-      guard.add(current.id)
+    if (
+      query &&
+      !node.title.toLowerCase().includes(query) &&
+      !node.tags.some((value) => value.toLowerCase().includes(query))
+    )
+      continue
+    let current: NodeSummary | undefined = node
+    while (current && !result.has(current.id)) {
       result.add(current.id)
-      current = current.parentId == null ? undefined : byId.value.get(current.parentId)
+      current =
+        current.parentId == null ? undefined : byId.value.get(current.parentId)
     }
   }
   return result
 })
-
-interface Row {
-  node: NodeSummary
-  depth: number
+function treeOption(node: NodeSummary): TreeOption[] {
+  if (visible.value && !visible.value.has(node.id)) return []
+  const children = childrenOf(node.id).flatMap(treeOption)
+  return [
+    {
+      key: node.id,
+      label: node.title,
+      children: children.length ? children : undefined,
+      isLeaf: !children.length,
+      prefix: () =>
+        h(node.completedAt ? Check : Circle, {
+          size: 14,
+          color: node.completedAt
+            ? '#157347'
+            : isOverdue(node.dueAt, node.completedAt)
+              ? '#966200'
+              : '#687587',
+          'aria-label': node.completedAt ? '已完成' : '未完成',
+        }),
+      suffix: () =>
+        h(NSpace, { size: 4, align: 'center' }, () => [
+          node.myRelation
+            ? h(
+                NTag,
+                {
+                  size: 'small',
+                  bordered: false,
+                  type: node.myRelation === 'leader' ? 'info' : 'default',
+                },
+                () => (node.myRelation === 'leader' ? '负责' : '参与'),
+              )
+            : null,
+          node.commentCount
+            ? h(NText, { depth: 3 }, () => String(node.commentCount))
+            : null,
+        ]),
+    },
+  ]
 }
-
-const rows = computed<Row[]>(() => {
-  const result: Row[] = []
-  const walk = (node: NodeSummary, depth: number) => {
-    if (visibleIDs.value && !visibleIDs.value.has(node.id)) return
-    result.push({ node, depth })
-    const open = filterActive.value || expanded.value.has(node.id)
-    if (!open) return
-    for (const child of childrenOf(node.id)) walk(child, depth + 1)
-  }
-  for (const root of roots.value) walk(root, 0)
-  return result
-})
-
-const activeId = computed(() => Number(route.params.id) || null)
-
-watch(() => nodes.value.length, (length) => {
-  if (initialized.value || length === 0) return
-  const next = new Set<number>()
-  for (const node of nodes.value) {
-    if (node.childCount > 0) next.add(node.id)
-  }
-  expanded.value = next
-  initialized.value = true
-}, { immediate: true })
-
-function setRelation(value: 'all' | 'leader' | 'member') {
-  relation.value = value
-}
-
-function toggle(id: number) {
-  const next = new Set(expanded.value)
-  if (next.has(id)) next.delete(id)
-  else next.add(id)
-  expanded.value = next
-}
-
-function expandAll() {
-  expanded.value = new Set(nodes.value.filter((node) => node.childCount > 0).map((node) => node.id))
-}
-
-function collapseAll() {
-  expanded.value = new Set()
-}
-
-async function onCreated(node: NodeDetail) {
-  createOpen.value = false
-  await reload()
-  router.push({ name: 'node', params: { id: node.id } })
+const data = computed(() => roots.value.flatMap(treeOption))
+const selected = computed(() =>
+  route.name === 'node' ? [Number(route.params.id)] : [],
+)
+const expandedKeys = computed(() =>
+  filtering.value ? nodes.value.map((node) => node.id) : expanded.value,
+)
+watch(
+  nodes,
+  (list) => {
+    if (!initialized.value && list.length) {
+      expanded.value = list
+        .filter((node) => node.childCount)
+        .map((node) => node.id)
+      initialized.value = true
+    }
+  },
+  { immediate: true },
+)
+function navigate(keys: Array<string | number>) {
+  if (!keys.length) return
+  void router.push({ name: 'node', params: { id: keys[0] } })
   emit('navigate')
 }
-
-function relationLabel(node: NodeSummary): string {
-  if (node.myRelation === 'leader') return '负责'
-  if (node.myRelation === 'member') return '参与'
-  return ''
+async function created(node: NodeDetail) {
+  createOpen.value = false
+  await reload()
+  navigate([node.id])
 }
 </script>
-
 <template>
-  <div class="flex h-full min-h-0 flex-col">
-    <div class="flex flex-col gap-2 border-b border-line p-2.5">
-      <div class="flex items-center gap-1.5">
-        <label class="relative min-w-0 flex-1">
-          <Search class="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" />
-          <input v-model="search" class="input pl-7" aria-label="搜索节点或标签" placeholder="搜索节点或标签">
-        </label>
-        <button
+  <section class="node-navigation">
+    <div class="node-filters">
+      <NInputGroup
+        ><NInput
+          v-model:value="search"
+          clearable
+          placeholder="搜索节点或标签"
+          :input-props="{ 'aria-label': '搜索节点或标签' }" /><NButton
           v-if="isManager"
-          type="button"
-          class="icon-btn border border-line bg-surface"
-          title="新建根节点"
           aria-label="新建根节点"
           @click="createOpen = true"
-        >
-          <Plus class="h-4 w-4" />
-        </button>
-      </div>
-
-      <div class="flex items-center gap-1">
-        <div class="flex flex-1 rounded-md border border-line bg-surface-2 p-0.5 text-xs">
-          <button
-            v-for="item in relationOptions"
-            :key="item.value"
-            type="button"
-            class="flex-1 rounded px-1.5 py-1 transition-colors"
-            :class="relation === item.value ? 'bg-accent-soft text-accent font-medium' : 'text-muted hover:text-ink'"
-            :aria-pressed="relation === item.value"
-            @click="setRelation(item.value)"
-          >
-            {{ item.label }}
-          </button>
-        </div>
-        <button :disabled="filterActive" class="icon-btn" title="展开全部" aria-label="展开全部" @click="expandAll">
-          <ChevronsUpDown class="h-3.5 w-3.5" />
-        </button>
-        <button :disabled="filterActive" class="icon-btn" title="收起全部" aria-label="收起全部" @click="collapseAll">
-          <ChevronsDownUp class="h-3.5 w-3.5" />
-        </button>
-      </div>
-
-      <select v-model="tag" class="select w-full text-xs" aria-label="按标签筛选">
-        <option value="">全部标签</option>
-        <option v-for="item in allTags" :key="item" :value="item"># {{ item }}</option>
-      </select>
-    </div>
-
-    <div class="min-h-0 flex-1 overflow-y-auto px-1.5 py-1.5">
-      <p v-if="loading && nodes.length === 0" class="px-2 py-3 text-xs text-muted">正在加载节点树…</p>
-      <p v-else-if="error" class="px-2 py-3 text-xs text-danger" role="alert">{{ error }} <button type="button" class="underline" @click="reload">重试</button></p>
-      <p v-else-if="rows.length === 0" class="px-2 py-6 text-center text-xs text-muted">
-        {{ filterActive ? '没有匹配的节点' : '还没有节点' }}
-      </p>
-
-      <div
-        v-for="row in rows"
-        :key="row.node.id"
-        class="flex min-w-0 items-center rounded-md"
-        :class="activeId === row.node.id ? 'bg-accent-soft text-accent' : 'text-ink-soft hover:bg-surface-2'"
-        :style="{ paddingLeft: `${4 + row.depth * 12}px`, minWidth: `${180 + row.depth * 12}px` }"
+          ><Plus :size="16" /></NButton></NInputGroup
+      ><NRadioGroup
+        v-model:value="relation"
+        size="small"
+        aria-label="按参与关系筛选"
+        ><NRadioButton value="all">全部</NRadioButton
+        ><NRadioButton value="leader">我负责</NRadioButton
+        ><NRadioButton value="member">我参与</NRadioButton></NRadioGroup
+      ><NSelect
+        v-model:value="tag"
+        clearable
+        :options="tags"
+        placeholder="全部标签"
+        aria-label="按标签筛选"
+      /><NSpace :size="12"
+        ><NButton
+          text
+          size="small"
+          :disabled="filtering"
+          @click="
+            expanded = nodes
+              .filter((node) => node.childCount)
+              .map((node) => node.id)
+          "
+          >展开全部</NButton
+        ><NButton text size="small" :disabled="filtering" @click="expanded = []"
+          >收起全部</NButton
+        ></NSpace
       >
-        <button v-if="row.node.childCount > 0" type="button"
-          class="icon-btn h-7 w-6"
-          :aria-label="`${expanded.has(row.node.id) || filterActive ? '收起' : '展开'} ${row.node.title}`"
-          :aria-expanded="filterActive || expanded.has(row.node.id)"
-          :disabled="filterActive"
-          @click="toggle(row.node.id)">
-          <ChevronDown v-if="filterActive || expanded.has(row.node.id)" class="h-3.5 w-3.5" />
-          <ChevronRight v-else class="h-3.5 w-3.5" />
-        </button>
-        <span v-else class="w-6 shrink-0" />
-        <RouterLink :to="{ name: 'node', params: { id: row.node.id } }"
-          :aria-current="activeId === row.node.id ? 'page' : undefined"
-          :title="row.node.title"
-          class="flex min-w-0 flex-1 items-center gap-1.5 rounded py-2 pr-2"
-          @click="emit('navigate')">
-          <span class="flex h-4 w-4 shrink-0 items-center justify-center" :aria-label="row.node.completedAt ? '已完成' : '未完成'">
-            <Check v-if="row.node.completedAt" class="h-3.5 w-3.5 text-ok" />
-            <span v-else class="h-2 w-2 rounded-full" :class="isOverdue(row.node.dueAt, row.node.completedAt) ? 'bg-warn' : 'bg-line-strong'" />
-          </span>
-          <span class="min-w-0 flex-1 truncate text-[13px]" :class="row.node.completedAt ? 'text-muted' : ''">{{ row.node.title }}</span>
-          <span v-if="relationLabel(row.node)" class="shrink-0 text-xs" :class="row.node.myRelation === 'leader' ? 'text-accent' : 'text-muted'">{{ relationLabel(row.node) }}</span>
-          <Clock v-if="isOverdue(row.node.dueAt, row.node.completedAt)" class="h-3 w-3 shrink-0 text-warn" aria-label="已逾期" />
-          <span v-if="row.node.commentCount > 0" class="flex shrink-0 items-center gap-0.5 text-xs text-muted" :aria-label="`${row.node.commentCount} 条评论`">
-            <MessageSquare class="h-3 w-3" />{{ row.node.commentCount }}
-          </span>
-        </RouterLink>
-      </div>
     </div>
-
-    <div class="flex items-center justify-between border-t border-line px-3 py-1.5 text-xs text-faint">
-      <span>{{ nodes.length }} 个节点</span>
-      <span>{{ roots.length }} 个根节点</span>
-    </div>
-
-    <NodeFormDialog
+    <NScrollbar class="tree-scroll"
+      ><div class="tree-content">
+        <NSpin :show="loading"
+          ><NAlert v-if="error" type="error"
+            >{{ error }} <NButton text @click="reload">重试</NButton></NAlert
+          ><NTree
+            v-else-if="data.length"
+            block-line
+            :data="data"
+            :selected-keys="selected"
+            :expanded-keys="expandedKeys"
+            :render-label="
+              ({ option }) =>
+                h(NEllipsis, { tooltip: true }, () => String(option.label))
+            "
+            @update:selected-keys="navigate"
+            @update:expanded-keys="
+              (keys) => (expanded = keys.map(Number))
+            " /><NEmpty
+            v-else
+            size="small"
+            :description="filtering ? '没有匹配的节点' : '还没有节点'"
+        /></NSpin></div
+    ></NScrollbar>
+    <NText depth="3" class="node-count"
+      >{{ nodes.length }} 个节点 · {{ roots.length }} 个根节点</NText
+    ><NodeFormDialog
+      v-if="createOpen"
       v-model:open="createOpen"
       mode="create"
-      :parent-id="null"
-      @saved="onCreated"
+      @saved="created"
     />
-  </div>
+  </section>
 </template>
+<style scoped>
+.node-navigation {
+  height: 100%;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+.node-filters {
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-bottom: 1px solid var(--guild-border);
+}
+.tree-scroll {
+  flex: 1;
+  min-height: 0;
+}
+.tree-content {
+  padding: 8px;
+}
+.node-count {
+  padding: 12px;
+  font-size: 12px;
+  border-top: 1px solid var(--guild-border);
+}
+</style>

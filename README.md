@@ -7,7 +7,7 @@ Guild of Pioneers 的 Go 重写版：一个仓库、一个 Go 二进制、一个
 - 线性评论 + 固定 emoji 反应 + 评论附图；查看父节点时展示每个直接子节点的最新评论。
 - 删除节点会级联删除整棵子树、评论和附件。
 - Keycloak OIDC 登录，权限解析使用 [`bitnp-authz`](https://git.bitnp.net/BITNP/bitnp-authz)。
-- 前端 Vue 3 + Vite + Tailwind，中文高密度三栏；由 Go `embed` 直接提供静态文件。
+- 前端 Vue 3 + Vite + Naive UI，使用 Vue scoped CSS，保留中文高密度三栏；由 Go `embed` 直接提供静态文件。
 - 外部 PostgreSQL + 外部 S3 兼容存储；不迁移旧数据。
 
 ## 快速开始

@@ -1,19 +1,8 @@
-import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
 import type { Department } from './api'
 
-export function cn(...inputs: ClassValue[]): string {
-  return twMerge(clsx(inputs))
-}
-
-export function initials(name: string): string {
-  const value = (name || '?').trim()
-  if (!value) return '?'
-  const first = value[0]
-  return first ? first.toUpperCase() : '?'
-}
-
-export function departmentLabel(department: Department | string | null | undefined): string {
+export function departmentLabel(
+  department: Department | string | null | undefined,
+): string {
   switch (department) {
     case 'techdept':
       return '技术部'
@@ -78,37 +67,30 @@ export function timeAgo(value: string | null | undefined): string {
   return '刚刚'
 }
 
-export function isOverdue(dueAt: string | null, completedAt: string | null): boolean {
+export function isOverdue(
+  dueAt: string | null,
+  completedAt: string | null,
+): boolean {
   if (!dueAt || completedAt) return false
   const due = new Date(dueAt).getTime()
   return !Number.isNaN(due) && due < Date.now()
 }
 
-export function toDatetimeLocal(value: string | null | undefined): string {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  const pad = (part: number) => String(part).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
-
-export function fromDatetimeLocal(value: string): string | null {
-  if (!value) return null
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return null
-  return date.toISOString()
-}
-
 export function splitTags(value: string): string[] {
-  return [...new Set(
-    value
-      .split(/[,，]/)
-      .map((tag) => tag.trim())
-      .filter(Boolean),
-  )]
+  return [
+    ...new Set(
+      value
+        .split(/[,，]/)
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    ),
+  ]
 }
 
-export function errorMessage(error: unknown, fallback = '操作失败，请稍后重试'): string {
+export function errorMessage(
+  error: unknown,
+  fallback = '操作失败，请稍后重试',
+): string {
   if (error instanceof Error && error.message) return error.message
   return fallback
 }
@@ -147,16 +129,17 @@ export function linkify(text: string): LinkSegment[] {
   return segments
 }
 
-export const reactionEmoji: Record<string, { symbol: string; label: string }> = {
-  thumbs_up: { symbol: '👍', label: '赞' },
-  thumbs_down: { symbol: '👎', label: '踩' },
-  laugh: { symbol: '😄', label: '笑' },
-  hooray: { symbol: '🎉', label: '庆祝' },
-  confused: { symbol: '😕', label: '疑惑' },
-  heart: { symbol: '❤️', label: '喜欢' },
-  rocket: { symbol: '🚀', label: '推进' },
-  eyes: { symbol: '👀', label: '关注' },
-}
+export const reactionEmoji: Record<string, { symbol: string; label: string }> =
+  {
+    thumbs_up: { symbol: '👍', label: '赞' },
+    thumbs_down: { symbol: '👎', label: '踩' },
+    laugh: { symbol: '😄', label: '笑' },
+    hooray: { symbol: '🎉', label: '庆祝' },
+    confused: { symbol: '😕', label: '疑惑' },
+    heart: { symbol: '❤️', label: '喜欢' },
+    rocket: { symbol: '🚀', label: '推进' },
+    eyes: { symbol: '👀', label: '关注' },
+  }
 
 export const reactionKeys = Object.keys(reactionEmoji)
 
@@ -167,7 +150,8 @@ export function safeReturnTo(value: unknown): string {
   try {
     const url = new URL(value, 'https://guild.invalid')
     if (url.origin !== 'https://guild.invalid') return '/'
-    if (url.pathname === '/login' || url.pathname.startsWith('/api/')) return '/'
+    if (url.pathname === '/login' || url.pathname.startsWith('/api/'))
+      return '/'
     return `${url.pathname}${url.search}${url.hash}`
   } catch {
     return '/'

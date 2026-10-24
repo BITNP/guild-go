@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Loader2, RotateCcw, X } from '@lucide/vue'
-
+import { NButton, NSpin, NTooltip } from 'naive-ui'
+import PreviewImage from '@/components/PreviewImage.vue'
+import { RotateCcw, X } from '@lucide/vue'
 defineProps<{
   src: string
   name: string
@@ -8,56 +9,112 @@ defineProps<{
   error: string | null
   disabled: boolean
 }>()
-
-const emit = defineEmits<{
-  preview: []
-  remove: []
-  retry: []
-}>()
+const emit = defineEmits<{ remove: []; retry: [] }>()
 </script>
-
 <template>
-  <div class="relative">
-    <button
-      type="button"
-      class="block cursor-zoom-in overflow-hidden rounded-md border border-line hover:border-accent"
-      :aria-label="`预览图片：${name}`"
-      aria-haspopup="dialog"
+  <div class="upload-image">
+    <PreviewImage
+      :src="src"
+      :alt="name"
+      :width="80"
+      :height="80"
       :disabled="uploading || !!error"
-      @click="emit('preview')"
-    >
-      <img :src="src" alt="" class="h-16 w-16 object-cover">
-    </button>
+      class="upload-thumbnail"
+    />
     <div
       v-if="uploading"
-      class="absolute inset-0 flex items-center justify-center rounded-md bg-ink/50"
+      class="image-mask"
       role="progressbar"
       :aria-label="`正在上传：${name}`"
     >
-      <Loader2 class="h-6 w-6 animate-spin text-white motion-reduce:animate-none" aria-hidden="true" />
+      <NSpin :size="24" stroke="white" />
     </div>
-    <button
-      v-else-if="error"
-      type="button"
-      class="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-md bg-ink/75 text-xs text-white hover:bg-ink/85"
-      :aria-label="`重试上传：${name}`"
-      :title="error"
-      :disabled="disabled"
-      @click="emit('retry')"
-    >
-      <span>上传失败</span>
-      <span class="flex items-center gap-1"><RotateCcw class="h-3 w-3" aria-hidden="true" />重试</span>
-    </button>
-    <span v-if="error" role="alert" class="sr-only">{{ name }}：{{ error }}。可重试上传或移除图片。</span>
-    <button
+    <div v-else-if="error" class="image-mask failed">
+      <NTooltip
+        ><template #trigger
+          ><NButton
+            text
+            class="retry-image"
+            :disabled="disabled"
+            :aria-label="`重试上传：${name}`"
+            @click="emit('retry')"
+            ><span class="retry-content"
+              ><span>上传失败</span
+              ><span class="retry-label"
+                ><RotateCcw :size="12" />重试</span
+              ></span
+            ></NButton
+          ></template
+        >{{ error }}</NTooltip
+      ><span class="screen-reader" role="alert">{{ name }}：{{ error }}</span>
+    </div>
+    <NButton
       v-if="!uploading"
-      type="button"
-      class="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-ink text-white"
-      :aria-label="`移除图片：${name}`"
+      circle
+      size="tiny"
+      class="remove-image"
       :disabled="disabled"
+      :aria-label="`移除图片：${name}`"
       @click="emit('remove')"
-    >
-      <X class="h-2.5 w-2.5" aria-hidden="true" />
-    </button>
+      ><X :size="12"
+    /></NButton>
   </div>
 </template>
+<style scoped>
+.upload-image {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  flex: none;
+}
+.upload-thumbnail {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--guild-border);
+}
+.image-mask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgb(23 32 43 / 55%);
+}
+.failed {
+  background: rgb(23 32 43 / 78%);
+}
+.retry-image {
+  color: #fff;
+  width: 100%;
+  height: 100%;
+}
+.retry-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+}
+.retry-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.remove-image {
+  position: absolute;
+  right: -6px;
+  top: -6px;
+}
+.screen-reader {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+</style>
