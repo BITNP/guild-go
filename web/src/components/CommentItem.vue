@@ -16,7 +16,7 @@ const props = defineProps<{ comment: Comment; busy: boolean }>(),
 const segments = computed(() => linkify(props.comment.body))
 </script>
 <template>
-  <NListItem
+  <NListItem class="comment-row"
     ><article class="comment">
       <div class="comment-header">
         <UserIdentity :user="comment.author" :size="32" show-position /><NText
@@ -49,8 +49,8 @@ const segments = computed(() => linkify(props.comment.body))
             ><span v-else>{{ segment.value }}</span></template
           >
         </div>
-        <ImageGallery
-          ><div v-if="comment.attachments.length" class="comment-images">
+        <ImageGallery v-if="comment.attachments.length"
+          ><div class="comment-images">
             <PreviewImage
               v-for="(image, index) in comment.attachments"
               :key="image.id"
@@ -71,6 +71,15 @@ const segments = computed(() => linkify(props.comment.body))
   ></NListItem>
 </template>
 <style scoped>
+.comment-row {
+  padding: 8px 0;
+}
+.comment-row:first-child {
+  padding-top: 0;
+}
+.comment-row:last-child {
+  padding-bottom: 0;
+}
 .comment {
   min-width: 0;
 }
@@ -87,7 +96,10 @@ const segments = computed(() => linkify(props.comment.body))
   font-weight: 600;
 }
 .comment-content {
-  margin-left: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 0 40px;
 }
 .delete-comment {
   margin-left: auto;
@@ -100,7 +112,6 @@ const segments = computed(() => linkify(props.comment.body))
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.8;
-  margin-top: 8px;
 }
 .comment-body a {
   color: var(--guild-primary);
@@ -111,13 +122,9 @@ const segments = computed(() => linkify(props.comment.body))
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 12px 0;
 }
 .comment-image {
   border-radius: 8px;
   overflow: hidden;
-}
-.comment :deep(.n-space) {
-  margin-top: 8px;
 }
 </style>
