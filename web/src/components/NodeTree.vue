@@ -95,31 +95,43 @@ function treeOption(node: NodeSummary): TreeOption[] {
               : '#687587',
           'aria-label': node.completedAt ? '已完成' : '未完成',
         }),
-      suffix: () =>
-        h(NSpace, { size: 4, align: 'center', wrap: false }, () => [
-          node.myRelation
-            ? h(
-                NText,
+      suffix:
+        node.myRelation || node.commentCount
+          ? () =>
+              h(
+                NSpace,
                 {
-                  class: 'tree-relation',
+                  class: 'tree-metadata',
+                  size: 4,
+                  align: 'center',
+                  wrap: false,
                 },
-                () => (node.myRelation === 'leader' ? '负责' : '参与'),
-              )
-            : null,
-          node.commentCount
-            ? h(
-                'span',
-                {
-                  class: 'tree-comment-count',
-                  title: `${node.commentCount} 条评论`,
-                },
-                [
-                  h(MessageSquare, { size: 12, 'aria-hidden': true }),
-                  String(node.commentCount),
+                () => [
+                  node.myRelation
+                    ? h(
+                        NText,
+                        {
+                          class: 'tree-relation',
+                        },
+                        () => (node.myRelation === 'leader' ? '负责' : '参与'),
+                      )
+                    : null,
+                  node.commentCount
+                    ? h(
+                        'span',
+                        {
+                          class: 'tree-comment-count',
+                          title: `${node.commentCount} 条评论`,
+                        },
+                        [
+                          h(MessageSquare, { size: 12, 'aria-hidden': true }),
+                          String(node.commentCount),
+                        ],
+                      )
+                    : null,
                 ],
               )
-            : null,
-        ]),
+          : undefined,
     },
   ]
 }
@@ -227,6 +239,7 @@ async function created(node: NodeDetail) {
             v-else-if="data.length"
             block-line
             show-line
+            ellipsis
             :indent="18"
             :data="data"
             :selected-keys="selected"
@@ -306,6 +319,10 @@ async function created(node: NodeDetail) {
   padding: 12px;
   font-size: 12px;
   border-top: 1px solid var(--guild-border);
+}
+.node-navigation :deep(.tree-metadata) {
+  padding-left: 8px;
+  white-space: nowrap;
 }
 .node-navigation :deep(.tree-relation) {
   color: var(--guild-primary);
