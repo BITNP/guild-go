@@ -68,6 +68,7 @@ function react(emoji: string) {
         <NButton
           v-for="emoji in reactionKeys"
           :key="emoji"
+          class="emoji-picker__option"
           quaternary
           :aria-label="reactionEmoji[emoji]?.label"
           @click="react(emoji)"
@@ -82,5 +83,11 @@ function react(emoji: string) {
   display: grid;
   grid-template-columns: repeat(4, 36px);
   gap: 4px;
+}
+.emoji-picker__option {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 20px;
 }
 </style>
