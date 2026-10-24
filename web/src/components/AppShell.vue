@@ -14,7 +14,7 @@ import {
   NSpace,
   NThing,
 } from 'naive-ui'
-import { Menu, PanelRight, X } from '@lucide/vue'
+import { Menu, PanelRight } from '@lucide/vue'
 import NodeTree from '@/components/NodeTree.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useNodeStore } from '@/composables/useNodeStore'
@@ -186,19 +186,10 @@ onMounted(() => {
       :width="320"
       @update:show="(value) => (treeOpen = value)"
       ><NDrawerContent
+        title="节点导航"
+        closable
         :native-scrollbar="false"
         body-content-style="padding:0"
-        header-style="padding:12px 16px"
-        ><template #header
-          ><div class="drawer-heading">
-            <h2>节点导航</h2>
-            <NButton
-              quaternary
-              circle
-              aria-label="关闭节点导航"
-              @click="treeOpen = false"
-              ><X :size="18"
-            /></NButton></div></template
         ><NodeTree @navigate="treeOpen = false" /></NDrawerContent
     ></NDrawer>
     <NDrawer
@@ -208,19 +199,10 @@ onMounted(() => {
       :width="320"
       @update:show="(value) => (railOpen = value)"
       ><NDrawerContent
+        :title="railTitle"
+        closable
         :native-scrollbar="false"
         body-content-style="padding:0"
-        header-style="padding:12px 16px"
-        ><template #header
-          ><div class="drawer-heading">
-            <h2>{{ railTitle }}</h2>
-            <NButton
-              quaternary
-              circle
-              :aria-label="`关闭${railTitle}`"
-              @click="railOpen = false"
-              ><X :size="18"
-            /></NButton></div></template
         ><slot name="rail" /></NDrawerContent
     ></NDrawer>
   </div>
@@ -315,17 +297,6 @@ onMounted(() => {
 }
 .skip-link:focus {
   top: 8px;
-}
-.drawer-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  width: 100%;
-}
-.drawer-heading h2 {
-  margin: 0;
-  font-size: 16px;
 }
 @media (max-width: 1279px) {
   .workspace.has-rail {

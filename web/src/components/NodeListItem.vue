@@ -16,7 +16,7 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
 </script>
 <template>
   <NListItem class="node-list-item">
-    <template #prefix>
+    <article class="node-entry">
       <Check
         v-if="node.completedAt"
         :size="16"
@@ -24,64 +24,66 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
         aria-label="已完成"
       />
       <Circle v-else :size="16" class="node-icon" aria-label="未完成" />
-    </template>
-    <article class="node-entry">
-      <div class="entry-heading">
-        <RouterLink
-          :to="{ name: 'node', params: { id: node.id } }"
-          class="node-link"
-          >{{ node.title }}</RouterLink
-        >
-        <NodeStatusTag
-          v-if="node.completedAt || isOverdue(node.dueAt, node.completedAt)"
-          :due-at="node.dueAt"
-          :completed-at="node.completedAt"
+      <div class="entry-content">
+        <div class="entry-heading">
+          <RouterLink
+            :to="{ name: 'node', params: { id: node.id } }"
+            class="node-link"
+            >{{ node.title }}</RouterLink
+          >
+          <NodeStatusTag
+            v-if="node.completedAt || isOverdue(node.dueAt, node.completedAt)"
+            :due-at="node.dueAt"
+            :completed-at="node.completedAt"
+          />
+        </div>
+        <div class="entry-metadata">
+          <NTag v-for="tag in node.tags" :key="tag" size="small">{{
+            tag
+          }}</NTag>
+          <span v-if="node.dueAt" class="metadata-item"
+            ><CalendarDays :size="13" aria-hidden="true" />预期完成
+            {{ formatDateTime(node.dueAt) }}</span
+          >
+          <span v-if="node.childCount" class="metadata-item"
+            ><Network :size="13" aria-hidden="true" />{{
+              node.childCount
+            }}
+            个子节点</span
+          >
+          <span v-if="node.commentCount" class="metadata-item"
+            ><MessageSquare :size="13" aria-hidden="true" />{{
+              node.commentCount
+            }}
+            条评论</span
+          >
+        </div>
+        <NSpace v-if="leaders" :size="12" class="entry-leaders">
+          <NText depth="3">负责人</NText>
+          <UserIdentity
+            v-for="leader in leaders"
+            :key="leader.subject"
+            :user="leader"
+            :size="20"
+          />
+          <NText v-if="!leaders.length" depth="3">暂无负责人</NText>
+        </NSpace>
+        <CommentPreview
+          v-if="node.latestComment"
+          :comment="node.latestComment"
+          class="entry-comment"
         />
       </div>
-      <div class="entry-metadata">
-        <NTag v-for="tag in node.tags" :key="tag" size="small">{{ tag }}</NTag>
-        <span v-if="node.dueAt" class="metadata-item"
-          ><CalendarDays :size="13" aria-hidden="true" />预期完成
-          {{ formatDateTime(node.dueAt) }}</span
-        >
-        <span v-if="node.childCount" class="metadata-item"
-          ><Network :size="13" aria-hidden="true" />{{
-            node.childCount
-          }}
-          个子节点</span
-        >
-        <span v-if="node.commentCount" class="metadata-item"
-          ><MessageSquare :size="13" aria-hidden="true" />{{
-            node.commentCount
-          }}
-          条评论</span
-        >
-      </div>
-      <NSpace v-if="leaders" :size="12" class="entry-leaders">
-        <NText depth="3">负责人</NText>
-        <UserIdentity
-          v-for="leader in leaders"
-          :key="leader.subject"
-          :user="leader"
-          :size="20"
-        />
-        <NText v-if="!leaders.length" depth="3">暂无负责人</NText>
-      </NSpace>
-      <CommentPreview
-        v-if="node.latestComment"
-        :comment="node.latestComment"
-        class="entry-comment"
-      />
     </article>
   </NListItem>
 </template>
 <style scoped>
-.node-list-item :deep(.n-list-item__prefix) {
-  align-self: flex-start;
-  margin-right: 10px;
-  padding-top: 4px;
+.node-entry {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 10px;
 }
-.node-list-item :deep(.n-list-item__main) {
+.entry-content {
   min-width: 0;
 }
 .node-list-item:first-child {
@@ -92,6 +94,10 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
 }
 .node-icon {
   color: var(--guild-muted);
+}
+.node-icon,
+.completed-icon {
+  margin-top: 4px;
 }
 .completed-icon {
   color: #157347;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   NAlert,
@@ -19,16 +19,12 @@ import AppShell from '@/components/AppShell.vue'
 import NodeListItem from '@/components/NodeListItem.vue'
 import CommentPreview from '@/components/CommentPreview.vue'
 import SectionHeading from '@/components/SectionHeading.vue'
+import NodeFormDialog from '@/components/NodeFormDialog.vue'
+import OrderDialog from '@/components/OrderDialog.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useNodeStore } from '@/composables/useNodeStore'
 import { fetchOverview, type NodeDetail, type Overview } from '@/lib/api'
 import { errorMessage, isOverdue } from '@/lib/utils'
-const NodeFormDialog = defineAsyncComponent(
-    () => import('@/components/NodeFormDialog.vue'),
-  ),
-  OrderDialog = defineAsyncComponent(
-    () => import('@/components/OrderDialog.vue'),
-  )
 const router = useRouter(),
   { isManager } = useAuth(),
   {
@@ -113,12 +109,11 @@ onMounted(load)
                 ><NStatistic
                   :label="stat.label"
                   :value="stat.value"
-                  :theme-overrides="{
-                    valueFontWeight: '650',
-                    valueTextColor:
+                  :value-style="{
+                    color:
                       stat.label === '已逾期' && stat.value
                         ? '#966200'
-                        : 'var(--guild-text)',
+                        : undefined,
                   }" /></NGi></NGrid
           ></NCard>
           <section class="root-section" aria-label="根节点">
@@ -150,6 +145,7 @@ onMounted(load)
           ><NListItem
             v-for="comment in overview.recentComments"
             :key="comment.id"
+            class="recent-comment"
             ><NSpace vertical :size="8"
               ><RouterLink
                 :to="{ name: 'node', params: { id: comment.nodeId } }"
@@ -163,12 +159,10 @@ onMounted(load)
         ><NEmpty v-else size="small" description="还没有评论" /></div></template
   ></AppShell>
   <NodeFormDialog
-    v-if="createOpen"
     v-model:open="createOpen"
     mode="create"
     @saved="created"
   /><OrderDialog
-    v-if="orderOpen"
     :open="orderOpen"
     :parent-id="null"
     parent-title=""
@@ -205,7 +199,7 @@ onMounted(load)
   padding: 16px;
   font-size: 13px;
 }
-.recent-comments :deep(.n-list-item:first-child) {
+.recent-comment:first-child {
   padding-top: 0;
 }
 .recent-node {

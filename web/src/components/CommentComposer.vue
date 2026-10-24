@@ -137,7 +137,7 @@ onBeforeUnmount(() => {
 </script>
 <template>
   <NCard size="small"
-    ><NForm class="comment-composer" @submit.prevent="submit"
+    ><NForm @submit.prevent="submit"
       ><NFormItem label="发表评论" :show-feedback="false"
         ><NInput
           v-model:value="body"
@@ -200,9 +200,6 @@ onBeforeUnmount(() => {
   >
 </template>
 <style scoped>
-.comment-composer :deep(.n-form-item-label) {
-  font-weight: 600;
-}
 .image-previews {
   display: flex;
   flex-wrap: wrap;

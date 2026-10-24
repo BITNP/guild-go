@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, h, ref, watch } from 'vue'
+import { computed, h, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   NAlert,
@@ -29,11 +29,9 @@ import {
 } from '@lucide/vue'
 import { useAuth } from '@/composables/useAuth'
 import { useNodeStore } from '@/composables/useNodeStore'
+import NodeFormDialog from '@/components/NodeFormDialog.vue'
 import type { NodeDetail, NodeSummary } from '@/lib/api'
 import { isOverdue } from '@/lib/utils'
-const NodeFormDialog = defineAsyncComponent(
-  () => import('@/components/NodeFormDialog.vue'),
-)
 const emit = defineEmits<{ navigate: [] }>()
 const route = useRoute(),
   router = useRouter(),
@@ -173,9 +171,12 @@ async function created(node: NodeDetail) {
         size="small"
         aria-label="按参与关系筛选"
         class="relation-filter"
-        ><NRadioButton value="all">全部</NRadioButton
-        ><NRadioButton value="leader">我负责</NRadioButton
-        ><NRadioButton value="member">我参与</NRadioButton></NRadioGroup
+        ><NRadioButton class="relation-option" value="all">全部</NRadioButton
+        ><NRadioButton class="relation-option" value="leader"
+          >我负责</NRadioButton
+        ><NRadioButton class="relation-option" value="member"
+          >我参与</NRadioButton
+        ></NRadioGroup
       >
       <div class="tree-controls">
         <NSelect
@@ -236,10 +237,7 @@ async function created(node: NodeDetail) {
                   NEllipsis,
                   {
                     tooltip: true,
-                    class: {
-                      'tree-root': option.isRoot,
-                      'tree-selected': selected.includes(Number(option.key)),
-                    },
+                    style: { fontWeight: option.isRoot ? 600 : undefined },
                   },
                   () => String(option.label),
                 )
@@ -255,12 +253,7 @@ async function created(node: NodeDetail) {
     ></NScrollbar>
     <NText depth="3" class="node-count"
       >{{ nodes.length }} 个节点 · {{ roots.length }} 个根节点</NText
-    ><NodeFormDialog
-      v-if="createOpen"
-      v-model:open="createOpen"
-      mode="create"
-      @saved="created"
-    />
+    ><NodeFormDialog v-model:open="createOpen" mode="create" @saved="created" />
   </section>
 </template>
 <style scoped>
@@ -286,14 +279,11 @@ async function created(node: NodeDetail) {
   display: flex;
   width: 100%;
 }
-.relation-filter :deep(.n-radio-button) {
+.relation-option {
   flex: 1;
   min-width: 0;
   padding: 0 8px;
   text-align: center;
-}
-.relation-filter :deep(.n-radio-group__splitor) {
-  flex: none;
 }
 .tree-controls {
   display: flex;
@@ -317,20 +307,10 @@ async function created(node: NodeDetail) {
   font-size: 12px;
   border-top: 1px solid var(--guild-border);
 }
-.node-navigation :deep(.tree-root) {
-  font-weight: 600;
-}
-.node-navigation :deep(.tree-selected) {
-  font-weight: 600;
-  color: var(--guild-primary);
-}
 .node-navigation :deep(.tree-relation) {
   color: var(--guild-primary);
   font-size: 11px;
   white-space: nowrap;
-}
-.node-navigation :deep(.n-tree-node-content__suffix) {
-  flex-shrink: 0;
 }
 .node-navigation :deep(.tree-comment-count) {
   display: inline-flex;

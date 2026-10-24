@@ -16,8 +16,5 @@ export const theme: GlobalThemeOverrides = {
     borderRadius: '8px',
     fontFamily:
       'Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
-    fontSize: '14px',
   },
-  Button: { fontWeight: '500' },
-  Tree: { nodeWrapperPadding: '2px 0', nodeHeight: '28px' },
 }

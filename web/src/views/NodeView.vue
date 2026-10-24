@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   NAlert,
@@ -22,21 +22,13 @@ import NodeListItem from '@/components/NodeListItem.vue'
 import NodeStatusTag from '@/components/NodeStatusTag.vue'
 import CommentSection from '@/components/CommentSection.vue'
 import SectionHeading from '@/components/SectionHeading.vue'
+import NodeFormDialog from '@/components/NodeFormDialog.vue'
+import MembersDialog from '@/components/MembersDialog.vue'
+import OrderDialog from '@/components/OrderDialog.vue'
+import DeleteNodeDialog from '@/components/DeleteNodeDialog.vue'
 import { useNodeStore } from '@/composables/useNodeStore'
 import { fetchNode, updateNode, type NodeDetail } from '@/lib/api'
 import { errorMessage, formatDateTime } from '@/lib/utils'
-const NodeFormDialog = defineAsyncComponent(
-  () => import('@/components/NodeFormDialog.vue'),
-)
-const MembersDialog = defineAsyncComponent(
-  () => import('@/components/MembersDialog.vue'),
-)
-const OrderDialog = defineAsyncComponent(
-  () => import('@/components/OrderDialog.vue'),
-)
-const DeleteNodeDialog = defineAsyncComponent(
-  () => import('@/components/DeleteNodeDialog.vue'),
-)
 const route = useRoute(),
   router = useRouter()
 const { reload: reloadNodes } = useNodeStore()
@@ -112,7 +104,7 @@ async function onCreated(node: NodeDetail) {
 }
 async function onOrdered() {
   orderOpen.value = false
-  await Promise.all([load(), reloadNodes()])
+  await Promise.all([load(true), reloadNodes()])
 }
 async function onDeleted() {
   const parentId = detail.value?.parentId
@@ -170,6 +162,7 @@ watch(
                 <div class="node-heading">
                   <div class="node-title">
                     <NButton
+                      class="node-completion"
                       circle
                       quaternary
                       :type="detail.completedAt ? 'success' : 'default'"
@@ -276,14 +269,12 @@ watch(
   ></AppShell>
   <template v-if="detail">
     <NodeFormDialog
-      v-if="editOpen"
       v-model:open="editOpen"
       mode="edit"
       :node="detail"
       @saved="onSaved"
     />
     <NodeFormDialog
-      v-if="createOpen"
       v-model:open="createOpen"
       mode="create"
       :parent-id="detail.id"
@@ -291,14 +282,12 @@ watch(
       @saved="onCreated"
     />
     <MembersDialog
-      v-if="membersOpen"
       :open="membersOpen"
       :node="detail"
       @close="membersOpen = false"
       @saved="onSaved"
     />
     <OrderDialog
-      v-if="orderOpen"
       :open="orderOpen"
       :parent-id="detail.id"
       :parent-title="detail.title"
@@ -307,7 +296,6 @@ watch(
       @saved="onOrdered"
     />
     <DeleteNodeDialog
-      v-if="deleteOpen"
       :open="deleteOpen"
       :node="detail"
       @close="deleteOpen = false"
@@ -369,7 +357,7 @@ watch(
   margin: 0;
   overflow-wrap: anywhere;
 }
-.node-title > .n-button {
+.node-completion {
   flex: none;
 }
 .completed {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NList, NListItem, NText } from 'naive-ui'
+import { NText } from 'naive-ui'
 import UserIdentity from '@/components/UserIdentity.vue'
 import NodeStatusTag from '@/components/NodeStatusTag.vue'
 import type { NodeDetail } from '@/lib/api'
@@ -33,17 +33,24 @@ defineProps<{ node: NodeDetail }>()
           }}</time>
         </dd>
         <dt>创建者</dt>
-        <dd><UserIdentity :user="node.createdBy" :size="22" /></dd>
+        <dd>
+          <UserIdentity
+            class="detail-person"
+            :user="node.createdBy"
+            :size="22"
+          />
+        </dd>
       </dl>
     </section>
     <section class="detail-group" aria-label="参与人员">
       <h3>参与人员</h3>
       <div class="people-group">
         <h4>直接负责人</h4>
-        <NList :show-divider="false" class="people-list"
-          ><NListItem v-for="person in node.directLeaders" :key="person.subject"
-            ><UserIdentity :user="person" /></NListItem
-        ></NList>
+        <ul class="people-list">
+          <li v-for="person in node.directLeaders" :key="person.subject">
+            <UserIdentity class="detail-person" :user="person" />
+          </li>
+        </ul>
         <NText v-if="node.inheritedLeaderCount" depth="3" class="inherited-note"
           >另有
           {{ node.inheritedLeaderCount }} 位上级节点负责人可管理此节点。</NText
@@ -51,10 +58,12 @@ defineProps<{ node: NodeDetail }>()
       </div>
       <div class="people-group">
         <h4>直接成员</h4>
-        <NList :show-divider="false" class="people-list"
-          ><NListItem v-for="person in node.directMembers" :key="person.subject"
-            ><UserIdentity :user="person" /></NListItem></NList
-        ><NText v-if="!node.directMembers.length" depth="3">暂无直接成员</NText>
+        <ul class="people-list">
+          <li v-for="person in node.directMembers" :key="person.subject">
+            <UserIdentity class="detail-person" :user="person" />
+          </li>
+        </ul>
+        <NText v-if="!node.directMembers.length" depth="3">暂无直接成员</NText>
       </div>
     </section>
     <section class="detail-group" aria-label="包含下级节点">
@@ -105,17 +114,15 @@ defineProps<{ node: NodeDetail }>()
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.people-list :deep(.n-list-item) {
-  padding: 4px 0;
-}
-.people-list :deep(.n-list-item__main) {
-  min-width: 0;
-}
 .people-list {
-  margin: -4px 0 6px;
+  display: grid;
+  gap: 8px;
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
   font-size: 14px;
 }
-.node-details :deep(.user-identity) {
+.detail-person {
   max-width: 100%;
 }
 .people-group h4 {
