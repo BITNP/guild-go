@@ -1,11 +1,5 @@
 <script setup lang="ts">
-import {
-  NDescriptions,
-  NDescriptionsItem,
-  NList,
-  NListItem,
-  NText,
-} from 'naive-ui'
+import { NList, NListItem, NText } from 'naive-ui'
 import UserIdentity from '@/components/UserIdentity.vue'
 import NodeStatusTag from '@/components/NodeStatusTag.vue'
 import type { NodeDetail } from '@/lib/api'
@@ -16,33 +10,31 @@ defineProps<{ node: NodeDetail }>()
   <section class="node-details">
     <section class="detail-group" aria-label="状态与时间">
       <h3>状态与时间</h3>
-      <NDescriptions
-        size="small"
-        :column="1"
-        label-placement="left"
-        separator=""
-        label-class="detail-label"
-      >
-        <NDescriptionsItem label="状态"
-          ><NodeStatusTag :due-at="node.dueAt" :completed-at="node.completedAt"
-        /></NDescriptionsItem>
-        <NDescriptionsItem label="预期完成">{{
-          node.dueAt ? formatDateTime(node.dueAt) : '未设置'
-        }}</NDescriptionsItem>
-        <NDescriptionsItem v-if="node.completedAt" label="实际完成">{{
-          formatDateTime(node.completedAt)
-        }}</NDescriptionsItem>
-        <NDescriptionsItem label="创建时间">{{
-          formatDateTime(node.createdAt)
-        }}</NDescriptionsItem>
-        <NDescriptionsItem label="最近更新"
-          ><time :title="formatDateTime(node.updatedAt)">{{
+      <dl class="detail-fields">
+        <dt>状态</dt>
+        <dd>
+          <NodeStatusTag
+            :due-at="node.dueAt"
+            :completed-at="node.completedAt"
+          />
+        </dd>
+        <dt>预期完成</dt>
+        <dd>{{ node.dueAt ? formatDateTime(node.dueAt) : '未设置' }}</dd>
+        <template v-if="node.completedAt">
+          <dt>实际完成</dt>
+          <dd>{{ formatDateTime(node.completedAt) }}</dd>
+        </template>
+        <dt>创建时间</dt>
+        <dd>{{ formatDateTime(node.createdAt) }}</dd>
+        <dt>最近更新</dt>
+        <dd>
+          <time :title="formatDateTime(node.updatedAt)">{{
             timeAgo(node.updatedAt)
-          }}</time></NDescriptionsItem
-        >
-        <NDescriptionsItem label="创建者"
-          ><UserIdentity :user="node.createdBy" :size="22" /></NDescriptionsItem
-      ></NDescriptions>
+          }}</time>
+        </dd>
+        <dt>创建者</dt>
+        <dd><UserIdentity :user="node.createdBy" :size="22" /></dd>
+      </dl>
     </section>
     <section class="detail-group" aria-label="参与人员">
       <h3>参与人员</h3>
@@ -50,11 +42,9 @@ defineProps<{ node: NodeDetail }>()
         <h4>直接负责人</h4>
         <NList :show-divider="false" class="people-list"
           ><NListItem v-for="person in node.directLeaders" :key="person.subject"
-            ><UserIdentity :user="person" /></NListItem></NList
-        ><NText
-          v-if="node.inheritedLeaderCount"
-          depth="3"
-          class="inherited-note"
+            ><UserIdentity :user="person" /></NListItem
+        ></NList>
+        <NText v-if="node.inheritedLeaderCount" depth="3" class="inherited-note"
           >另有
           {{ node.inheritedLeaderCount }} 位上级节点负责人可管理此节点。</NText
         >
@@ -69,7 +59,7 @@ defineProps<{ node: NodeDetail }>()
     </section>
     <section class="detail-group" aria-label="包含下级节点">
       <h3>包含下级节点</h3>
-      <dl class="subtree-statistics">
+      <dl class="detail-fields">
         <dt>成员（含负责人）</dt>
         <dd>{{ node.effectiveMemberCount }}</dd>
         <dt>节点</dt>
@@ -99,22 +89,18 @@ defineProps<{ node: NodeDetail }>()
   line-height: 22px;
   font-weight: 600;
 }
-.detail-group :deep(.detail-label) {
-  display: inline-block;
-  width: 76px;
-  color: var(--guild-muted);
-}
-.subtree-statistics {
+.detail-fields {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: baseline;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
   gap: 8px 16px;
   margin: 0;
 }
-.subtree-statistics dt {
+.detail-fields dt {
   color: var(--guild-muted);
 }
-.subtree-statistics dd {
+.detail-fields dd {
+  min-width: 0;
   margin: 0;
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -122,9 +108,15 @@ defineProps<{ node: NodeDetail }>()
 .people-list :deep(.n-list-item) {
   padding: 4px 0;
 }
+.people-list :deep(.n-list-item__main) {
+  min-width: 0;
+}
 .people-list {
   margin: -4px 0 6px;
   font-size: 14px;
+}
+.node-details :deep(.user-identity) {
+  max-width: 100%;
 }
 .people-group h4 {
   margin: 0 0 8px;

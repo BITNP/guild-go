@@ -22,6 +22,7 @@ const initial = computed(() => props.user.userName.slice(0, 1))
     >
       <NAvatar
         v-if="user.avatar"
+        class="user-avatar"
         round
         :size="size"
         :src="user.avatar ?? undefined"
@@ -31,7 +32,7 @@ const initial = computed(() => props.user.userName.slice(0, 1))
       >
         <template #fallback>{{ initial }}</template>
       </NAvatar>
-      <NAvatar v-else round :size="size" color="#1f5fbf">{{
+      <NAvatar v-else class="user-avatar" round :size="size" color="#1f5fbf">{{
         initial
       }}</NAvatar>
       <span v-if="showName" class="user-name">{{ user.userName }}</span>
@@ -54,6 +55,9 @@ const initial = computed(() => props.user.userName.slice(0, 1))
 }
 .user-identity {
   flex-wrap: wrap;
+}
+.user-avatar {
+  flex: none;
 }
 .user-link {
   color: inherit;
