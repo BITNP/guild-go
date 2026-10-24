@@ -21,11 +21,9 @@ import MemberFields from '@/components/MemberFields.vue'
 import UserIdentity from '@/components/UserIdentity.vue'
 import {
   fetchNodeMembers,
-  fetchUsers,
   saveNodeMembers,
   type EffectiveMembers,
   type NodeDetail,
-  type UserSummary,
 } from '@/lib/api'
 import { errorMessage } from '@/lib/utils'
 const props = defineProps<{ open: boolean; node: NodeDetail }>(),
@@ -33,23 +31,21 @@ const props = defineProps<{ open: boolean; node: NodeDetail }>(),
 const tab = ref('direct'),
   leaders = ref<string[]>([]),
   members = ref<string[]>([]),
-  users = ref<UserSummary[]>([]),
   effective = ref<EffectiveMembers | null>(null),
   loading = ref(false),
+  loadingChoices = ref(false),
   saving = ref(false),
   error = ref<string | null>(null)
 async function load() {
   loading.value = true
   error.value = null
-  const result = await Promise.allSettled([
-    fetchUsers(),
-    fetchNodeMembers(props.node.id),
-  ])
-  if (result[0].status === 'fulfilled') users.value = result[0].value
-  else error.value = errorMessage(result[0].reason, '无法加载用户列表')
-  if (result[1].status === 'fulfilled') effective.value = result[1].value
-  else error.value = errorMessage(result[1].reason, '无法加载继承成员')
-  loading.value = false
+  try {
+    effective.value = await fetchNodeMembers(props.node.id)
+  } catch (err) {
+    error.value = errorMessage(err, '无法加载继承成员')
+  } finally {
+    loading.value = false
+  }
 }
 watch(
   () => props.open,
@@ -64,7 +60,7 @@ watch(
   { immediate: true },
 )
 async function save() {
-  if (saving.value) return
+  if (saving.value || loading.value || loadingChoices.value) return
   error.value = null
   if (!leaders.value.length) {
     error.value = '节点至少需要一个直接负责人'
@@ -104,8 +100,10 @@ async function save() {
               ><MemberFields
                 v-model:leaders="leaders"
                 v-model:members="members"
-                :users="users"
-                :loading="loading"
+                v-model:loading="loadingChoices"
+                :open="open"
+                :parent-id="node.parentId"
+                :root-id="node.breadcrumb[0]?.id ?? node.id"
                 :disabled="saving || loading"
               /><NText depth="3" class="member-hint"
                 >负责人可管理此节点及下级节点。成员可在此节点及上级节点发表评论。</NText
@@ -147,7 +145,7 @@ async function save() {
           v-if="tab === 'direct'"
           type="primary"
           :loading="saving"
-          :disabled="loading"
+          :disabled="loading || loadingChoices"
           @click="save"
           >保存成员</NButton
         ></NSpace

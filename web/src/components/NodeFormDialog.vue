@@ -14,13 +14,7 @@ import {
 } from 'naive-ui'
 import AppModal from '@/components/AppModal.vue'
 import MemberFields from '@/components/MemberFields.vue'
-import {
-  createNode,
-  fetchUsers,
-  updateNode,
-  type NodeDetail,
-  type UserSummary,
-} from '@/lib/api'
+import { createNode, updateNode, type NodeDetail } from '@/lib/api'
 import { errorMessage, splitTags } from '@/lib/utils'
 const props = withDefaults(
   defineProps<{
@@ -42,12 +36,10 @@ const title = ref(''),
   tags = ref(''),
   completed = ref(false),
   leaders = ref<string[]>([]),
-  members = ref<string[]>([]),
-  users = ref<UserSummary[]>([])
-const loadingUsers = ref(false),
+  members = ref<string[]>([])
+const loadingChoices = ref(false),
   saving = ref(false),
-  error = ref<string | null>(null),
-  usersError = ref<string | null>(null)
+  error = ref<string | null>(null)
 const creating = computed(() => props.mode === 'create'),
   heading = computed(() =>
     creating.value
@@ -56,17 +48,6 @@ const creating = computed(() => props.mode === 'create'),
         : '新建子节点'
       : '编辑节点',
   )
-async function loadUsers() {
-  loadingUsers.value = true
-  usersError.value = null
-  try {
-    users.value = await fetchUsers()
-  } catch (err) {
-    usersError.value = errorMessage(err, '无法加载用户列表')
-  } finally {
-    loadingUsers.value = false
-  }
-}
 watch(
   () => props.open,
   (open) => {
@@ -80,12 +61,12 @@ watch(
     leaders.value = []
     members.value = []
     error.value = null
-    if (creating.value) void loadUsers()
+    loadingChoices.value = false
   },
   { immediate: true },
 )
 async function submit() {
-  if (saving.value) return
+  if (saving.value || loadingChoices.value) return
   error.value = null
   const cleanTitle = title.value.trim()
   if (!cleanTitle || [...cleanTitle].length > 200) {
@@ -173,14 +154,12 @@ async function submit() {
       </section>
       <section v-if="creating" class="form-section" aria-label="参与人员">
         <h3>参与人员</h3>
-        <NAlert v-if="usersError" type="error" class="form-error"
-          >{{ usersError }}
-          <NButton text @click="loadUsers">重新加载</NButton></NAlert
-        ><MemberFields
+        <MemberFields
           v-model:leaders="leaders"
           v-model:members="members"
-          :users="users"
-          :loading="loadingUsers"
+          v-model:loading="loadingChoices"
+          :open="open"
+          :parent-id="parentId"
           :disabled="saving"
           creating
         />
@@ -191,7 +170,12 @@ async function submit() {
       ><NSpace justify="end" class="form-actions"
         ><NButton :disabled="saving" @click="emit('update:open', false)"
           >取消</NButton
-        ><NButton type="primary" attr-type="submit" :loading="saving">{{
+        ><NButton
+          type="primary"
+          attr-type="submit"
+          :loading="saving"
+          :disabled="loadingChoices"
+          >{{
           creating ? '创建节点' : '保存修改'
         }}</NButton></NSpace
       ></NForm
