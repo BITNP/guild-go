@@ -8,13 +8,15 @@ import {
   NDrawer,
   NDrawerContent,
   NDropdown,
+  NFlex,
   NLayoutHeader,
   NMenu,
   NScrollbar,
   NSpace,
-  NThing,
+  NTag,
+  NText,
 } from 'naive-ui'
-import { Menu, PanelRight } from '@lucide/vue'
+import { ChevronDown, LogOut, Menu, PanelRight, UserRound } from '@lucide/vue'
 import NodeTree from '@/components/NodeTree.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useNodeStore } from '@/composables/useNodeStore'
@@ -29,6 +31,7 @@ const { user, logout } = useAuth(),
   { load } = useNodeStore()
 const treeOpen = ref(false),
   railOpen = ref(false),
+  accountOpen = ref(false),
   leaving = ref(false),
   error = ref<string | null>(null)
 const hasRail = computed<boolean>(() => !props.immersive && Boolean(slots.rail))
@@ -52,26 +55,45 @@ const accountOptions = computed(() => [
     type: 'render' as const,
     render: () =>
       h(
-        NThing,
+        NFlex,
         {
-          title: user.value?.userName,
-          description: user.value?.email ?? '',
-          style: 'padding:8px 16px;max-width:280px;overflow-wrap:anywhere',
+          vertical: true,
+          size: 4,
+          style: 'padding:8px 12px;overflow-wrap:anywhere',
         },
-        () =>
-          user.value?.permissions?.systemAdmin
-            ? '系统管理员'
-            : user.value?.permissions?.manager
-              ? '部门管理员'
-              : '',
+        () => [
+          h(NText, { strong: true }, () => user.value?.userName),
+          user.value?.email
+            ? h(
+                NText,
+                { depth: 3, style: 'font-size:12px' },
+                () => user.value?.email,
+              )
+            : null,
+          user.value?.permissions?.systemAdmin || user.value?.permissions?.manager
+            ? h(
+                NTag,
+                {
+                  size: 'small',
+                  bordered: false,
+                  style: 'align-self:flex-start;margin-top:4px',
+                },
+                () =>
+                  user.value?.permissions?.systemAdmin
+                    ? '系统管理员'
+                    : '部门管理员',
+              )
+            : null,
+        ],
       ),
   },
   { key: 'divider', type: 'divider' as const },
-  { key: 'account', label: '我的账号' },
+  { key: 'account', label: '我的账号', icon: () => h(UserRound, { size: 16 }) },
   {
     key: 'logout',
     label: leaving.value ? '退出中…' : '退出登录',
     disabled: leaving.value,
+    icon: () => h(LogOut, { size: 16 }),
   },
 ])
 async function selectAccount(key: string) {
@@ -96,6 +118,7 @@ watch(
   () => {
     treeOpen.value = false
     railOpen.value = false
+    accountOpen.value = false
   },
 )
 onMounted(() => {
@@ -133,27 +156,39 @@ onMounted(() => {
           @click="railOpen = true"
           ><PanelRight :size="18" /></NButton
         ><NDropdown
+          v-model:show="accountOpen"
           trigger="click"
+          placement="bottom-end"
+          :width="240"
           :options="accountOptions"
           @select="selectAccount"
-          ><NButton quaternary aria-label="账号菜单"
-            ><NSpace align="center" :size="8"
-              ><NAvatar
+        >
+          <NButton
+            quaternary
+            class="account-trigger"
+            aria-label="账号菜单"
+            aria-haspopup="menu"
+            :aria-expanded="accountOpen"
+          >
+            <span class="account-trigger-content">
+              <NAvatar
                 v-if="user?.avatar"
                 round
-                :size="26"
+                :size="28"
                 :src="user?.avatar ?? undefined"
                 object-fit="cover"
                 color="#1f5fbf"
               >
                 <template #fallback>{{ user?.userName.slice(0, 1) }}</template>
               </NAvatar>
-              <NAvatar v-else round :size="26" color="#1f5fbf">{{
+              <NAvatar v-else round :size="28" color="#1f5fbf">{{
                 user?.userName.slice(0, 1)
               }}</NAvatar>
-              ><span class="account-name">{{ user?.userName }}</span></NSpace
-            ></NButton
-          ></NDropdown
+              <span class="account-name">{{ user?.userName }}</span>
+              <ChevronDown :size="14" class="account-chevron" aria-hidden="true" />
+            </span>
+          </NButton>
+        </NDropdown
         ></NSpace
       ></NLayoutHeader
     >
@@ -234,6 +269,25 @@ onMounted(() => {
 }
 .brand-mark {
   color: white;
+}
+.account-trigger {
+  height: 36px;
+  padding: 0 8px;
+}
+.account-trigger-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.account-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.account-chevron {
+  color: var(--guild-muted);
 }
 .workspace {
   display: grid;
@@ -324,7 +378,8 @@ onMounted(() => {
 }
 @media (max-width: 639px) {
   .main-menu,
-  .account-name {
+  .account-name,
+  .account-chevron {
     display: none;
   }
   .application-header {
