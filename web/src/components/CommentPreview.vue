@@ -18,36 +18,44 @@ defineProps<{
       ><NText v-if="comment.attachmentCount" depth="3"
         >{{ comment.attachmentCount }} 张图片</NText
       >
+      <NSpace
+        v-if="comment.reactionSummary.length"
+        :size="8"
+        class="preview-reactions"
+        ><NText
+          v-for="reaction in comment.reactionSummary"
+          :key="reaction.emoji"
+          depth="3"
+          >{{ reactionEmoji[reaction.emoji]?.symbol }}
+          {{ reaction.count }}</NText
+        ></NSpace
+      >
     </div>
     <p class="preview-body">{{ comment.bodyPreview || '图片评论' }}</p>
-    <NSpace v-if="comment.reactionSummary.length" :size="8"
-      ><NText
-        v-for="reaction in comment.reactionSummary"
-        :key="reaction.emoji"
-        depth="3"
-        >{{ reactionEmoji[reaction.emoji]?.symbol }} {{ reaction.count }}</NText
-      ></NSpace
-    >
   </div>
 </template>
 <style scoped>
 .comment-preview {
   border-left: 2px solid var(--guild-border);
-  padding-left: 12px;
-  font-size: 13px;
+  padding-left: 10px;
+  font-size: 12px;
 }
 .preview-byline {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px 8px;
   flex-wrap: wrap;
 }
 .preview-body {
-  margin: 6px 0;
+  margin: 4px 0 0;
+  line-height: 1.65;
   overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+.preview-reactions {
+  margin-left: auto;
 }
 </style>

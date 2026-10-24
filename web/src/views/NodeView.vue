@@ -14,8 +14,9 @@ import {
   NSpace,
   NSpin,
   NTag,
+  NText,
 } from 'naive-ui'
-import { Check, Circle } from '@lucide/vue'
+import { CalendarDays, Check, Circle } from '@lucide/vue'
 import AppShell from '@/components/AppShell.vue'
 import NodeDetails from '@/components/NodeDetails.vue'
 import NodeListItem from '@/components/NodeListItem.vue'
@@ -23,7 +24,7 @@ import NodeStatusTag from '@/components/NodeStatusTag.vue'
 import CommentSection from '@/components/CommentSection.vue'
 import { useNodeStore } from '@/composables/useNodeStore'
 import { fetchNode, updateNode, type NodeDetail } from '@/lib/api'
-import { errorMessage } from '@/lib/utils'
+import { errorMessage, formatDateTime } from '@/lib/utils'
 const NodeFormDialog = defineAsyncComponent(
   () => import('@/components/NodeFormDialog.vue'),
 )
@@ -141,7 +142,7 @@ watch(
   <AppShell
     ><section class="node-page">
       <NSpin :show="loading"
-        ><NSpace vertical :size="20">
+        ><NSpace vertical :size="16">
           <NSkeleton v-if="loading" text :repeat="5" />
           <NAlert v-if="error" type="error"
             >{{ error }} <NButton text @click="load()">重试</NButton>
@@ -150,68 +151,83 @@ watch(
             ></NAlert
           >
           <template v-else-if="detail">
-            <NBreadcrumb aria-label="节点路径"
-              ><NBreadcrumbItem
-                ><RouterLink :to="{ name: 'home' }"
-                  >总览</RouterLink
-                ></NBreadcrumbItem
-              ><NBreadcrumbItem v-for="item in detail.breadcrumb" :key="item.id"
-                ><RouterLink :to="{ name: 'node', params: { id: item.id } }">{{
-                  item.title
-                }}</RouterLink></NBreadcrumbItem
-              ></NBreadcrumb
-            >
-            <div class="node-heading">
-              <div class="node-title">
-                <NButton
-                  circle
-                  quaternary
-                  :type="detail.completedAt ? 'success' : 'default'"
-                  :loading="toggling"
-                  :disabled="!detail.permissions.canEdit"
-                  :aria-label="
-                    detail.completedAt ? '标记为未完成' : '标记为已完成'
-                  "
-                  :aria-pressed="!!detail.completedAt"
-                  @click="toggleComplete"
-                  ><Check v-if="detail.completedAt" :size="24" /><Circle
-                    v-else
-                    :size="26" /></NButton
-                ><NH1 :class="{ completed: !!detail.completedAt }">{{
-                  detail.title
-                }}</NH1>
-              </div>
-              <NSpace
-                ><NButton
-                  v-if="detail.permissions.canEdit"
-                  @click="editOpen = true"
-                  >编辑节点</NButton
-                ><NButton
-                  v-if="detail.permissions.canManageMembers"
-                  @click="membersOpen = true"
-                  >管理成员</NButton
-                ><NButton
-                  v-if="detail.permissions.canDelete"
-                  type="error"
-                  quaternary
-                  @click="deleteOpen = true"
-                  >删除节点</NButton
-                ></NSpace
+            <header class="node-header">
+              <NBreadcrumb aria-label="节点路径" class="node-breadcrumb"
+                ><NBreadcrumbItem
+                  ><RouterLink :to="{ name: 'home' }"
+                    >总览</RouterLink
+                  ></NBreadcrumbItem
+                ><NBreadcrumbItem
+                  v-for="item in detail.breadcrumb"
+                  :key="item.id"
+                  ><RouterLink
+                    :to="{ name: 'node', params: { id: item.id } }"
+                    >{{ item.title }}</RouterLink
+                  ></NBreadcrumbItem
+                ></NBreadcrumb
               >
-            </div>
-            <NSpace :size="8"
-              ><NodeStatusTag
-                :due-at="detail.dueAt"
-                :completed-at="detail.completedAt"
-              /><NTag v-for="tag in detail.tags" :key="tag" size="small">{{
-                tag
-              }}</NTag></NSpace
-            >
+              <div class="node-heading">
+                <div class="node-title">
+                  <NButton
+                    circle
+                    quaternary
+                    :type="detail.completedAt ? 'success' : 'default'"
+                    :loading="toggling"
+                    :disabled="!detail.permissions.canEdit"
+                    :aria-label="
+                      detail.completedAt ? '标记为未完成' : '标记为已完成'
+                    "
+                    :aria-pressed="!!detail.completedAt"
+                    @click="toggleComplete"
+                    ><Check v-if="detail.completedAt" :size="24" /><Circle
+                      v-else
+                      :size="26" /></NButton
+                  ><NH1 :class="{ completed: !!detail.completedAt }">{{
+                    detail.title
+                  }}</NH1>
+                </div>
+                <NSpace
+                  ><NButton
+                    v-if="detail.permissions.canEdit"
+                    @click="editOpen = true"
+                    >编辑节点</NButton
+                  ><NButton
+                    v-if="detail.permissions.canManageMembers"
+                    @click="membersOpen = true"
+                    >管理成员</NButton
+                  ><NButton
+                    v-if="detail.permissions.canDelete"
+                    type="error"
+                    quaternary
+                    @click="deleteOpen = true"
+                    >删除节点</NButton
+                  ></NSpace
+                >
+              </div>
+              <NSpace :size="8" align="center" class="node-metadata"
+                ><NodeStatusTag
+                  :due-at="detail.dueAt"
+                  :completed-at="detail.completedAt"
+                /><NTag v-for="tag in detail.tags" :key="tag" size="small">{{
+                  tag
+                }}</NTag>
+                <span v-if="detail.dueAt" class="due-date"
+                  ><CalendarDays :size="13" aria-hidden="true" />预期完成
+                  {{ formatDateTime(detail.dueAt) }}</span
+                >
+              </NSpace>
+            </header>
             <NAlert v-if="actionError" type="error">{{ actionError }}</NAlert>
             <NCard v-if="detail.description" size="small" aria-label="节点说明"
               ><p class="node-description">{{ detail.description }}</p></NCard
             >
-            <NCard title="子节点" size="small"
+            <NCard size="small"
+              ><template #header
+                ><span
+                  >子节点<NText depth="3" class="section-count">{{
+                    detail.children.length
+                  }}</NText></span
+                ></template
               ><template #header-extra
                 ><NSpace :size="8"
                   ><NButton
@@ -230,7 +246,7 @@ watch(
                     >新建子节点</NButton
                   ></NSpace
                 ></template
-              ><NList v-if="detail.children.length" hoverable
+              ><NList v-if="detail.children.length"
                 ><NodeListItem
                   v-for="child in detail.children"
                   :key="child.id"
@@ -294,7 +310,30 @@ watch(
 .node-page {
   max-width: 1080px;
   margin: auto;
-  padding: 24px;
+  padding: 20px;
+}
+.node-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.node-breadcrumb {
+  font-size: 12px;
+}
+.node-metadata {
+  padding-left: 46px;
+}
+.due-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--guild-muted);
+  font-size: 12px;
+}
+.section-count {
+  margin-left: 6px;
+  font-size: 13px;
+  font-weight: 400;
 }
 .node-heading {
   display: flex;
@@ -311,8 +350,9 @@ watch(
   min-width: 200px;
 }
 .node-title h1 {
-  font-size: 24px;
+  font-size: 26px;
   line-height: 34px;
+  font-weight: 600;
   margin: 0;
   overflow-wrap: anywhere;
 }

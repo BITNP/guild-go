@@ -108,7 +108,7 @@ watch(() => props.nodeId, load, { immediate: true })
     <div class="comments-heading">
       <NH2
         >评论
-        <NText v-if="!loading && !loadError" depth="3"
+        <NText v-if="!loading && !loadError" depth="3" class="comment-count"
           >{{ items.length }}{{ hasMore ? '+' : '' }}</NText
         ></NH2
       ><NText depth="3">最新在前</NText>
@@ -170,7 +170,13 @@ watch(() => props.nodeId, load, { immediate: true })
 }
 .comments-heading h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.comment-count {
+  margin-left: 6px;
+  font-size: 13px;
+  font-weight: 400;
 }
 .delete-preview {
   white-space: pre-wrap;

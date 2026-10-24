@@ -19,4 +19,5 @@ export const theme: GlobalThemeOverrides = {
     fontSize: '14px',
   },
   Button: { fontWeight: '500' },
+  Tree: { nodeWrapperPadding: '2px 0', nodeHeight: '28px' },
 }

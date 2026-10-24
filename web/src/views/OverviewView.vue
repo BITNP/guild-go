@@ -97,7 +97,7 @@ onMounted(load)
           ></NSpace
         >
       </div>
-      <NSpace vertical :size="24"
+      <NSpace vertical :size="20"
         ><NAlert v-if="error || nodesError" type="error"
           >{{ error || nodesError }}
           <NButton text @click="refresh">重试</NButton></NAlert
@@ -110,7 +110,7 @@ onMounted(load)
                   :label="stat.label"
                   :value="stat.value" /></NGi></NGrid></NCard
           ><NCard title="根节点" size="small"
-            ><NList v-if="overview.roots.length" hoverable
+            ><NList v-if="overview.roots.length"
               ><NodeListItem
                 v-for="root in overview.roots"
                 :key="root.id"
@@ -166,7 +166,7 @@ onMounted(load)
 .overview-page {
   max-width: 1080px;
   margin: auto;
-  padding: 24px;
+  padding: 20px;
 }
 .overview-heading {
   display: flex;
@@ -174,7 +174,7 @@ onMounted(load)
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 .overview-heading h1 {
   margin: 0;
@@ -182,6 +182,10 @@ onMounted(load)
 }
 .recent-comments {
   padding: 16px;
+  font-size: 13px;
+}
+.recent-comments :deep(.n-list-item:first-child) {
+  padding-top: 0;
 }
 .recent-node {
   color: inherit;

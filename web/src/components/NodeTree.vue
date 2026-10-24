@@ -14,12 +14,11 @@ import {
   NSelect,
   NSpace,
   NSpin,
-  NTag,
   NText,
   NTree,
   type TreeOption,
 } from 'naive-ui'
-import { Check, Circle, Plus } from '@lucide/vue'
+import { Check, Circle, MessageSquare, Plus } from '@lucide/vue'
 import { useAuth } from '@/composables/useAuth'
 import { useNodeStore } from '@/composables/useNodeStore'
 import type { NodeDetail, NodeSummary } from '@/lib/api'
@@ -77,6 +76,7 @@ function treeOption(node: NodeSummary): TreeOption[] {
     {
       key: node.id,
       label: node.title,
+      isRoot: node.parentId == null,
       children: children.length ? children : undefined,
       isLeaf: !children.length,
       prefix: () =>
@@ -90,20 +90,28 @@ function treeOption(node: NodeSummary): TreeOption[] {
           'aria-label': node.completedAt ? '已完成' : '未完成',
         }),
       suffix: () =>
-        h(NSpace, { size: 4, align: 'center' }, () => [
+        h(NSpace, { size: 4, align: 'center', wrap: false }, () => [
           node.myRelation
             ? h(
-                NTag,
+                NText,
                 {
-                  size: 'small',
-                  bordered: false,
-                  type: node.myRelation === 'leader' ? 'info' : 'default',
+                  class: 'tree-relation',
                 },
                 () => (node.myRelation === 'leader' ? '负责' : '参与'),
               )
             : null,
           node.commentCount
-            ? h(NText, { depth: 3 }, () => String(node.commentCount))
+            ? h(
+                'span',
+                {
+                  class: 'tree-comment-count',
+                  title: `${node.commentCount} 条评论`,
+                },
+                [
+                  h(MessageSquare, { size: 12, 'aria-hidden': true }),
+                  String(node.commentCount),
+                ],
+              )
             : null,
         ]),
     },
@@ -161,6 +169,7 @@ async function created(node: NodeDetail) {
         ><NRadioButton value="member">我参与</NRadioButton></NRadioGroup
       ><NSelect
         v-model:value="tag"
+        size="small"
         clearable
         :options="tags"
         placeholder="全部标签"
@@ -189,12 +198,24 @@ async function created(node: NodeDetail) {
           ><NTree
             v-else-if="data.length"
             block-line
+            show-line
+            :indent="18"
             :data="data"
             :selected-keys="selected"
             :expanded-keys="expandedKeys"
             :render-label="
               ({ option }) =>
-                h(NEllipsis, { tooltip: true }, () => String(option.label))
+                h(
+                  NEllipsis,
+                  {
+                    tooltip: true,
+                    class: {
+                      'tree-root': option.isRoot,
+                      'tree-selected': selected.includes(Number(option.key)),
+                    },
+                  },
+                  () => String(option.label),
+                )
             "
             @update:selected-keys="navigate"
             @update:expanded-keys="
@@ -223,10 +244,10 @@ async function created(node: NodeDetail) {
   flex-direction: column;
 }
 .node-filters {
-  padding: 16px 12px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   border-bottom: 1px solid var(--guild-border);
 }
 .tree-scroll {
@@ -240,5 +261,27 @@ async function created(node: NodeDetail) {
   padding: 12px;
   font-size: 12px;
   border-top: 1px solid var(--guild-border);
+}
+.node-navigation :deep(.tree-root) {
+  font-weight: 600;
+}
+.node-navigation :deep(.tree-selected) {
+  font-weight: 600;
+  color: var(--guild-primary);
+}
+.node-navigation :deep(.tree-relation) {
+  color: var(--guild-primary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.node-navigation :deep(.n-tree-node-content__suffix) {
+  flex-shrink: 0;
+}
+.node-navigation :deep(.tree-comment-count) {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--guild-muted);
 }
 </style>

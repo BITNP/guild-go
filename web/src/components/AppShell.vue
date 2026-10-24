@@ -147,7 +147,7 @@ onMounted(() => void load())
           ><slot /></main
       ></NScrollbar>
       <aside v-if="hasRail" class="rail" :aria-label="railTitle">
-        <header class="rail-heading">{{ railTitle }}</header>
+        <h2 class="rail-heading">{{ railTitle }}</h2>
         <NScrollbar class="rail-scroll"><slot name="rail" /></NScrollbar>
       </aside>
     </div>
@@ -156,7 +156,10 @@ onMounted(() => void load())
       placement="left"
       :width="320"
       @update:show="(value) => (treeOpen = value)"
-      ><NDrawerContent :native-scrollbar="false"
+      ><NDrawerContent
+        :native-scrollbar="false"
+        body-content-style="padding:0"
+        header-style="padding:12px 16px"
         ><template #header
           ><div class="drawer-heading">
             <h2>节点导航</h2>
@@ -175,7 +178,10 @@ onMounted(() => void load())
       placement="right"
       :width="320"
       @update:show="(value) => (railOpen = value)"
-      ><NDrawerContent :native-scrollbar="false"
+      ><NDrawerContent
+        :native-scrollbar="false"
+        body-content-style="padding:0"
+        header-style="padding:12px 16px"
         ><template #header
           ><div class="drawer-heading">
             <h2>{{ railTitle }}</h2>
@@ -243,8 +249,11 @@ onMounted(() => void load())
   min-height: 0;
 }
 .rail-heading {
-  padding: 16px;
+  margin: 0;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--guild-border);
+  font-size: 14px;
+  line-height: 20px;
   font-weight: 600;
 }
 .rail-scroll {
