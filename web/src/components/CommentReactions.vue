@@ -24,7 +24,7 @@ function react(emoji: string) {
 </script>
 <template>
   <NSpace :size="6" align="center"
-    ><NButtonGroup v-for="reaction in active" :key="reaction.emoji" size="small"
+    ><NButtonGroup v-for="reaction in active" :key="reaction.emoji" size="tiny"
       ><NButton
         :type="reaction.reactedByMe ? 'primary' : 'default'"
         :secondary="reaction.reactedByMe"
@@ -60,11 +60,11 @@ function react(emoji: string) {
         ><NButton
           quaternary
           circle
-          size="small"
+          size="tiny"
           :disabled="busy"
           aria-label="添加表情"
           :aria-expanded="picker"
-          ><SmilePlus :size="18" /></NButton
+          ><SmilePlus :size="14" /></NButton
       ></template>
       <div class="emoji-picker">
         <NButton
