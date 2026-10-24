@@ -69,25 +69,16 @@ defineProps<{ node: NodeDetail }>()
     </section>
     <section class="detail-group" aria-label="包含下级节点">
       <h3>包含下级节点</h3>
-      <NDescriptions
-        size="small"
-        :column="1"
-        label-placement="left"
-        separator=""
-        label-class="statistics-label"
-        ><NDescriptionsItem label="成员（含负责人）">{{
-          node.effectiveMemberCount
-        }}</NDescriptionsItem
-        ><NDescriptionsItem label="节点">{{
-          node.subtreeNodeCount
-        }}</NDescriptionsItem
-        ><NDescriptionsItem label="评论">{{
-          node.subtreeCommentCount
-        }}</NDescriptionsItem
-        ><NDescriptionsItem label="图片">{{
-          node.subtreeAttachmentCount
-        }}</NDescriptionsItem></NDescriptions
-      >
+      <dl class="subtree-statistics">
+        <dt>成员（含负责人）</dt>
+        <dd>{{ node.effectiveMemberCount }}</dd>
+        <dt>节点</dt>
+        <dd>{{ node.subtreeNodeCount }}</dd>
+        <dt>评论</dt>
+        <dd>{{ node.subtreeCommentCount }}</dd>
+        <dt>图片</dt>
+        <dd>{{ node.subtreeAttachmentCount }}</dd>
+      </dl>
     </section>
   </section>
 </template>
@@ -113,10 +104,20 @@ defineProps<{ node: NodeDetail }>()
   width: 76px;
   color: var(--guild-muted);
 }
-.detail-group :deep(.statistics-label) {
-  display: inline-block;
-  width: 132px;
+.subtree-statistics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 8px 16px;
+  margin: 0;
+}
+.subtree-statistics dt {
   color: var(--guild-muted);
+}
+.subtree-statistics dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 .people-list :deep(.n-list-item) {
   padding: 4px 0;

@@ -187,7 +187,28 @@ watch(
                       detail.title
                     }}</NH1>
                   </div>
+                  <NSpace :size="8" align="center" class="node-metadata"
+                    ><NodeStatusTag
+                      :due-at="detail.dueAt"
+                      :completed-at="detail.completedAt"
+                    /><NTag
+                      v-for="tag in detail.tags"
+                      :key="tag"
+                      size="small"
+                      >{{ tag }}</NTag
+                    >
+                    <span v-if="detail.dueAt" class="due-date"
+                      ><CalendarDays :size="13" aria-hidden="true" />预期完成
+                      {{ formatDateTime(detail.dueAt) }}</span
+                    >
+                  </NSpace>
                   <NSpace
+                    v-if="
+                      detail.permissions.canEdit ||
+                      detail.permissions.canManageMembers ||
+                      detail.permissions.canDelete
+                    "
+                    class="node-actions"
                     ><NButton
                       v-if="detail.permissions.canEdit"
                       size="small"
@@ -208,18 +229,6 @@ watch(
                     ></NSpace
                   >
                 </div>
-                <NSpace :size="8" align="center" class="node-metadata"
-                  ><NodeStatusTag
-                    :due-at="detail.dueAt"
-                    :completed-at="detail.completedAt"
-                  /><NTag v-for="tag in detail.tags" :key="tag" size="small">{{
-                    tag
-                  }}</NTag>
-                  <span v-if="detail.dueAt" class="due-date"
-                    ><CalendarDays :size="13" aria-hidden="true" />预期完成
-                    {{ formatDateTime(detail.dueAt) }}</span
-                  >
-                </NSpace>
                 <p v-if="detail.description" class="node-description">
                   {{ detail.description }}
                 </p>
@@ -322,7 +331,7 @@ watch(
 }
 .node-metadata {
   padding-left: 46px;
-  margin-top: 8px;
+  grid-area: metadata;
 }
 .due-date {
   display: inline-flex;
@@ -337,18 +346,21 @@ watch(
   gap: 12px;
 }
 .node-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'title actions' 'metadata metadata';
+  gap: 8px 16px;
+}
+.node-actions {
+  grid-area: actions;
+  align-self: start;
 }
 .node-title {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  flex: 1;
-  min-width: 200px;
+  grid-area: title;
+  min-width: 0;
 }
 .node-title h1 {
   font-size: var(--guild-page-title-size);
@@ -378,6 +390,13 @@ watch(
   }
   .node-title h1 {
     font-size: 22px;
+  }
+  .node-heading {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'title' 'metadata' 'actions';
+  }
+  .node-actions {
+    margin-top: 4px;
   }
 }
 </style>
