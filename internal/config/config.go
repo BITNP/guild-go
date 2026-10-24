@@ -22,6 +22,10 @@ type Config struct {
 	OIDCClientID     string
 	OIDCClientSecret string
 
+	DevAuthBypass  bool
+	DevAuthSubject string
+	DevAuthName    string
+
 	KeycloakAdminURL          string
 	KeycloakAdminClientID     string
 	KeycloakAdminClientSecret string
@@ -42,6 +46,9 @@ func Load() (Config, error) {
 		OIDCIssuer:                strings.TrimRight(env("OIDC_ISSUER", ""), "/"),
 		OIDCClientID:              env("OIDC_CLIENT_ID", ""),
 		OIDCClientSecret:          env("OIDC_CLIENT_SECRET", ""),
+		DevAuthBypass:             envBool("APP_DEV_AUTH_BYPASS", false),
+		DevAuthSubject:            env("APP_DEV_AUTH_SUBJECT", "dev-user"),
+		DevAuthName:               env("APP_DEV_AUTH_NAME", "Development User"),
 		KeycloakAdminURL:          strings.TrimRight(env("KEYCLOAK_ADMIN_URL", ""), "/"),
 		KeycloakAdminClientID:     env("KEYCLOAK_ADMIN_CLIENT_ID", ""),
 		KeycloakAdminClientSecret: env("KEYCLOAK_ADMIN_CLIENT_SECRET", ""),
@@ -63,21 +70,32 @@ func Load() (Config, error) {
 
 	var missing []string
 	for name, value := range map[string]string{
-		"DATABASE_URL":       cfg.DatabaseURL,
-		"OIDC_ISSUER":        cfg.OIDCIssuer,
-		"OIDC_CLIENT_ID":     cfg.OIDCClientID,
-		"OIDC_CLIENT_SECRET": cfg.OIDCClientSecret,
-		"S3_ENDPOINT":        cfg.S3Endpoint,
-		"S3_BUCKET":          cfg.S3Bucket,
-		"S3_ACCESS_KEY":      cfg.S3AccessKey,
-		"S3_SECRET_KEY":      cfg.S3SecretKey,
+		"DATABASE_URL":  cfg.DatabaseURL,
+		"S3_ENDPOINT":   cfg.S3Endpoint,
+		"S3_BUCKET":     cfg.S3Bucket,
+		"S3_ACCESS_KEY": cfg.S3AccessKey,
+		"S3_SECRET_KEY": cfg.S3SecretKey,
 	} {
 		if value == "" {
 			missing = append(missing, name)
 		}
 	}
+	if !cfg.DevAuthBypass {
+		for name, value := range map[string]string{
+			"OIDC_ISSUER":        cfg.OIDCIssuer,
+			"OIDC_CLIENT_ID":     cfg.OIDCClientID,
+			"OIDC_CLIENT_SECRET": cfg.OIDCClientSecret,
+		} {
+			if value == "" {
+				missing = append(missing, name)
+			}
+		}
+	}
 	if len(missing) > 0 {
 		return Config{}, fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
+	}
+	if cfg.DevAuthBypass && (cfg.DevAuthSubject == "" || cfg.DevAuthName == "") {
+		return Config{}, fmt.Errorf("APP_DEV_AUTH_SUBJECT and APP_DEV_AUTH_NAME must not be empty")
 	}
 	if (cfg.KeycloakAdminURL != "" || cfg.KeycloakAdminClientID != "" || cfg.KeycloakAdminClientSecret != "") &&
 		(cfg.KeycloakAdminURL == "" || cfg.KeycloakAdminClientID == "" || cfg.KeycloakAdminClientSecret == "") {

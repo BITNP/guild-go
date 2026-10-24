@@ -18,7 +18,10 @@ import { Menu, PanelRight, X } from '@lucide/vue'
 import NodeTree from '@/components/NodeTree.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useNodeStore } from '@/composables/useNodeStore'
-withDefaults(defineProps<{ railTitle?: string }>(), { railTitle: '节点信息' })
+const props = withDefaults(
+  defineProps<{ railTitle?: string; immersive?: boolean }>(),
+  { railTitle: '节点信息', immersive: false },
+)
 const slots: Slots = useSlots(),
   route = useRoute(),
   router = useRouter()
@@ -28,11 +31,15 @@ const treeOpen = ref(false),
   railOpen = ref(false),
   leaving = ref(false),
   error = ref<string | null>(null)
-const hasRail = computed<boolean>(() => Boolean(slots.rail))
+const hasRail = computed<boolean>(() => !props.immersive && Boolean(slots.rail))
 const menuOptions = [
   {
     key: 'home',
     label: () => h(RouterLink, { to: { name: 'home' } }, () => '总览'),
+  },
+  {
+    key: 'graph',
+    label: () => h(RouterLink, { to: { name: 'graph' } }, () => '关系图谱'),
   },
   {
     key: 'account',
@@ -91,7 +98,9 @@ watch(
     railOpen.value = false
   },
 )
-onMounted(() => void load())
+onMounted(() => {
+  if (!props.immersive) void load()
+})
 </script>
 <template>
   <div class="application">
@@ -99,6 +108,7 @@ onMounted(() => void load())
     <NLayoutHeader bordered class="application-header"
       ><div class="header-navigation">
         <NButton
+          v-if="!immersive"
           quaternary
           class="tree-toggle"
           aria-label="打开节点树"
@@ -137,15 +147,24 @@ onMounted(() => void load())
         ></NSpace
       ></NLayoutHeader
     >
-    <div class="workspace" :class="{ 'has-rail': hasRail }">
-      <nav class="sidebar" aria-label="节点导航"><NodeTree /></nav>
-      <NScrollbar class="content-scroll"
+    <div
+      class="workspace"
+      :class="{ 'has-rail': hasRail, 'is-immersive': immersive }"
+    >
+      <nav v-if="!immersive" class="sidebar" aria-label="节点导航"><NodeTree /></nav>
+      <NScrollbar v-if="!immersive" class="content-scroll"
         ><main id="main-content" tabindex="-1">
           <NAlert v-if="error" type="error" closable @close="error = null">{{
             error
           }}</NAlert
           ><slot /></main
       ></NScrollbar>
+      <main v-else id="main-content" tabindex="-1" class="content-immersive">
+        <NAlert v-if="error" type="error" closable @close="error = null">{{
+          error
+        }}</NAlert
+        ><slot />
+      </main>
       <aside v-if="hasRail" class="rail" :aria-label="railTitle">
         <h2 class="rail-heading">{{ railTitle }}</h2>
         <NScrollbar class="rail-scroll"><slot name="rail" /></NScrollbar>
@@ -231,6 +250,16 @@ onMounted(() => void load())
 }
 .workspace.has-rail {
   grid-template-columns: 248px minmax(0, 1fr) 280px;
+}
+.workspace.is-immersive {
+  grid-template-columns: minmax(0, 1fr);
+}
+.content-immersive {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 .sidebar {
   background: var(--guild-surface);
