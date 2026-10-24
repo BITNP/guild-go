@@ -135,6 +135,32 @@ type Overview struct {
 	RecentComments []comments.Recent `json:"recentComments"`
 }
 
+// GraphNode is the compact shape consumed by the relationship graph.
+type GraphNode struct {
+	ID           int64      `json:"id"`
+	ParentID     *int64     `json:"parentId"`
+	ParentTitle  *string    `json:"parentTitle"`
+	Title        string     `json:"title"`
+	SortOrder    int64      `json:"sortOrder"`
+	CompletedAt  *time.Time `json:"completedAt"`
+	ChildCount   int        `json:"childCount"`
+	CommentCount int        `json:"commentCount"`
+}
+
+// GraphPage is one cursor-paginated batch of graph nodes.
+type GraphPage struct {
+	Items      []GraphNode `json:"items"`
+	HasMore    bool        `json:"hasMore"`
+	NextCursor *int64      `json:"nextCursor"`
+}
+
+// GraphNeighborhood contains a focused node and its directly connected nodes.
+type GraphNeighborhood struct {
+	Node     GraphNode   `json:"node"`
+	Parent   *GraphNode  `json:"parent"`
+	Children []GraphNode `json:"children"`
+}
+
 // RootSummary is a root node with leaders and latest comment.
 type RootSummary struct {
 	Summary

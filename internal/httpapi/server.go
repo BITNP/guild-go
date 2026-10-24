@@ -58,9 +58,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/users", s.auth.RequireSession(http.HandlerFunc(s.listUsers)))
 	mux.Handle("GET /api/users/{subject}", s.auth.RequireSession(http.HandlerFunc(s.getUser)))
 
+	mux.Handle("GET /api/graph", s.auth.RequireSession(http.HandlerFunc(s.graph)))
 	mux.Handle("GET /api/overview", s.auth.RequireSession(http.HandlerFunc(s.overview)))
 	mux.Handle("GET /api/nodes", s.auth.RequireSession(http.HandlerFunc(s.listNodes)))
 	mux.Handle("GET /api/nodes/{id}", s.auth.RequireSession(http.HandlerFunc(s.getNode)))
+	mux.Handle("GET /api/nodes/{id}/neighborhood", s.auth.RequireSession(http.HandlerFunc(s.graphNeighborhood)))
 	mux.Handle("POST /api/nodes", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.createNode))))
 	mux.Handle("PUT /api/nodes/order", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.orderNodes))))
 	mux.Handle("PUT /api/nodes/{id}", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.updateNode))))

@@ -1,14 +1,20 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, useSlots, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { LogOut, Menu, PanelRight, UserRound } from '@lucide/vue'
+import { LogOut, Menu, Network, PanelRight, UserRound } from '@lucide/vue'
 import BaseModal from '@/components/BaseModal.vue'
 import NodeTree from '@/components/NodeTree.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useNodeStore } from '@/composables/useNodeStore'
 
-withDefaults(defineProps<{ railTitle?: string }>(), { railTitle: '节点信息' })
+const props = withDefaults(defineProps<{
+  railTitle?: string
+  immersive?: boolean
+}>(), {
+  railTitle: '节点信息',
+  immersive: false,
+})
 
 const slots = useSlots()
 const route = useRoute()
@@ -25,7 +31,7 @@ const hasRail = computed(() => Boolean(slots.rail))
 const isHome = computed(() => route.name === 'home')
 
 onMounted(() => {
-  void load()
+  if (!props.immersive) void load()
 })
 
 async function onLogout() {
@@ -81,6 +87,14 @@ watch(() => route.fullPath, () => {
           总览
         </RouterLink>
         <RouterLink
+          :to="{ name: 'graph' }"
+          class="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium transition-colors"
+          :class="route.name === 'graph' ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2 hover:text-ink'"
+        >
+          <Network class="h-3.5 w-3.5" />
+          关系图谱
+        </RouterLink>
+        <RouterLink
           :to="{ name: 'account' }"
           class="rounded-md px-2 py-1 text-[12px] font-medium transition-colors"
           :class="route.name === 'account' ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2 hover:text-ink'"
@@ -93,7 +107,7 @@ watch(() => route.fullPath, () => {
         <button
           v-if="hasRail"
           class="icon-btn xl:hidden"
-          :aria-label="`打开${railTitle}`"
+          :aria-label="`打开${props.railTitle}`"
           @click="railOpen = true"
         >
           <PanelRight class="h-4 w-4" />
@@ -141,17 +155,22 @@ watch(() => route.fullPath, () => {
     </header>
 
     <div class="flex min-h-0 flex-1">
-      <aside aria-label="节点导航" class="hidden w-[248px] shrink-0 flex-col border-r border-line bg-surface lg:flex">
+      <aside v-if="!props.immersive" aria-label="节点导航" class="hidden w-[248px] shrink-0 flex-col border-r border-line bg-surface lg:flex">
         <NodeTree />
       </aside>
 
-      <main id="main-content" tabindex="-1" class="min-w-0 flex-1 overflow-y-auto">
+      <main
+        id="main-content"
+        tabindex="-1"
+        class="min-w-0 flex-1"
+        :class="props.immersive ? 'overflow-hidden' : 'overflow-y-auto'"
+      >
         <slot />
       </main>
 
-      <aside v-if="hasRail" :aria-label="railTitle" class="hidden w-[280px] shrink-0 flex-col border-l border-line bg-surface xl:flex">
+      <aside v-if="hasRail" :aria-label="props.railTitle" class="hidden w-[280px] shrink-0 flex-col border-l border-line bg-surface xl:flex">
         <div class="border-b border-line px-4 py-3">
-          <h2 class="rail-title">{{ railTitle }}</h2>
+          <h2 class="rail-title">{{ props.railTitle }}</h2>
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto">
           <slot name="rail" />
@@ -162,7 +181,7 @@ watch(() => route.fullPath, () => {
     <BaseModal :open="treeOpen" title="节点导航" side="left" @close="treeOpen = false">
       <NodeTree @navigate="treeOpen = false" />
     </BaseModal>
-    <BaseModal v-if="hasRail" :open="railOpen" :title="railTitle" side="right" @close="railOpen = false">
+    <BaseModal v-if="hasRail" :open="railOpen" :title="props.railTitle" side="right" @close="railOpen = false">
       <slot name="rail" />
     </BaseModal>
   </div>

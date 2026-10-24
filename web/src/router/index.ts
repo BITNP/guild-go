@@ -24,6 +24,12 @@ const router = createRouter({
       meta: { title: '节点' },
     },
     {
+      path: '/graph',
+      name: 'graph',
+      component: () => import('@/views/GraphView.vue'),
+      meta: { title: '关系图谱' },
+    },
+    {
       path: '/users/:subject',
       name: 'user',
       component: () => import('@/views/UserView.vue'),

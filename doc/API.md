@@ -231,6 +231,43 @@ E_member(n) = 本节点及所有后代的直接成员（含负责人）∪ E_lea
 
 `myRelation` 是当前用户对该节点的有效关系。
 
+### `GET /api/graph?cursor=&limit=200`
+
+要求登录。按节点 ID 分页返回关系图谱所需的紧凑节点数据。`cursor` 为上一页的 `nextCursor`，`limit` 最大 300。
+
+```json
+{
+  "items": [
+    {
+      "id": 12,
+      "parentId": 3,
+      "parentTitle": "技术部",
+      "title": "秋季招新",
+      "sortOrder": 2,
+      "completedAt": null,
+      "childCount": 4,
+      "commentCount": 7
+    }
+  ],
+  "hasMore": false,
+  "nextCursor": null
+}
+```
+
+`parentTitle` 用于前端在父节点尚未进入当前批次时提前建立关系边。
+
+### `GET /api/nodes/{id}/neighborhood`
+
+要求登录。返回聚焦视图所需的节点、直接父节点和直接子节点。根节点的 `parent` 为 `null`；前端会将其视觉上连接到合成的“公会”始祖节点。
+
+```json
+{
+  "node": { "...GraphNode..." },
+  "parent": { "...GraphNode..." },
+  "children": [{ "...GraphNode..." }]
+}
+```
+
 ### `GET /api/nodes/{id}`
 
 要求登录。返回节点详情：

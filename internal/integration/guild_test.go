@@ -85,6 +85,55 @@ func session(subject string, permissions authz.SitePermissions) auth.Session {
 	return auth.Session{Subject: subject, Name: subject, Permissions: permissions}
 }
 
+func TestGraphPaginationAndNeighborhood(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	root, err := f.nodes.Create(ctx, f.admin, nodes.CreateRequest{Title: "Graph root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := f.nodes.Create(ctx, f.admin, nodes.CreateRequest{ParentID: &root.ID, Title: "First child"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := f.nodes.Create(ctx, f.admin, nodes.CreateRequest{ParentID: &root.ID, Title: "Second child"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.comments.Create(ctx, f.admin, root.ID, "Graph comment", nil); err != nil {
+		t.Fatal(err)
+	}
+
+	firstPage, err := f.nodes.Graph(ctx, f.admin, 0, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(firstPage.Items) != 2 || !firstPage.HasMore || firstPage.NextCursor == nil {
+		t.Fatalf("first graph page: %+v", firstPage)
+	}
+	secondPage, err := f.nodes.Graph(ctx, f.admin, *firstPage.NextCursor, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(secondPage.Items) != 1 || secondPage.HasMore || secondPage.NextCursor != nil {
+		t.Fatalf("second graph page: %+v", secondPage)
+	}
+
+	neighborhood, err := f.nodes.GraphNeighborhood(ctx, f.admin, root.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if neighborhood.Parent != nil || len(neighborhood.Children) != 2 {
+		t.Fatalf("root neighborhood: %+v", neighborhood)
+	}
+	if neighborhood.Node.ChildCount != 2 || neighborhood.Node.CommentCount != 1 {
+		t.Fatalf("root graph counters: %+v", neighborhood.Node)
+	}
+	if neighborhood.Children[0].ID != first.ID || neighborhood.Children[1].ID != second.ID {
+		t.Fatalf("child order: %+v", neighborhood.Children)
+	}
+}
+
 func TestReactionUsers(t *testing.T) {
 	f := setup(t)
 	ctx := context.Background()
