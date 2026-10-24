@@ -80,6 +80,12 @@ APP_DEV_AUTH_BYPASS=true go run ./cmd/guild
 
 旁路身份默认是 `dev-user`，拥有完整管理权限，并会写入本地 `users` 表。可以通过 `APP_DEV_AUTH_SUBJECT` 和 `APP_DEV_AUTH_NAME` 修改。该选项默认关闭，绝不能在共享或生产环境启用。
 
+开启后的行为与限制：
+
+- 该进程内的所有请求都直接以管理员身份通过，不再校验 OIDC，也不会过期；`OIDC_*` 因此不再是必填项。
+- 不要把这个开关写进 `compose.yaml` 使用的 `.env`：`env_file` 会把配置原样带进容器。
+- 旁路下 `POST /api/auth/logout` 只会清除 Cookie，管理员身份仍会保留；要恢复真实登录，重启进程并去掉该开关。
+
 ### 4. 单镜像构建
 
 ```bash
