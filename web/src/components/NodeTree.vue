@@ -12,7 +12,6 @@ import {
   NRadioGroup,
   NScrollbar,
   NSelect,
-  NSpace,
   NSpin,
   NText,
   NTooltip,
@@ -99,14 +98,11 @@ function treeOption(node: NodeSummary): TreeOption[] {
         node.myRelation || node.commentCount
           ? () =>
               h(
-                NSpace,
+                'span',
                 {
                   class: 'tree-metadata',
-                  size: 4,
-                  align: 'center',
-                  wrap: false,
                 },
-                () => [
+                [
                   node.commentCount
                     ? h(
                         'span',
@@ -323,7 +319,12 @@ async function created(node: NodeDetail) {
   border-top: 1px solid var(--guild-border);
 }
 .node-navigation :deep(.tree-metadata) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding-left: 8px;
+  font-size: 11px;
+  line-height: 16px;
   white-space: nowrap;
 }
 .node-navigation :deep(.tree-label) {
@@ -333,14 +334,11 @@ async function created(node: NodeDetail) {
 }
 .node-navigation :deep(.tree-relation) {
   color: var(--guild-primary);
-  font-size: 11px;
-  white-space: nowrap;
 }
 .node-navigation :deep(.tree-comment-count) {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 11px;
   color: var(--guild-muted);
 }
 </style>
