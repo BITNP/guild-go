@@ -145,16 +145,24 @@ watch(
           <template v-else-if="detail">
             <header class="node-header">
               <NBreadcrumb aria-label="节点路径" class="node-breadcrumb"
-                ><NBreadcrumbItem
+                ><NBreadcrumbItem class="breadcrumb-item"
                   ><RouterLink :to="{ name: 'home' }"
                     >总览</RouterLink
                   ></NBreadcrumbItem
                 ><NBreadcrumbItem
                   v-for="item in detail.breadcrumb"
                   :key="item.id"
+                  class="breadcrumb-item"
                   ><RouterLink
                     :to="{ name: 'node', params: { id: item.id } }"
+                    class="breadcrumb-label"
                     >{{ item.title }}</RouterLink
+                  ></NBreadcrumbItem
+                ><NBreadcrumbItem
+                  :clickable="false"
+                  aria-current="page"
+                  class="breadcrumb-item"
+                  ><span class="breadcrumb-label">{{ detail.title }}</span
                   ></NBreadcrumbItem
                 ></NBreadcrumb
               >
@@ -316,6 +324,13 @@ watch(
 }
 .node-breadcrumb {
   font-size: 12px;
+  white-space: normal;
+}
+.breadcrumb-item {
+  max-width: 100%;
+}
+.breadcrumb-label {
+  overflow-wrap: anywhere;
 }
 .node-metadata {
   padding-left: 46px;
