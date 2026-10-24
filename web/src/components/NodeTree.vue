@@ -228,7 +228,7 @@ async function created(node: NodeDetail) {
     </div>
     <NScrollbar class="tree-scroll"
       ><div class="tree-content">
-        <NSpin :show="loading"
+        <NSpin :show="loading && !nodes.length" :delay="200"
           ><NAlert v-if="error" type="error"
             >{{ error }} <NButton text @click="reload">重试</NButton></NAlert
           ><NTree

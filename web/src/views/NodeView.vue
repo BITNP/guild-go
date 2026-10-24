@@ -10,9 +10,7 @@ import {
   NEmpty,
   NH1,
   NList,
-  NSkeleton,
   NSpace,
-  NSpin,
   NTag,
 } from 'naive-ui'
 import { CalendarDays, Check, Circle } from '@lucide/vue'
@@ -53,7 +51,6 @@ async function load(silent = false) {
   }
   if (!silent) {
     loading.value = true
-    detail.value = null
   }
   error.value = null
   actionError.value = null
@@ -132,10 +129,8 @@ watch(
 </script>
 <template>
   <AppShell
-    ><section class="node-page">
-      <NSpin :show="loading"
-        ><NSpace vertical :size="24">
-          <NSkeleton v-if="loading" text :repeat="5" />
+    ><section class="node-page" :aria-busy="loading" :inert="loading || undefined">
+      <NSpace vertical :size="24">
           <NAlert v-if="error" type="error"
             >{{ error }} <NButton text @click="load()">重试</NButton>
             <NButton text @click="router.push({ name: 'home' })"
@@ -269,11 +264,12 @@ watch(
               :can-comment="detail.permissions.canComment"
               @changed="onCommentChanged"
             />
-          </template> </NSpace
-      ></NSpin>
+          </template> </NSpace>
     </section>
     <template #rail
-      ><NodeDetails v-if="detail && !error" :node="detail" /></template
+      ><div :aria-busy="loading" :inert="loading || undefined">
+        <NodeDetails v-if="detail && !error" :node="detail" />
+      </div></template
   ></AppShell>
   <template v-if="detail">
     <NodeFormDialog

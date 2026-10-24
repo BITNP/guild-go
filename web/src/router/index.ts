@@ -1,6 +1,19 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createDiscreteApi } from 'naive-ui'
+import {
+  createRouter,
+  createWebHistory,
+  isNavigationFailure,
+  NavigationFailureType,
+  type RouteLocationNormalized,
+} from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { safeReturnTo } from '@/lib/utils'
+import { theme } from '@/lib/theme'
+
+const { loadingBar } = createDiscreteApi(['loadingBar'], {
+  configProviderProps: { themeOverrides: theme },
+})
+let pendingRoute: RouteLocationNormalized | null = null
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -50,6 +63,8 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+  if (!pendingRoute) loadingBar.start()
+  pendingRoute = to
   const auth = useAuth()
   try {
     const active = await auth.refresh()
@@ -70,9 +85,24 @@ router.beforeEach(async (to) => {
   }
 })
 
-router.afterEach((to) => {
+router.afterEach((to, _, failure) => {
+  if (
+    pendingRoute === to ||
+    isNavigationFailure(failure, NavigationFailureType.duplicated)
+  ) {
+    pendingRoute = null
+    loadingBar.finish()
+  }
+  if (failure) return
   const title = typeof to.meta.title === 'string' ? to.meta.title : ''
   document.title = title ? `${title} · 公会` : '公会'
+})
+
+router.onError((_, to) => {
+  if (pendingRoute === to) {
+    pendingRoute = null
+    loadingBar.error()
+  }
 })
 
 export default router

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { NAlert, NButton, NH1, NSkeleton, NText } from 'naive-ui'
+import { NAlert, NButton, NH1, NText } from 'naive-ui'
 import AppShell from '@/components/AppShell.vue'
 import ProfileSummary from '@/components/ProfileSummary.vue'
 import { useAuth } from '@/composables/useAuth'
@@ -19,7 +19,6 @@ async function load() {
   const requested = subject.value
   loading.value = true
   error.value = null
-  profile.value = null
   try {
     const result = isSelf.value ? user.value : await fetchUser(requested)
     if (requested === subject.value) profile.value = result
@@ -34,10 +33,10 @@ watch(subject, load, { immediate: true })
 </script>
 <template>
   <AppShell
-    ><section class="user-page">
+    ><section class="user-page" :aria-busy="loading" :inert="loading || undefined">
       <NH1>{{ isSelf ? '我的账号' : '用户资料' }}</NH1
-      ><NSkeleton v-if="loading" text :repeat="5" /><NAlert
-        v-else-if="error"
+      ><NAlert
+        v-if="error"
         type="error"
         >{{ error }} <NButton text @click="load">重试</NButton></NAlert
       ><ProfileSummary

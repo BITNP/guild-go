@@ -11,7 +11,6 @@ import {
   NH1,
   NList,
   NListItem,
-  NSkeleton,
   NSpace,
   NStatistic,
 } from 'naive-ui'
@@ -29,7 +28,6 @@ const router = useRouter(),
   { isManager } = useAuth(),
   {
     nodes,
-    loading: nodesLoading,
     error: nodesError,
     reload: reloadNodes,
   } = useNodeStore()
@@ -81,7 +79,7 @@ onMounted(load)
 </script>
 <template>
   <AppShell rail-title="最近评论"
-    ><section class="overview-page">
+    ><section class="overview-page" :aria-busy="loading">
       <div class="overview-heading">
         <NH1>总览</NH1
         ><NSpace v-if="isManager"
@@ -98,9 +96,8 @@ onMounted(load)
         ><NAlert v-if="error || nodesError" type="error"
           >{{ error || nodesError }}
           <NButton text @click="refresh">重试</NButton></NAlert
-        ><NSkeleton v-if="loading" text :repeat="5" /><template
-          v-else-if="overview && !error"
-          ><NCard v-if="!nodesLoading && !nodesError" size="small"
+        ><template v-if="overview && !error"
+          ><NCard v-if="!nodesError" size="small"
             ><NGrid cols="2 s:4" responsive="screen" :x-gap="16" :y-gap="16"
               ><NGi
                 v-for="stat in statistics"
@@ -137,8 +134,8 @@ onMounted(load)
     </section>
     <template #rail
       ><div class="recent-comments">
-        <NSkeleton v-if="loading" text :repeat="5" /><NAlert
-          v-else-if="error"
+        <NAlert
+          v-if="error"
           type="error"
           >评论加载失败 <NButton text @click="load">重试</NButton></NAlert
         ><NList v-else-if="overview?.recentComments.length"
@@ -156,7 +153,7 @@ onMounted(load)
                     : `${comment.rootTitle} / ${comment.nodeTitle}`
                 }}</RouterLink
               ><CommentPreview :comment="comment" /></NSpace></NListItem></NList
-        ><NEmpty v-else size="small" description="还没有评论" /></div></template
+        ><NEmpty v-else-if="overview" size="small" description="还没有评论" /></div></template
   ></AppShell>
   <NodeFormDialog
     v-model:open="createOpen"
