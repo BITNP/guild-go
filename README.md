@@ -68,6 +68,17 @@ pnpm dev
 
 Vite 开发服务器在 `http://localhost:5173`，把 `/api` 代理到 `127.0.0.1:8080`。
 
+需要在没有 OIDC 的情况下调试时，可仅对本次后端进程启用开发登录旁路：
+
+```bash
+set -a
+source .env
+set +a
+APP_DEV_AUTH_BYPASS=true go run ./cmd/guild
+```
+
+旁路身份默认是 `dev-user`，拥有完整管理权限，并会写入本地 `users` 表。可以通过 `APP_DEV_AUTH_SUBJECT` 和 `APP_DEV_AUTH_NAME` 修改。该选项默认关闭，绝不能在共享或生产环境启用。
+
 ### 4. 单镜像构建
 
 ```bash

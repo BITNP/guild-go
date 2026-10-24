@@ -14,14 +14,9 @@ const sessionContextKey contextKey = 1
 // RequireSession attaches the current session to the request context.
 func (s *Service) RequireSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie(SessionCookieName)
-		if err != nil || cookie.Value == "" {
-			writeAuthError(w, http.StatusUnauthorized, "UNAUTHORIZED", "需要登录")
-			return
-		}
-		session, ok := s.Sessions.Get(cookie.Value)
+		session, ok := s.SessionForRequest(r)
 		if !ok {
-			writeAuthError(w, http.StatusUnauthorized, "UNAUTHORIZED", "登录已过期")
+			writeAuthError(w, http.StatusUnauthorized, "UNAUTHORIZED", "需要登录")
 			return
 		}
 		ctx := context.WithValue(r.Context(), sessionContextKey, session)

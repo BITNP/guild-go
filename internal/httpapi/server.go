@@ -134,11 +134,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) currentSession(r *http.Request) (auth.Session, bool) {
-	cookie, err := r.Cookie(auth.SessionCookieName)
-	if err != nil || cookie.Value == "" {
-		return auth.Session{}, false
-	}
-	return s.auth.Sessions.Get(cookie.Value)
+	return s.auth.SessionForRequest(r)
 }
 
 func (s *Server) securityHeaders(next http.Handler) http.Handler {

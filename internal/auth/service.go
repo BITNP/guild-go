@@ -22,6 +22,8 @@ type Service struct {
 	PublicURL *url.URL
 	Provision func(ctx context.Context, subject string) error
 	Secure    bool
+
+	devSession *Session
 }
 
 // NewService wires the authentication service.
@@ -36,9 +38,44 @@ func NewService(oidcClient *OIDC, sessions *Store, pending *PendingStore, public
 	}
 }
 
+// EnableDevAuthBypass authenticates every request as a local administrator.
+// This must only be enabled explicitly for development.
+func (s *Service) EnableDevAuthBypass(subject, name string) error {
+	csrf, err := RandomToken(32)
+	if err != nil {
+		return err
+	}
+	permissions := authz.FromRoles(authz.RecognizedRoles())
+	s.devSession = &Session{
+		Subject:     subject,
+		Name:        name,
+		Permissions: permissions,
+		CSRF:        csrf,
+	}
+	return nil
+}
+
+// SessionForRequest returns the development session when configured, otherwise
+// it resolves the browser cookie from the in-memory session store.
+func (s *Service) SessionForRequest(r *http.Request) (Session, bool) {
+	if s.devSession != nil {
+		return *s.devSession, true
+	}
+	cookie, err := r.Cookie(SessionCookieName)
+	if err != nil || cookie.Value == "" {
+		return Session{}, false
+	}
+	return s.Sessions.Get(cookie.Value)
+}
+
 // StartLogin begins an authorization-code flow.
 func (s *Service) StartLogin(w http.ResponseWriter, r *http.Request) {
 	returnTo := SafeReturnTo(r.URL.Query().Get("returnTo"))
+	if s.devSession != nil {
+		w.Header().Set("Cache-Control", "no-store")
+		http.Redirect(w, r, returnTo, http.StatusFound)
+		return
+	}
 	state, err := RandomToken(32)
 	if err != nil {
 		s.redirectError(w, r, "oidc_failed")

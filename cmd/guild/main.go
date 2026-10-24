@@ -69,6 +69,17 @@ func main() {
 	pending := auth.NewPendingStore()
 	oidcClient := auth.NewOIDC(cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret, cfg.RedirectURL())
 	authService := auth.NewService(oidcClient, sessions, pending, cfg.PublicURL, cfg.SecureCookie, userService.Provision)
+	if cfg.DevAuthBypass {
+		if err := userService.Provision(ctx, cfg.DevAuthSubject); err != nil {
+			slog.Error("provision development user failed", "error", err)
+			os.Exit(1)
+		}
+		if err := authService.EnableDevAuthBypass(cfg.DevAuthSubject, cfg.DevAuthName); err != nil {
+			slog.Error("enable development authentication bypass failed", "error", err)
+			os.Exit(1)
+		}
+		slog.Warn("development authentication bypass enabled; do not use in production", "subject", cfg.DevAuthSubject)
+	}
 
 	checker := access.New(pool)
 	nodeRepo := nodes.NewRepository(pool)
