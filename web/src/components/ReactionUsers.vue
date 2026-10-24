@@ -40,19 +40,28 @@ onMounted(load)
       v-else-if="!people.length"
       size="small"
       description="还没有人使用这个表情"
-    /><NScrollbar v-else class="people-scroll"
+    /><NScrollbar v-else style="max-height: 280px"
       ><NList
-        ><NListItem v-for="person in people" :key="person.subject"
-          ><UserIdentity :user="person" :size="24" /></NListItem></NList
+        ><NListItem
+          v-for="person in people"
+          :key="person.subject"
+          class="reaction-person"
+          ><UserIdentity
+            class="reaction-person__identity"
+            :user="person"
+            :size="24" /></NListItem></NList
     ></NScrollbar>
   </div>
 </template>
 <style scoped>
 .reaction-users {
-  width: 260px;
+  width: 220px;
   max-width: calc(100vw - 64px);
 }
-.people-scroll {
-  max-height: 280px;
+.reaction-person {
+  padding: 6px 0;
+}
+.reaction-person__identity {
+  display: flex;
 }
 </style>

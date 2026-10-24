@@ -37,6 +37,8 @@ function react(emoji: string) {
         trigger="click"
         :show="selected === reaction.emoji"
         placement="bottom-start"
+        :header-style="{ padding: '6px 12px' }"
+        :content-style="{ padding: '4px 12px' }"
         @update:show="(show) => (selected = show ? reaction.emoji : null)"
         ><template #trigger
           ><NButton
