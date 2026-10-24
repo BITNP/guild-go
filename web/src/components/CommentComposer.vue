@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, useId } from 'vue'
-import { NAlert, NButton, NForm, NFormItem, NInput, NText } from 'naive-ui'
+import {
+  NAlert,
+  NButton,
+  NCard,
+  NForm,
+  NFormItem,
+  NInput,
+  NText,
+} from 'naive-ui'
 import { ImagePlus } from '@lucide/vue'
 import ImageUploadPreview from '@/components/ImageUploadPreview.vue'
 import ImageGallery from '@/components/ImageGallery.vue'
@@ -128,73 +136,70 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
-  <NForm class="comment-composer" @submit.prevent="submit"
-    ><NFormItem label="发表评论" :show-feedback="false"
-      ><NInput
-        v-model:value="body"
-        type="textarea"
-        :disabled="submitting"
-        :maxlength="5000"
-        :autosize="{ minRows: 2, maxRows: 10 }"
-        :input-props="{
-          'aria-label': '发表评论',
-          'aria-describedby': hintId,
-        }"
-        placeholder="写下进展或问题…"
-        @keydown="shortcut" /></NFormItem
-    ><ImageGallery
-      ><div v-if="images.length" class="image-previews">
-        <ImageUploadPreview
-          v-for="image in images"
-          :key="image.src"
-          :src="image.src"
-          :name="image.file.name"
-          :uploading="image.status.state === 'uploading'"
-          :error="image.status.state === 'failed' ? image.status.message : null"
+  <NCard size="small"
+    ><NForm class="comment-composer" @submit.prevent="submit"
+      ><NFormItem label="发表评论" :show-feedback="false"
+        ><NInput
+          v-model:value="body"
+          type="textarea"
           :disabled="submitting"
-          @retry="retry(image)"
-          @remove="remove(image)"
-        /></div
-    ></ImageGallery>
-    <div class="composer-actions">
-      <NButton
-        size="small"
-        :disabled="submitting || images.length >= 4"
-        @click="fileInput?.click()"
-        ><template #icon><ImagePlus :size="16" /></template>添加图片
-        {{ images.length }}/4</NButton
-      ><NButton
-        type="primary"
-        size="small"
-        attr-type="submit"
-        :loading="submitting"
-        :disabled="pending"
-        >发表评论</NButton
-      >
-    </div>
-    <input
-      ref="fileInput"
-      type="file"
-      accept="image/jpeg,image/png,image/webp,image/gif"
-      multiple
-      class="file-input"
-      @change="selectFiles"
-    /><NText :id="hintId" depth="3" class="composer-hint"
-      >最多 4 张图片，每张不超过 5 MB；支持 JPEG、PNG、WebP、GIF。Ctrl / ⌘ +
-      Enter 发表</NText
-    ><NAlert v-if="error" type="error" role="alert" class="composer-error">{{
-      error
-    }}</NAlert></NForm
+          :maxlength="5000"
+          :autosize="{ minRows: 2, maxRows: 10 }"
+          :input-props="{
+            'aria-label': '发表评论',
+            'aria-describedby': hintId,
+          }"
+          placeholder="写下进展或问题…"
+          @keydown="shortcut" /></NFormItem
+      ><ImageGallery
+        ><div v-if="images.length" class="image-previews">
+          <ImageUploadPreview
+            v-for="image in images"
+            :key="image.src"
+            :src="image.src"
+            :name="image.file.name"
+            :uploading="image.status.state === 'uploading'"
+            :error="
+              image.status.state === 'failed' ? image.status.message : null
+            "
+            :disabled="submitting"
+            @retry="retry(image)"
+            @remove="remove(image)"
+          /></div
+      ></ImageGallery>
+      <div class="composer-actions">
+        <NButton
+          size="small"
+          :disabled="submitting || images.length >= 4"
+          @click="fileInput?.click()"
+          ><template #icon><ImagePlus :size="16" /></template>添加图片
+          {{ images.length }}/4</NButton
+        ><NButton
+          type="primary"
+          size="small"
+          attr-type="submit"
+          :loading="submitting"
+          :disabled="pending"
+          >发表评论</NButton
+        >
+      </div>
+      <input
+        ref="fileInput"
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        multiple
+        class="file-input"
+        @change="selectFiles"
+      /><NText :id="hintId" depth="3" class="composer-hint"
+        >最多 4 张图片，每张不超过 5 MB；支持 JPEG、PNG、WebP、GIF。Ctrl / ⌘ +
+        Enter 发表</NText
+      ><NAlert v-if="error" type="error" role="alert" class="composer-error">{{
+        error
+      }}</NAlert></NForm
+    ></NCard
   >
 </template>
 <style scoped>
-.comment-composer {
-  padding: 12px;
-  margin-bottom: 4px;
-  border: 1px solid var(--guild-border);
-  border-radius: 8px;
-  background: var(--guild-surface-subtle);
-}
 .comment-composer :deep(.n-form-item-label) {
   font-weight: 600;
 }

@@ -115,15 +115,16 @@ watch(() => props.nodeId, load, { immediate: true })
     >
       <NText depth="3" class="comment-sort">最新在前</NText>
     </SectionHeading>
-    <NCard size="small" class="discussion-panel">
-      <CommentComposer
-        v-if="canComment"
-        :key="nodeId"
-        :node-id="nodeId"
-        @created="created"
-      /><NAlert v-else type="info" class="comments-alert"
-        >如需发表评论，请联系负责人将你添加为成员。</NAlert
-      ><NAlert v-if="error" type="error" role="alert" class="comments-alert">{{
+    <CommentComposer
+      v-if="canComment"
+      :key="nodeId"
+      :node-id="nodeId"
+      @created="created"
+    /><NAlert v-else type="info"
+      >如需发表评论，请联系负责人将你添加为成员。</NAlert
+    >
+    <NCard size="small">
+      <NAlert v-if="error" type="error" role="alert" class="comments-alert">{{
         error
       }}</NAlert>
       <NSpin :show="loading"
