@@ -250,6 +250,8 @@ async function created(node: NodeDetail) {
                   NEllipsis,
                   {
                     tooltip: true,
+                    lineClamp: 2,
+                    class: 'tree-label',
                     style: { fontWeight: option.isRoot ? 600 : undefined },
                   },
                   () => String(option.label),
@@ -323,6 +325,11 @@ async function created(node: NodeDetail) {
 .node-navigation :deep(.tree-metadata) {
   padding-left: 8px;
   white-space: nowrap;
+}
+.node-navigation :deep(.tree-label) {
+  display: -webkit-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .node-navigation :deep(.tree-relation) {
   color: var(--guild-primary);

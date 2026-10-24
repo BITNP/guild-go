@@ -237,11 +237,11 @@ onMounted(() => {
 }
 .workspace {
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
+  grid-template-columns: 304px minmax(0, 1fr);
   min-height: 0;
 }
 .workspace.has-rail {
-  grid-template-columns: 248px minmax(0, 1fr) 280px;
+  grid-template-columns: 304px minmax(0, 1fr) 280px;
 }
 .workspace.is-immersive {
   grid-template-columns: minmax(0, 1fr);
@@ -299,8 +299,9 @@ onMounted(() => {
   top: 8px;
 }
 @media (max-width: 1279px) {
+  .workspace,
   .workspace.has-rail {
-    grid-template-columns: 248px minmax(0, 1fr);
+    grid-template-columns: 280px minmax(0, 1fr);
   }
   .rail {
     display: none;
