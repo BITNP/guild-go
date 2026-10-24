@@ -16,6 +16,12 @@ func (s *Service) RequireSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session, ok := s.SessionForRequest(r)
 		if !ok {
+			// A present cookie means the session was dropped or expired; keep
+			// telling the browser that, as before the development bypass existed.
+			if cookie, err := r.Cookie(SessionCookieName); err == nil && cookie.Value != "" {
+				writeAuthError(w, http.StatusUnauthorized, "UNAUTHORIZED", "登录已过期")
+				return
+			}
 			writeAuthError(w, http.StatusUnauthorized, "UNAUTHORIZED", "需要登录")
 			return
 		}
