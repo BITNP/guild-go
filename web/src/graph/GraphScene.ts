@@ -94,7 +94,10 @@ export class GraphScene {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.toneMapping = THREE.NoToneMapping
-    this.renderer.domElement.className = 'block h-full w-full cursor-grab'
+    this.renderer.domElement.style.display = 'block'
+    this.renderer.domElement.style.width = '100%'
+    this.renderer.domElement.style.height = '100%'
+    this.renderer.domElement.style.cursor = 'grab'
     this.renderer.domElement.style.touchAction = 'none'
     container.appendChild(this.renderer.domElement)
 
@@ -483,7 +486,7 @@ export class GraphScene {
     this.dragDistance = 0
     this.lastPointer.set(event.clientX, event.clientY)
     this.renderer.domElement.setPointerCapture(event.pointerId)
-    this.renderer.domElement.classList.add('cursor-grabbing')
+    this.renderer.domElement.style.cursor = 'grabbing'
   }
 
   private onPointerMove = (event: PointerEvent) => {
@@ -500,13 +503,13 @@ export class GraphScene {
     const scale = this.distance / Math.max(rect.height, 1) * 1.15
     this.desiredTarget.x -= dx * scale
     this.desiredTarget.z -= dy * scale
-    this.renderer.domElement.classList.add('cursor-grabbing')
+    this.renderer.domElement.style.cursor = 'grabbing'
   }
 
   private onPointerUp = (event: PointerEvent) => {
     if (!this.dragging) return
     this.dragging = false
-    this.renderer.domElement.classList.remove('cursor-grabbing')
+    this.renderer.domElement.style.cursor = 'grab'
     if (this.renderer.domElement.hasPointerCapture(event.pointerId)) {
       this.renderer.domElement.releasePointerCapture(event.pointerId)
     }

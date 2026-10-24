@@ -1,11 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
-import {
-  Focus,
-  Loader2,
-  MousePointer2,
-  Network,
-} from '@lucide/vue'
+import { Focus, Loader2, MousePointer2, Network } from '@lucide/vue'
 import AppShell from '@/components/AppShell.vue'
 import GraphStage from '@/components/graph/GraphStage.vue'
 import { useGraphComments } from '@/composables/useGraphComments'
@@ -64,7 +59,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
 
 <template>
   <AppShell immersive>
-    <div class="relative h-full min-h-0 overflow-hidden" @wheel.capture="onWheel">
+    <div class="graph-view" @wheel.capture="onWheel">
       <GraphStage
         ref="stage"
         :nodes="nodes"
@@ -76,66 +71,267 @@ watch(() => active.value?.node.id ?? null, (id) => {
         @comments-edge="loadOlderComments"
       />
 
-      <header class="pointer-events-none absolute left-4 top-4 z-10 max-w-[min(420px,calc(100%-2rem))]">
-        <div class="flex items-center gap-2 text-slate-600">
-          <span class="grid h-8 w-8 place-items-center rounded-lg border border-slate-300/70 bg-white/82 shadow-sm backdrop-blur">
-            <Network class="h-4 w-4 text-accent" />
-          </span>
+      <header class="graph-header">
+        <div class="graph-title">
+          <span class="graph-title-mark"><Network :size="16" /></span>
           <div>
-            <h1 class="text-[13px] font-semibold tracking-[0.16em] text-ink">关系图谱</h1>
-            <p class="mt-0.5 text-[10px] tracking-[0.12em] text-slate-400">GUILD NARRATIVE FIELD · 01</p>
+            <h1 class="graph-heading">关系图谱</h1>
+            <p class="graph-kicker">GUILD NARRATIVE FIELD · 01</p>
           </div>
         </div>
-        <div class="mt-3 flex items-center gap-2 text-[10px] text-slate-500">
+        <div class="graph-status">
           <span>{{ nodes.length }} 个节点</span>
-          <span class="h-1 w-1 rounded-full bg-slate-300" />
-          <span v-if="loading" class="inline-flex items-center gap-1">
-            <Loader2 class="h-2.5 w-2.5 animate-spin" /> 正在展开档案
+          <span class="graph-dot" />
+          <span v-if="loading" class="graph-inline">
+            <Loader2 :size="10" class="graph-spin" /> 正在展开档案
           </span>
-          <span v-else-if="active && commentsLoading" class="inline-flex items-center gap-1">
-            <Loader2 class="h-2.5 w-2.5 animate-spin" /> 正在展开评注
+          <span v-else-if="active && commentsLoading" class="graph-inline">
+            <Loader2 :size="10" class="graph-spin" /> 正在展开评注
           </span>
           <span v-else-if="active">{{ comments.length }}{{ commentsHaveMore ? '+' : '' }} 条评注</span>
           <span v-else>图谱已完整展开</span>
         </div>
       </header>
 
-      <div v-if="!active" class="pointer-events-auto absolute right-4 top-4 z-10 flex items-center gap-1.5">
+      <div v-if="!active" class="graph-toolbar">
         <button
           type="button"
-          class="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-300/70 bg-white/85 px-2.5 text-[11px] text-slate-600 shadow-sm backdrop-blur transition-colors hover:border-slate-400 hover:text-ink"
+          class="graph-button"
           title="让全部已加载节点回到视野"
           @click="stage?.fitView()"
         >
-          <Focus class="h-3.5 w-3.5" /> 复位视野
+          <Focus :size="14" /> 复位视野
         </button>
       </div>
 
-      <aside class="pointer-events-none absolute bottom-4 left-4 z-10 max-w-[min(460px,calc(100%-8rem))] rounded-lg border border-slate-200/90 bg-white/82 px-3 py-2 text-[10px] leading-5 text-slate-500 shadow-sm backdrop-blur-md">
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span class="inline-flex items-center gap-1"><MousePointer2 class="h-3 w-3" /> 点击节点聚焦</span>
+      <aside class="graph-help">
+        <div class="graph-help-row">
+          <span class="graph-inline"><MousePointer2 :size="12" /> 点击节点聚焦</span>
           <span v-if="!active">拖拽平移 · 滚轮缩放 · 点击空白淡出</span>
           <span v-else>滚轮翻阅节点评注 · 点击空白返回</span>
         </div>
-        <p class="mt-0.5 text-slate-400">父子关系构成地面路径；鼠标移动会影响空间重心。</p>
+        <p class="graph-help-note">父子关系构成地面路径；鼠标移动会影响空间重心。</p>
       </aside>
 
-      <div v-if="dataError" class="absolute inset-0 z-30 grid place-items-center p-6">
-        <div class="rounded-xl border border-rose-300/20 bg-[#1a1620]/92 px-5 py-4 text-center text-sm text-rose-200 shadow-2xl">
+      <div v-if="dataError" class="graph-error-overlay">
+        <div class="graph-error-card">
           <p>{{ dataError }}</p>
-          <button type="button" class="mt-3 rounded-md border border-rose-200/25 px-3 py-1.5 text-xs hover:bg-rose-200/10" @click="reload">
-            重新加载图谱
-          </button>
+          <button type="button" class="graph-error-action" @click="reload">重新加载图谱</button>
         </div>
       </div>
 
-      <p
-        v-if="commentsError"
-        class="absolute bottom-16 left-1/2 z-40 -translate-x-1/2 rounded-md border border-rose-300/20 bg-[#24151b]/92 px-3 py-1.5 text-xs text-rose-200 shadow-xl"
-        role="alert"
-      >
-        {{ commentsError }}
-      </p>
+      <p v-if="commentsError" class="graph-toast" role="alert">{{ commentsError }}</p>
     </div>
   </AppShell>
 </template>
+
+<style scoped>
+.graph-view {
+  position: relative;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: #fff;
+}
+
+.graph-header,
+.graph-toolbar,
+.graph-help {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.graph-header {
+  top: 16px;
+  left: 16px;
+  max-width: min(420px, calc(100% - 32px));
+  color: #64748b;
+}
+
+.graph-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.graph-title-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(203, 213, 225, 0.7);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(6px);
+  color: var(--guild-primary);
+}
+
+.graph-heading {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--guild-text);
+}
+
+.graph-kicker {
+  margin: 2px 0 0;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #94a3b8;
+}
+
+.graph-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 10px;
+  color: #64748b;
+}
+
+.graph-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.graph-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.graph-spin {
+  animation: graph-spin 1s linear infinite;
+}
+
+@keyframes graph-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.graph-toolbar {
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.graph-button {
+  display: inline-flex;
+  height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid rgba(203, 213, 225, 0.7);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #475569;
+  font-size: 11px;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.graph-button:hover {
+  border-color: #94a3b8;
+  color: var(--guild-text);
+}
+
+.graph-help {
+  bottom: 16px;
+  left: 16px;
+  max-width: min(460px, calc(100% - 128px));
+  padding: 8px 12px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #64748b;
+  font-size: 10px;
+  line-height: 20px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.graph-help-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.graph-help-note {
+  margin: 2px 0 0;
+  color: #94a3b8;
+}
+
+.graph-error-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.graph-error-card {
+  padding: 16px 20px;
+  border: 1px solid rgba(253, 164, 175, 0.2);
+  border-radius: 12px;
+  background: rgba(26, 22, 32, 0.92);
+  color: #fecdd3;
+  text-align: center;
+  font-size: 14px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.graph-error-card p {
+  margin: 0;
+}
+
+.graph-error-action {
+  margin-top: 12px;
+  padding: 6px 12px;
+  border: 1px solid rgba(254, 205, 211, 0.25);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.graph-error-action:hover {
+  background: rgba(254, 205, 211, 0.1);
+}
+
+.graph-toast {
+  position: absolute;
+  bottom: 64px;
+  left: 50%;
+  z-index: 40;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 12px;
+  border: 1px solid rgba(253, 164, 175, 0.2);
+  border-radius: 6px;
+  background: rgba(36, 21, 27, 0.92);
+  color: #fecdd3;
+  font-size: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .graph-spin {
+    animation: none;
+  }
+}
+</style>

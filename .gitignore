@@ -19,3 +19,6 @@ internal/web/dist/*.css
 /guild-go
 *.log
 .DS_Store
+
+# local UI previews
+/ui-previews/

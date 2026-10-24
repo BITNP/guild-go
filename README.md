@@ -8,7 +8,7 @@ Guild of Pioneers 的 Go 重写版：一个仓库、一个 Go 二进制、一个
 - 3D 关系图谱：读取完整节点列表后在浏览器渲染，支持俯视镜头、节点聚焦和节点上方只读评论流（复用 `GET /api/nodes`，无额外接口）。
 - 删除节点会级联删除整棵子树、评论和附件。
 - Keycloak OIDC 登录，权限解析使用 [`bitnp-authz`](https://git.bitnp.net/BITNP/bitnp-authz)。
-- 前端 Vue 3 + Vite + Tailwind，中文高密度三栏；由 Go `embed` 直接提供静态文件。
+- 前端 Vue 3 + Vite + Naive UI，使用 Vue scoped CSS，保留中文高密度三栏；由 Go `embed` 直接提供静态文件。
 - 外部 PostgreSQL + 外部 S3 兼容存储；不迁移旧数据。
 
 ## 快速开始

@@ -61,13 +61,57 @@ defineExpose({ fitView, scrollComments })
 </script>
 
 <template>
-  <div class="relative h-full w-full overflow-hidden bg-white">
-    <div ref="container" class="absolute inset-0" />
-    <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,transparent_18%,rgba(241,245,249,0.08)_65%,rgba(226,232,240,0.28)_100%)]" />
-    <div v-if="error" class="absolute inset-0 grid place-items-center p-6">
-      <p class="max-w-md rounded-lg border border-danger/30 bg-danger-soft/95 px-4 py-3 text-sm text-danger">
-        无法创建关系图谱：{{ error }}
-      </p>
+  <div class="graph-stage">
+    <div ref="container" class="graph-canvas" />
+    <div class="graph-vignette" />
+    <div v-if="error" class="graph-stage-error">
+      <p class="graph-stage-error-card">无法创建关系图谱：{{ error }}</p>
     </div>
   </div>
 </template>
+
+<style scoped>
+.graph-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
+}
+
+.graph-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.graph-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 50% 42%,
+    transparent 18%,
+    rgba(241, 245, 249, 0.08) 65%,
+    rgba(226, 232, 240, 0.28) 100%
+  );
+}
+
+.graph-stage-error {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.graph-stage-error-card {
+  max-width: 28rem;
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid rgba(194, 59, 59, 0.3);
+  border-radius: 8px;
+  background: rgba(253, 242, 242, 0.95);
+  color: var(--guild-danger);
+  font-size: 14px;
+}
+</style>
