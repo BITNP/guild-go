@@ -107,15 +107,6 @@ function treeOption(node: NodeSummary): TreeOption[] {
                   wrap: false,
                 },
                 () => [
-                  node.myRelation
-                    ? h(
-                        NText,
-                        {
-                          class: 'tree-relation',
-                        },
-                        () => (node.myRelation === 'leader' ? '负责' : '参与'),
-                      )
-                    : null,
                   node.commentCount
                     ? h(
                         'span',
@@ -127,6 +118,15 @@ function treeOption(node: NodeSummary): TreeOption[] {
                           h(MessageSquare, { size: 12, 'aria-hidden': true }),
                           String(node.commentCount),
                         ],
+                      )
+                    : null,
+                  node.myRelation
+                    ? h(
+                        NText,
+                        {
+                          class: 'tree-relation',
+                        },
+                        () => (node.myRelation === 'leader' ? '负责' : '参与'),
                       )
                     : null,
                 ],
