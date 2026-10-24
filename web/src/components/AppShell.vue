@@ -138,9 +138,19 @@ onMounted(() => {
           @select="selectAccount"
           ><NButton quaternary aria-label="账号菜单"
             ><NSpace align="center" :size="8"
-              ><NAvatar round :size="26" :src="user?.avatar ?? undefined">{{
+              ><NAvatar
+                v-if="user?.avatar"
+                round
+                :size="26"
+                :src="user?.avatar ?? undefined"
+                object-fit="cover"
+                color="#1f5fbf"
+              >
+                <template #fallback>{{ user?.userName.slice(0, 1) }}</template>
+              </NAvatar>
+              <NAvatar v-else round :size="26" color="#1f5fbf">{{
                 user?.userName.slice(0, 1)
-              }}</NAvatar
+              }}</NAvatar>
               ><span class="account-name">{{ user?.userName }}</span></NSpace
             ></NButton
           ></NDropdown
