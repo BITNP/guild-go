@@ -150,29 +150,6 @@ export interface Overview {
   recentComments: RecentComment[]
 }
 
-export interface GraphNode {
-  id: number
-  parentId: number | null
-  parentTitle: string | null
-  title: string
-  sortOrder: number
-  completedAt: string | null
-  childCount: number
-  commentCount: number
-}
-
-export interface GraphPage {
-  items: GraphNode[]
-  hasMore: boolean
-  nextCursor: number | null
-}
-
-export interface GraphNeighborhood {
-  node: GraphNode
-  parent: GraphNode | null
-  children: GraphNode[]
-}
-
 export interface MemberSource {
   id: number
   title: string
@@ -280,16 +257,6 @@ export function logout(): Promise<void> {
 
 export function fetchOverview(): Promise<Overview> {
   return apiFetch<Overview>('/api/overview', { cache: 'no-store' })
-}
-
-export function fetchGraph(cursor?: number | null, limit = 200): Promise<GraphPage> {
-  const params = new URLSearchParams({ limit: String(limit) })
-  if (cursor != null) params.set('cursor', String(cursor))
-  return apiFetch<GraphPage>(`/api/graph?${params.toString()}`, { cache: 'no-store' })
-}
-
-export function fetchGraphNeighborhood(id: number): Promise<GraphNeighborhood> {
-  return apiFetch<GraphNeighborhood>(`/api/nodes/${id}/neighborhood`, { cache: 'no-store' })
 }
 
 export function fetchNodes(): Promise<NodeSummary[]> {

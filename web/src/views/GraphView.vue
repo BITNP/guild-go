@@ -8,17 +8,16 @@ import {
 } from '@lucide/vue'
 import AppShell from '@/components/AppShell.vue'
 import GraphStage from '@/components/graph/GraphStage.vue'
-import { useGraphData } from '@/composables/useGraphData'
 import { useGraphComments } from '@/composables/useGraphComments'
-import { fetchGraphNeighborhood, type GraphNeighborhood } from '@/lib/api'
-import { errorMessage } from '@/lib/utils'
+import { useNodeStore } from '@/composables/useNodeStore'
+import type { GraphNeighborhood } from '@/graph/types'
 
 interface GraphStageExpose {
   fitView: () => void
   scrollComments: (delta: number) => void
 }
 
-const { nodes, loading, complete, error: dataError, loaded, load } = useGraphData()
+const { nodes, byId, childrenOf, loading, error: dataError, load, reload } = useNodeStore()
 const {
   items: comments,
   loading: commentsLoading,
@@ -29,33 +28,18 @@ const {
 } = useGraphComments()
 const stage = ref<GraphStageExpose | null>(null)
 const active = ref<GraphNeighborhood | null>(null)
-const pendingId = ref<number | null>(null)
-const selectionError = ref<string | null>(null)
-let requestGeneration = 0
 
-async function selectNode(id: number) {
-  if (pendingId.value === id) return
-  const current = ++requestGeneration
-  pendingId.value = id
-  selectionError.value = null
-  try {
-    const neighborhood = await fetchGraphNeighborhood(id)
-    if (current !== requestGeneration) return
-    active.value = neighborhood
-  } catch (err) {
-    if (current === requestGeneration) {
-      selectionError.value = errorMessage(err, '无法聚焦该节点')
-    }
-  } finally {
-    if (current === requestGeneration) pendingId.value = null
-  }
+// The whole tree is already in the node store, so the focused neighborhood is a
+// pure lookup. childrenOf keeps the same (sortOrder, id) order as the server.
+function selectNode(id: number) {
+  const node = byId.value.get(id)
+  if (!node) return
+  const parent = node.parentId == null ? null : byId.value.get(node.parentId) ?? null
+  active.value = { node, parent, children: childrenOf(id) }
 }
 
 function clearSelection() {
-  requestGeneration++
-  pendingId.value = null
   active.value = null
-  selectionError.value = null
 }
 
 function onWheel(event: WheelEvent) {
@@ -103,7 +87,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
           </div>
         </div>
         <div class="mt-3 flex items-center gap-2 text-[10px] text-slate-500">
-          <span>{{ loaded }} 个节点</span>
+          <span>{{ nodes.length }} 个节点</span>
           <span class="h-1 w-1 rounded-full bg-slate-300" />
           <span v-if="loading" class="inline-flex items-center gap-1">
             <Loader2 class="h-2.5 w-2.5 animate-spin" /> 正在展开档案
@@ -112,7 +96,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
             <Loader2 class="h-2.5 w-2.5 animate-spin" /> 正在展开评注
           </span>
           <span v-else-if="active">{{ comments.length }}{{ commentsHaveMore ? '+' : '' }} 条评注</span>
-          <span v-else-if="complete">图谱已完整展开</span>
+          <span v-else>图谱已完整展开</span>
         </div>
       </header>
 
@@ -139,26 +123,19 @@ watch(() => active.value?.node.id ?? null, (id) => {
       <div v-if="dataError" class="absolute inset-0 z-30 grid place-items-center p-6">
         <div class="rounded-xl border border-rose-300/20 bg-[#1a1620]/92 px-5 py-4 text-center text-sm text-rose-200 shadow-2xl">
           <p>{{ dataError }}</p>
-          <button type="button" class="mt-3 rounded-md border border-rose-200/25 px-3 py-1.5 text-xs hover:bg-rose-200/10" @click="load">
+          <button type="button" class="mt-3 rounded-md border border-rose-200/25 px-3 py-1.5 text-xs hover:bg-rose-200/10" @click="reload">
             重新加载图谱
           </button>
         </div>
       </div>
 
       <p
-        v-if="selectionError || commentsError"
+        v-if="commentsError"
         class="absolute bottom-16 left-1/2 z-40 -translate-x-1/2 rounded-md border border-rose-300/20 bg-[#24151b]/92 px-3 py-1.5 text-xs text-rose-200 shadow-xl"
         role="alert"
       >
-        {{ selectionError || commentsError }}
+        {{ commentsError }}
       </p>
-
-      <div
-        v-if="pendingId != null && active == null"
-        class="pointer-events-none absolute left-1/2 top-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border border-slate-300/70 bg-white/85 px-3 py-1.5 text-[11px] text-slate-600 shadow-sm backdrop-blur"
-      >
-        <Loader2 class="h-3 w-3 animate-spin" /> 正在靠近节点…
-      </div>
     </div>
   </AppShell>
 </template>

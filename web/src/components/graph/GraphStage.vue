@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { Comment, GraphNeighborhood, GraphNode } from '@/lib/api'
+import type { Comment } from '@/lib/api'
+import type { GraphNeighborhood, GraphNode } from '@/graph/types'
 import { GraphScene } from '@/graph/GraphScene'
 
 const props = defineProps<{

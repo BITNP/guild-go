@@ -1,4 +1,4 @@
-import type { GraphNode } from '@/lib/api'
+import type { GraphNode } from '@/graph/types'
 
 export const VIRTUAL_ROOT_ID = -1
 export const NODE_WIDTH = 4.8

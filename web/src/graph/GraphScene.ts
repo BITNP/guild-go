@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import type { Comment, GraphNeighborhood, GraphNode } from '@/lib/api'
+import type { Comment } from '@/lib/api'
+import type { GraphNeighborhood, GraphNode } from '@/graph/types'
 import {
   layoutGraph,
   VIRTUAL_ROOT_ID,
@@ -250,7 +251,6 @@ export class GraphScene {
     nodes.push({
       id: VIRTUAL_ROOT_ID,
       parentId: null,
-      parentTitle: null,
       title: '公会',
       sortOrder: -1,
       completedAt: null,
