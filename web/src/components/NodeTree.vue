@@ -15,10 +15,18 @@ import {
   NSpace,
   NSpin,
   NText,
+  NTooltip,
   NTree,
   type TreeOption,
 } from 'naive-ui'
-import { Check, Circle, MessageSquare, Plus } from '@lucide/vue'
+import {
+  Check,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Circle,
+  MessageSquare,
+  Plus,
+} from '@lucide/vue'
 import { useAuth } from '@/composables/useAuth'
 import { useNodeStore } from '@/composables/useNodeStore'
 import type { NodeDetail, NodeSummary } from '@/lib/api'
@@ -164,31 +172,50 @@ async function created(node: NodeDetail) {
         v-model:value="relation"
         size="small"
         aria-label="按参与关系筛选"
+        class="relation-filter"
         ><NRadioButton value="all">全部</NRadioButton
         ><NRadioButton value="leader">我负责</NRadioButton
         ><NRadioButton value="member">我参与</NRadioButton></NRadioGroup
-      ><NSelect
-        v-model:value="tag"
-        size="small"
-        clearable
-        :options="tags"
-        placeholder="全部标签"
-        aria-label="按标签筛选"
-      /><NSpace :size="12"
-        ><NButton
-          text
-          size="small"
-          :disabled="filtering"
-          @click="
-            expanded = nodes
-              .filter((node) => node.childCount)
-              .map((node) => node.id)
-          "
-          >展开全部</NButton
-        ><NButton text size="small" :disabled="filtering" @click="expanded = []"
-          >收起全部</NButton
-        ></NSpace
       >
+      <div class="tree-controls">
+        <NSelect
+          v-model:value="tag"
+          size="small"
+          clearable
+          :options="tags"
+          placeholder="全部标签"
+          aria-label="按标签筛选"
+          class="tag-filter"
+        /><NTooltip
+          ><template #trigger
+            ><NButton
+              size="small"
+              aria-label="展开全部"
+              class="tree-action"
+              :disabled="filtering"
+              @click="
+                expanded = nodes
+                  .filter((node) => node.childCount)
+                  .map((node) => node.id)
+              "
+              ><ChevronsUpDown
+                :size="16"
+                aria-hidden="true" /></NButton></template
+          >展开全部</NTooltip
+        ><NTooltip
+          ><template #trigger
+            ><NButton
+              size="small"
+              aria-label="收起全部"
+              class="tree-action"
+              :disabled="filtering"
+              @click="expanded = []"
+              ><ChevronsDownUp
+                :size="16"
+                aria-hidden="true" /></NButton></template
+          >收起全部</NTooltip
+        >
+      </div>
     </div>
     <NScrollbar class="tree-scroll"
       ><div class="tree-content">
@@ -254,6 +281,33 @@ async function created(node: NodeDetail) {
 .tree-scroll {
   flex: 1;
   min-height: 0;
+}
+.relation-filter {
+  display: flex;
+  width: 100%;
+}
+.relation-filter :deep(.n-radio-button) {
+  flex: 1;
+  min-width: 0;
+  padding: 0 8px;
+  text-align: center;
+}
+.relation-filter :deep(.n-radio-group__splitor) {
+  flex: none;
+}
+.tree-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tag-filter {
+  flex: 1;
+  min-width: 0;
+}
+.tree-action {
+  width: 28px;
+  padding: 0;
+  flex: none;
 }
 .tree-content {
   padding: 8px;
