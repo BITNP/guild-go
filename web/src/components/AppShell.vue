@@ -255,6 +255,7 @@ onMounted(() => void load())
   font-size: 14px;
   line-height: 20px;
   font-weight: 600;
+  background: var(--guild-surface-subtle);
 }
 .rail-scroll {
   flex: 1;

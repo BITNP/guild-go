@@ -107,7 +107,7 @@ async function save() {
                 :users="users"
                 :loading="loading"
                 :disabled="saving || loading"
-              /><NText depth="3"
+              /><NText depth="3" class="member-hint"
                 >负责人可管理此节点及下级节点。成员可在此节点及上级节点发表评论。</NText
               ></NForm
             ></NTabPane
@@ -116,26 +116,32 @@ async function save() {
               ><NGi
                 v-for="group in ['leaders', 'members'] as const"
                 :key="group"
-                ><NH3>{{ group === 'leaders' ? '全部负责人' : '全部成员' }}</NH3
+                ><NH3 class="member-group-title">{{
+                  group === 'leaders' ? '全部负责人' : '全部成员'
+                }}</NH3
                 ><NList
                   ><NListItem
                     v-for="entry in effective?.[group] ?? []"
                     :key="entry.user.subject"
                     ><NSpace vertical :size="4"
-                      ><UserIdentity :user="entry.user" /><NText depth="3">{{
-                        entry.direct
-                          ? group === 'leaders'
-                            ? '直接负责人'
-                            : '直接成员'
-                          : `继承自 ${entry.sources.map((source) => source.title).join('、')}`
-                      }}</NText></NSpace
+                      ><UserIdentity :user="entry.user" /><NText
+                        depth="3"
+                        class="member-source"
+                        >{{
+                          entry.direct
+                            ? group === 'leaders'
+                              ? '直接负责人'
+                              : '直接成员'
+                            : `继承自 ${entry.sources.map((source) => source.title).join('、')}`
+                        }}</NText
+                      ></NSpace
                     ></NListItem
                   ></NList
                 ><NEmpty
                   v-if="effective && !effective[group].length"
                   description="暂无成员"
                   size="small" /></NGi></NGrid></NTabPane></NTabs></NSpin
-      ><NSpace justify="end"
+      ><NSpace justify="end" class="member-actions"
         ><NButton :disabled="saving" @click="emit('close')">关闭</NButton
         ><NButton
           v-if="tab === 'direct'"
@@ -149,3 +155,22 @@ async function save() {
     ></AppModal
   >
 </template>
+<style scoped>
+.member-group-title {
+  margin: 4px 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.member-hint {
+  display: block;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.member-source {
+  font-size: var(--guild-meta-size);
+}
+.member-actions {
+  padding-top: 16px;
+  border-top: 1px solid var(--guild-border);
+}
+</style>

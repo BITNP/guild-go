@@ -58,6 +58,7 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
         >
       </div>
       <NSpace v-if="leaders" :size="12" class="entry-leaders">
+        <NText depth="3">负责人</NText>
         <UserIdentity
           v-for="leader in leaders"
           :key="leader.subject"
@@ -83,6 +84,12 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
 .node-list-item :deep(.n-list-item__main) {
   min-width: 0;
 }
+.node-list-item:first-child {
+  padding-top: 0;
+}
+.node-list-item:last-child {
+  padding-bottom: 0;
+}
 .node-icon {
   color: var(--guild-muted);
 }
@@ -99,7 +106,7 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
   color: inherit;
   text-decoration: none;
   overflow-wrap: anywhere;
-  font-size: 15px;
+  font-size: var(--guild-item-title-size);
   line-height: 24px;
   font-weight: 600;
 }
@@ -113,7 +120,7 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
   gap: 4px 12px;
   margin-top: 4px;
   color: var(--guild-muted);
-  font-size: 12px;
+  font-size: var(--guild-meta-size);
   line-height: 20px;
 }
 .metadata-item {

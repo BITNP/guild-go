@@ -6,7 +6,6 @@ import {
   NSpace,
   NTag,
   NText,
-  NThing,
 } from 'naive-ui'
 import UserIdentity from '@/components/UserIdentity.vue'
 import type { Profile } from '@/lib/api'
@@ -14,18 +13,13 @@ import { departmentLabel } from '@/lib/utils'
 defineProps<{ profile: Profile; showPermissions: boolean }>()
 </script>
 <template>
-  <NCard
-    ><NSpace vertical :size="24"
-      ><NThing
-        ><template #avatar
-          ><UserIdentity
-            :user="profile"
-            :size="56"
-            :show-name="false" /></template
-        ><template #header>{{ profile.userName }}</template
-        ><template #description
-          ><span class="profile-email">{{ profile.email }}</span></template
-        ><NSpace
+  <NCard>
+    <header class="profile-header">
+      <UserIdentity :user="profile" :size="56" :show-name="false" />
+      <div class="profile-identity">
+        <h2>{{ profile.userName }}</h2>
+        <p v-if="profile.email" class="profile-email">{{ profile.email }}</p>
+        <NSpace
           ><NTag
             v-for="position in profile.positions"
             :key="position.code"
@@ -35,13 +29,16 @@ defineProps<{ profile: Profile; showPermissions: boolean }>()
           ><NText v-if="!profile.positions.length" depth="3"
             >暂无职务信息</NText
           ></NSpace
-        ></NThing
-      ><NDescriptions
-        v-if="showPermissions && profile.permissions"
-        title="权限"
-        :column="2"
-        label-placement="top"
-        bordered
+        >
+      </div>
+    </header>
+    <section
+      v-if="showPermissions && profile.permissions"
+      class="profile-permissions"
+      aria-label="账号权限"
+    >
+      <h3>账号权限</h3>
+      <NDescriptions :column="2" label-placement="top" bordered
         ><NDescriptionsItem label="系统管理员">{{
           profile.permissions.systemAdmin ? '是' : '否'
         }}</NDescriptionsItem
@@ -58,11 +55,47 @@ defineProps<{ profile: Profile; showPermissions: boolean }>()
             .map(departmentLabel)
             .join('、') || '—'
         }}</NDescriptionsItem></NDescriptions
-      ><slot /></NSpace
-  ></NCard>
+      >
+    </section>
+    <div v-if="$slots.default" class="profile-footer"><slot /></div>
+  </NCard>
 </template>
 <style scoped>
 .profile-email {
   overflow-wrap: anywhere;
+  color: var(--guild-muted);
+  margin: 4px 0 12px;
+}
+.profile-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.profile-identity {
+  min-width: 0;
+}
+.profile-identity h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 30px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.profile-permissions,
+.profile-footer {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--guild-border);
+}
+.profile-permissions h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.profile-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-size: 13px;
 }
 </style>

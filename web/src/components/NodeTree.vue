@@ -249,6 +249,7 @@ async function created(node: NodeDetail) {
   flex-direction: column;
   gap: 8px;
   border-bottom: 1px solid var(--guild-border);
+  background: var(--guild-surface-subtle);
 }
 .tree-scroll {
   flex: 1;

@@ -5,7 +5,6 @@ import {
   NButton,
   NCard,
   NEmpty,
-  NH2,
   NList,
   NSpace,
   NSpin,
@@ -14,6 +13,7 @@ import {
 import CommentComposer from '@/components/CommentComposer.vue'
 import CommentItem from '@/components/CommentItem.vue'
 import ConfirmAction from '@/components/ConfirmAction.vue'
+import SectionHeading from '@/components/SectionHeading.vue'
 import {
   deleteComment,
   fetchComments,
@@ -105,24 +105,28 @@ watch(() => props.nodeId, load, { immediate: true })
 </script>
 <template>
   <section class="comments">
-    <div class="comments-heading">
-      <NH2
-        >评论
-        <NText v-if="!loading && !loadError" depth="3" class="comment-count"
-          >{{ items.length }}{{ hasMore ? '+' : '' }}</NText
-        ></NH2
-      ><NText depth="3">最新在前</NText>
-    </div>
-    <CommentComposer
-      v-if="canComment"
-      :key="nodeId"
-      :node-id="nodeId"
-      @created="created"
-    /><NAlert v-else type="info"
-      >如需发表评论，请联系负责人将你添加为成员。</NAlert
-    ><NAlert v-if="error" type="error" role="alert">{{ error }}</NAlert
-    ><NCard size="small"
-      ><NSpin :show="loading"
+    <SectionHeading
+      title="评论"
+      :count="
+        !loading && !loadError
+          ? `${items.length}${hasMore ? '+' : ''}`
+          : undefined
+      "
+    >
+      <NText depth="3" class="comment-sort">最新在前</NText>
+    </SectionHeading>
+    <NCard size="small" class="discussion-panel">
+      <CommentComposer
+        v-if="canComment"
+        :key="nodeId"
+        :node-id="nodeId"
+        @created="created"
+      /><NAlert v-else type="info" class="comments-alert"
+        >如需发表评论，请联系负责人将你添加为成员。</NAlert
+      ><NAlert v-if="error" type="error" role="alert" class="comments-alert">{{
+        error
+      }}</NAlert>
+      <NSpin :show="loading"
         ><NAlert v-if="loadError" type="error"
           >{{ loadError }}
           <NButton text @click="load">重新加载</NButton></NAlert
@@ -141,7 +145,8 @@ watch(() => props.nodeId, load, { immediate: true })
           >加载更多评论</NButton
         ></NSpace
       ></NCard
-    ><ConfirmAction
+    >
+    <ConfirmAction
       :open="deleteTarget !== null"
       title="删除评论"
       confirm-text="删除评论"
@@ -160,23 +165,13 @@ watch(() => props.nodeId, load, { immediate: true })
 .comments {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-}
-.comments-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   gap: 12px;
 }
-.comments-heading h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+.comment-sort {
+  font-size: var(--guild-meta-size);
 }
-.comment-count {
-  margin-left: 6px;
-  font-size: 13px;
-  font-weight: 400;
+.comments-alert {
+  margin-bottom: 16px;
 }
 .delete-preview {
   white-space: pre-wrap;

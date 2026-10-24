@@ -38,7 +38,10 @@ const memberOptions = computed(() =>
 </script>
 <template>
   <NGrid cols="1 s:2" responsive="screen" :x-gap="16"
-    ><NFormItemGi label="直接负责人" :required="!creating"
+    ><NFormItemGi
+      label="直接负责人"
+      :required="!creating"
+      :show-feedback="false"
       ><NSelect
         v-model:value="leaders"
         aria-label="直接负责人"
@@ -50,7 +53,7 @@ const memberOptions = computed(() =>
         :placeholder="
           creating ? '留空则由你负责' : '搜索并选择负责人'
         " /></NFormItemGi
-    ><NFormItemGi label="直接成员"
+    ><NFormItemGi label="直接成员" :show-feedback="false"
       ><NSelect
         v-model:value="members"
         aria-label="直接成员"

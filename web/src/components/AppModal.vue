@@ -23,7 +23,8 @@ const emit = defineEmits<{ close: [] }>()
     :mask-closable="!busy"
     :close-on-esc="!busy"
     :style="{ width: wide ? '760px' : '540px', maxWidth: 'calc(100vw - 32px)' }"
-    content-style="max-height:calc(100dvh - 200px);overflow:auto"
+    header-style="padding:16px 24px;border-bottom:1px solid var(--guild-border)"
+    content-style="max-height:calc(100dvh - 200px);overflow:auto;padding-top:20px"
     @update:show="(value) => !value && emit('close')"
   >
     <template #header-extra

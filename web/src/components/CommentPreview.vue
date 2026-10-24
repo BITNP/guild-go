@@ -37,8 +37,9 @@ defineProps<{
 <style scoped>
 .comment-preview {
   border-left: 2px solid var(--guild-border);
-  padding-left: 10px;
-  font-size: 12px;
+  padding: 8px 10px;
+  background: var(--guild-surface-subtle);
+  font-size: var(--guild-meta-size);
 }
 .preview-byline {
   display: flex;
@@ -48,6 +49,8 @@ defineProps<{
 }
 .preview-body {
   margin: 4px 0 0;
+  color: var(--guild-text);
+  font-size: 13px;
   line-height: 1.65;
   overflow-wrap: anywhere;
   display: -webkit-box;

@@ -127,46 +127,53 @@ async function submit() {
     :busy="saving"
     wide
     @close="emit('update:open', false)"
-    ><NForm label-placement="top" :disabled="saving" @submit.prevent="submit"
-      ><NFormItem v-if="parentTitle" label="父节点">{{ parentTitle }}</NFormItem
-      ><NFormItem label="标题" required
-        ><NInput
-          v-model:value="title"
-          :input-props="{ 'aria-label': '标题' }"
-          placeholder="例如：秋季招新"
-          :maxlength="200"
-          show-count
-          autofocus /></NFormItem
-      ><NFormItem label="描述"
-        ><NInput
-          v-model:value="description"
-          :input-props="{ 'aria-label': '描述' }"
-          type="textarea"
-          :autosize="{ minRows: 3, maxRows: 8 }"
-          placeholder="说明需要完成的工作" /></NFormItem
-      ><NGrid cols="1 s:2" responsive="screen" :x-gap="16"
-        ><NFormItemGi label="预期完成时间"
-          ><label class="date-input">
-            <span class="visually-hidden">预期完成时间</span>
-            <NDatePicker
-              v-model:value="due"
-              type="datetime"
-              format="yyyy-MM-dd HH:mm"
-              :time-picker-props="{ format: 'HH:mm' }"
-              clearable
-              class="date-input"
-            /> </label></NFormItemGi
-        ><NFormItemGi label="标签"
+    ><NForm label-placement="top" :disabled="saving" @submit.prevent="submit">
+      <p v-if="parentTitle" class="parent-context">父节点：{{ parentTitle }}</p>
+      <section class="form-section" aria-label="节点内容">
+        <h3>节点内容</h3>
+        <NFormItem label="标题" required :show-feedback="false"
           ><NInput
-            v-model:value="tags"
-            :input-props="{ 'aria-label': '标签' }"
-            placeholder="用逗号分隔，例如：招新，宣传" /></NFormItemGi></NGrid
-      ><NFormItem v-if="!creating"
-        ><NCheckbox v-model:checked="completed"
+            v-model:value="title"
+            :input-props="{ 'aria-label': '标题' }"
+            placeholder="例如：秋季招新"
+            :maxlength="200"
+            show-count
+            autofocus /></NFormItem
+        ><NFormItem label="描述" :show-feedback="false"
+          ><NInput
+            v-model:value="description"
+            :input-props="{ 'aria-label': '描述' }"
+            type="textarea"
+            :autosize="{ minRows: 3, maxRows: 8 }"
+            placeholder="说明需要完成的工作"
+        /></NFormItem>
+      </section>
+      <section class="form-section" aria-label="工作安排">
+        <h3>工作安排</h3>
+        <NGrid cols="1 s:2" responsive="screen" :x-gap="16" :y-gap="16"
+          ><NFormItemGi label="预期完成时间" :show-feedback="false"
+            ><label class="date-input">
+              <span class="visually-hidden">预期完成时间</span>
+              <NDatePicker
+                v-model:value="due"
+                type="datetime"
+                format="yyyy-MM-dd HH:mm"
+                :time-picker-props="{ format: 'HH:mm' }"
+                clearable
+                class="date-input"
+              /> </label></NFormItemGi
+          ><NFormItemGi label="标签" :show-feedback="false"
+            ><NInput
+              v-model:value="tags"
+              :input-props="{ 'aria-label': '标签' }"
+              placeholder="用逗号分隔，例如：招新，宣传" /></NFormItemGi></NGrid
+        ><NCheckbox v-if="!creating" v-model:checked="completed"
           >标记为已完成</NCheckbox
-        ></NFormItem
-      ><template v-else
-        ><NAlert v-if="usersError" type="error" class="form-error"
+        >
+      </section>
+      <section v-if="creating" class="form-section" aria-label="参与人员">
+        <h3>参与人员</h3>
+        <NAlert v-if="usersError" type="error" class="form-error"
           >{{ usersError }}
           <NButton text @click="loadUsers">重新加载</NButton></NAlert
         ><MemberFields
@@ -175,11 +182,13 @@ async function submit() {
           :users="users"
           :loading="loadingUsers"
           :disabled="saving"
-          creating /></template
-      ><NAlert v-if="error" type="error" role="alert" class="form-error">{{
+          creating
+        />
+      </section>
+      <NAlert v-if="error" type="error" role="alert" class="form-error">{{
         error
       }}</NAlert
-      ><NSpace justify="end"
+      ><NSpace justify="end" class="form-actions"
         ><NButton :disabled="saving" @click="emit('update:open', false)"
           >取消</NButton
         ><NButton type="primary" attr-type="submit" :loading="saving">{{
@@ -190,6 +199,32 @@ async function submit() {
   >
 </template>
 <style scoped>
+.parent-context {
+  margin: 0 0 20px;
+  color: var(--guild-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.form-section {
+  display: grid;
+  gap: 16px;
+}
+.form-section + .form-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--guild-border);
+}
+.form-section h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 22px;
+}
+.form-actions {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--guild-border);
+}
 .date-input {
   width: 100%;
 }
@@ -202,6 +237,6 @@ async function submit() {
   white-space: nowrap;
 }
 .form-error {
-  margin-bottom: 16px;
+  margin-top: 16px;
 }
 </style>

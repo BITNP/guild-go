@@ -58,7 +58,8 @@ watch(subject, load, { immediate: true })
   padding: 24px;
 }
 .user-page h1 {
-  font-size: 24px;
+  font-size: var(--guild-page-title-size);
+  font-weight: 650;
 }
 @media (max-width: 639px) {
   .user-page {

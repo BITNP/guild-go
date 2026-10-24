@@ -18,6 +18,12 @@ import { theme } from '@/lib/theme'
   --guild-muted: #5e6b7b;
   --guild-border: #e1e6ec;
   --guild-surface: #fff;
+  --guild-surface-subtle: #f7f9fc;
+  --guild-text: #17202b;
+  --guild-page-title-size: 28px;
+  --guild-section-size: 18px;
+  --guild-item-title-size: 15px;
+  --guild-meta-size: 12px;
   --guild-danger: #c23b3b;
 }
 :global(html),

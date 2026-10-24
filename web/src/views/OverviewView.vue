@@ -18,6 +18,7 @@ import {
 import AppShell from '@/components/AppShell.vue'
 import NodeListItem from '@/components/NodeListItem.vue'
 import CommentPreview from '@/components/CommentPreview.vue'
+import SectionHeading from '@/components/SectionHeading.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useNodeStore } from '@/composables/useNodeStore'
 import { fetchOverview, type NodeDetail, type Overview } from '@/lib/api'
@@ -105,24 +106,38 @@ onMounted(load)
           v-else-if="overview && !error"
           ><NCard v-if="!nodesLoading && !nodesError" size="small"
             ><NGrid cols="2 s:4" responsive="screen" :x-gap="16" :y-gap="16"
-              ><NGi v-for="stat in statistics" :key="stat.label"
+              ><NGi
+                v-for="stat in statistics"
+                :key="stat.label"
+                class="statistic-cell"
                 ><NStatistic
                   :label="stat.label"
-                  :value="stat.value" /></NGi></NGrid></NCard
-          ><NCard title="根节点" size="small"
-            ><NList v-if="overview.roots.length"
-              ><NodeListItem
-                v-for="root in overview.roots"
-                :key="root.id"
-                :node="root"
-                :leaders="root.leaders" /></NList
-            ><NEmpty
-              v-else
-              :description="
-                isManager
-                  ? '暂无根节点，可新建根节点开始安排工作。'
-                  : '暂无根节点，请联系部门管理员创建。'
-              " /></NCard></template
+                  :value="stat.value"
+                  :theme-overrides="{
+                    valueFontWeight: '650',
+                    valueTextColor:
+                      stat.label === '已逾期' && stat.value
+                        ? '#966200'
+                        : 'var(--guild-text)',
+                  }" /></NGi></NGrid
+          ></NCard>
+          <section class="root-section" aria-label="根节点">
+            <SectionHeading title="根节点" :count="overview.roots.length" />
+            <NCard size="small"
+              ><NList v-if="overview.roots.length"
+                ><NodeListItem
+                  v-for="root in overview.roots"
+                  :key="root.id"
+                  :node="root"
+                  :leaders="root.leaders" /></NList
+              ><NEmpty
+                v-else
+                :description="
+                  isManager
+                    ? '暂无根节点，可新建根节点开始安排工作。'
+                    : '暂无根节点，请联系部门管理员创建。'
+                "
+            /></NCard></section></template
       ></NSpace>
     </section>
     <template #rail
@@ -178,7 +193,13 @@ onMounted(load)
 }
 .overview-heading h1 {
   margin: 0;
-  font-size: 24px;
+  font-size: var(--guild-page-title-size);
+  font-weight: 650;
+}
+.root-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 .recent-comments {
   padding: 16px;
@@ -191,10 +212,16 @@ onMounted(load)
   color: inherit;
   text-decoration: none;
   overflow-wrap: anywhere;
-  font-weight: 500;
+  font-weight: 600;
 }
 .recent-node:hover {
   color: var(--guild-primary);
+}
+@media (min-width: 640px) {
+  .statistic-cell + .statistic-cell {
+    padding-left: 16px;
+    border-left: 1px solid var(--guild-border);
+  }
 }
 @media (max-width: 639px) {
   .overview-page {
