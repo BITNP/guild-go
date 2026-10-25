@@ -78,7 +78,7 @@ async function ordered() {
 onMounted(load)
 </script>
 <template>
-  <AppShell rail-title="最近评论"
+  <AppShell rail-title="最近发布"
     ><section class="overview-page" :aria-busy="loading">
       <div class="overview-heading">
         <NH1>总览</NH1
@@ -137,7 +137,7 @@ onMounted(load)
         <NAlert
           v-if="error"
           type="error"
-          >评论加载失败 <NButton text @click="load">重试</NButton></NAlert
+          >进展加载失败 <NButton text @click="load">重试</NButton></NAlert
         ><NList v-else-if="overview?.recentComments.length"
           ><NListItem
             v-for="comment in overview.recentComments"
@@ -153,7 +153,7 @@ onMounted(load)
                     : `${comment.rootTitle} / ${comment.nodeTitle}`
                 }}</RouterLink
               ><CommentPreview :comment="comment" /></NSpace></NListItem></NList
-        ><NEmpty v-else-if="overview" size="small" description="还没有评论" /></div></template
+        ><NEmpty v-else-if="overview" size="small" description="还没有人发布进展" /></div></template
   ></AppShell>
   <NodeFormDialog
     v-model:open="createOpen"

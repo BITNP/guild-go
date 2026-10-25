@@ -73,8 +73,6 @@ defineProps<{ node: NodeDetail }>()
         <dd>{{ node.effectiveMemberCount }}</dd>
         <dt>节点</dt>
         <dd>{{ node.subtreeNodeCount }}</dd>
-        <dt>评论</dt>
-        <dd>{{ node.subtreeCommentCount }}</dd>
         <dt>图片</dt>
         <dd>{{ node.subtreeAttachmentCount }}</dd>
       </dl>

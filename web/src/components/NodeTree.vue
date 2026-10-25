@@ -23,7 +23,6 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   Circle,
-  MessageSquare,
   Plus,
 } from '@lucide/vue'
 import { useAuth } from '@/composables/useAuth'
@@ -95,37 +94,12 @@ function treeOption(node: NodeSummary): TreeOption[] {
           'aria-label': node.completedAt ? '已完成' : '未完成',
         }),
       suffix:
-        node.myRelation || node.commentCount
+        node.myRelation
           ? () =>
               h(
-                'span',
-                {
-                  class: 'tree-metadata',
-                },
-                [
-                  node.commentCount
-                    ? h(
-                        'span',
-                        {
-                          class: 'tree-comment-count',
-                          title: `${node.commentCount} 条评论`,
-                        },
-                        [
-                          h(MessageSquare, { size: 12, 'aria-hidden': true }),
-                          String(node.commentCount),
-                        ],
-                      )
-                    : null,
-                  node.myRelation
-                    ? h(
-                        NText,
-                        {
-                          class: 'tree-relation',
-                        },
-                        () => (node.myRelation === 'leader' ? '负责' : '参与'),
-                      )
-                    : null,
-                ],
+                NText,
+                { class: 'tree-metadata tree-relation' },
+                () => (node.myRelation === 'leader' ? '负责' : '参与'),
               )
           : undefined,
     },
@@ -334,11 +308,5 @@ async function created(node: NodeDetail) {
 }
 .node-navigation :deep(.tree-relation) {
   color: var(--guild-primary);
-}
-.node-navigation :deep(.tree-comment-count) {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  color: var(--guild-muted);
 }
 </style>

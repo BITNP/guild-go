@@ -65,7 +65,7 @@ function selectFiles(event: Event) {
   error.value = null
   for (const file of selected) {
     if (images.value.length >= 4) {
-      error.value = '每条评论最多 4 张图片'
+      error.value = '每条进展最多 4 张图片'
       break
     }
     if (!types.has(file.type)) {

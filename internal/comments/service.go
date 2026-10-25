@@ -49,7 +49,7 @@ func (s *Service) requireCommenter(ctx context.Context, session auth.Session, no
 			return err
 		}
 		if !member {
-			return apperr.Forbidden("只有节点有效成员可以评论")
+			return apperr.Forbidden("只有节点有效成员可以发布进展")
 		}
 	}
 	return nil
@@ -62,13 +62,13 @@ func (s *Service) Create(ctx context.Context, session auth.Session, nodeID int64
 	}
 	body = strings.TrimSpace(body)
 	if utf8.RuneCountInString(body) > maxBodyRunes {
-		return Comment{}, apperr.BadRequest("评论不能超过 5000 字")
+		return Comment{}, apperr.BadRequest("进展正文不能超过 5000 字")
 	}
 	if len(attachmentIDs) > storage.MaxAttachments {
-		return Comment{}, apperr.BadRequest("每条评论最多 4 张图片")
+		return Comment{}, apperr.BadRequest("每条进展最多 4 张图片")
 	}
 	if body == "" && len(attachmentIDs) == 0 {
-		return Comment{}, apperr.BadRequest("评论内容不能为空")
+		return Comment{}, apperr.BadRequest("进展内容不能为空")
 	}
 	commentID, err := s.repo.Create(ctx, nodeID, session.Subject, body, attachmentIDs)
 	if err != nil {
@@ -116,13 +116,13 @@ func (s *Service) List(ctx context.Context, session auth.Session, nodeID int64, 
 func (s *Service) Delete(ctx context.Context, session auth.Session, commentID int64) error {
 	row, err := s.repo.Get(ctx, commentID)
 	if err == pgx.ErrNoRows {
-		return apperr.NotFound("评论不存在")
+		return apperr.NotFound("进展不存在")
 	}
 	if err != nil {
 		return err
 	}
 	if row.Author != session.Subject && !session.Permissions.SystemAdmin {
-		return apperr.Forbidden("只能删除自己的评论")
+		return apperr.Forbidden("只能删除自己发布的进展")
 	}
 	keys, err := s.repo.Delete(ctx, commentID)
 	if err != nil {
@@ -142,7 +142,7 @@ func (s *Service) ToggleReaction(ctx context.Context, commentID int64, subject, 
 		return nil, err
 	}
 	if !exists {
-		return nil, apperr.NotFound("评论不存在")
+		return nil, apperr.NotFound("进展不存在")
 	}
 	return s.repo.ToggleReaction(ctx, commentID, subject, emoji)
 }
@@ -157,7 +157,7 @@ func (s *Service) ReactionUsers(ctx context.Context, session auth.Session, comme
 		return nil, err
 	}
 	if !exists {
-		return nil, apperr.NotFound("评论不存在")
+		return nil, apperr.NotFound("进展不存在")
 	}
 	subjects, err := s.repo.ReactionSubjects(ctx, commentID, emoji)
 	if err != nil {
@@ -192,7 +192,7 @@ func (s *Service) one(ctx context.Context, session auth.Session, commentID int64
 		return Comment{}, err
 	}
 	if len(items) == 0 {
-		return Comment{}, apperr.NotFound("评论不存在")
+		return Comment{}, apperr.NotFound("进展不存在")
 	}
 	return items[0], nil
 }

@@ -31,7 +31,7 @@ defineProps<{
         ></NSpace
       >
     </div>
-    <p class="preview-body">{{ comment.bodyPreview || '图片评论' }}</p>
+    <p class="preview-body">{{ comment.bodyPreview || '发布了图片' }}</p>
   </div>
 </template>
 <style scoped>

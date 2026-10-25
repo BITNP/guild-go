@@ -286,7 +286,7 @@ function createEmptyTexture(): THREE.CanvasTexture {
   context.fillStyle = 'rgba(57, 86, 110, 0.82)'
   context.textAlign = 'center'
   context.textBaseline = 'middle'
-  context.fillText('该节点目前没有评论', canvas.width / 2, canvas.height / 2)
+  context.fillText('该节点还没有发布进展', canvas.width / 2, canvas.height / 2)
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
   texture.minFilter = THREE.LinearMipmapLinearFilter

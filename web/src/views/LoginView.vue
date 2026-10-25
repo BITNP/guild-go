@@ -60,7 +60,7 @@ onMounted(async () => {
                 >分配负责人和成员</NListItem
               ><NListItem
                 ><template #prefix><MessageSquare :size="18" /></template
-                >在评论中同步进展</NListItem
+                >发布文字和图片进展</NListItem
               ></NList
             >
           </section></NGi

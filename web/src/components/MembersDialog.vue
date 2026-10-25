@@ -106,7 +106,7 @@ async function save() {
                 :root-id="node.breadcrumb[0]?.id ?? node.id"
                 :disabled="saving || loading"
               /><NText depth="3" class="member-hint"
-                >负责人可管理此节点及下级节点。成员可在此节点及上级节点发表评论。</NText
+                >负责人可管理此节点及下级节点。成员可在此节点及上级节点发布进展。</NText
               ></NForm
             ></NTabPane
           ><NTabPane name="inherited" tab="全部成员（含继承）"

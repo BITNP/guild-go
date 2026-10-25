@@ -4,7 +4,6 @@ import {
   Check,
   Circle,
   CalendarDays,
-  MessageSquare,
   Network,
 } from '@lucide/vue'
 import NodeStatusTag from '@/components/NodeStatusTag.vue'
@@ -37,7 +36,7 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
             :completed-at="node.completedAt"
           />
         </div>
-        <div class="entry-metadata">
+        <div v-if="node.tags.length || node.dueAt || node.childCount" class="entry-metadata">
           <NTag v-for="tag in node.tags" :key="tag" size="small">{{
             tag
           }}</NTag>
@@ -50,12 +49,6 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
               node.childCount
             }}
             个子节点</span
-          >
-          <span v-if="node.commentCount" class="metadata-item"
-            ><MessageSquare :size="13" aria-hidden="true" />{{
-              node.commentCount
-            }}
-            条评论</span
           >
         </div>
         <NSpace v-if="leaders" :size="12" class="entry-leaders">

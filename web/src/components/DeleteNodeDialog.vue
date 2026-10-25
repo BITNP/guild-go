@@ -37,12 +37,9 @@ async function confirm() {
     :error="error"
     @confirm="confirm"
     @close="emit('close')"
-    ><p>将删除「{{ node.title }}」及其所有下级节点。</p>
+    ><p>将删除「{{ node.title }}」及其所有下级节点，共 {{ node.subtreeNodeCount }} 个节点。</p>
     <p>
-      此操作不可撤销，包含 {{ node.subtreeNodeCount }} 个节点、{{
-        node.subtreeCommentCount
-      }}
-      条评论和 {{ node.subtreeAttachmentCount }} 张图片。
+      这些节点的全部进展记录和 {{ node.subtreeAttachmentCount }} 张图片也会一并删除，操作不可撤销。
     </p></ConfirmAction
   >
 </template>
