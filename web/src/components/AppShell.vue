@@ -18,6 +18,7 @@ import {
 } from 'naive-ui'
 import { ChevronDown, LogOut, Menu, PanelRight, UserRound } from '@lucide/vue'
 import NodeTree from '@/components/NodeTree.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useNodeStore } from '@/composables/useNodeStore'
 const props = withDefaults(
@@ -171,19 +172,11 @@ onMounted(() => {
             :aria-expanded="accountOpen"
           >
             <span class="account-trigger-content">
-              <NAvatar
-                v-if="user?.avatar"
-                round
+              <UserAvatar
+                :name="user?.userName ?? ''"
                 :size="28"
-                :src="user?.avatar ?? undefined"
-                object-fit="cover"
-                color="#1f5fbf"
-              >
-                <template #fallback>{{ user?.userName.slice(0, 1) }}</template>
-              </NAvatar>
-              <NAvatar v-else round :size="28" color="#1f5fbf">{{
-                user?.userName.slice(0, 1)
-              }}</NAvatar>
+                :src="user?.avatar"
+              />
               <span class="account-name">{{ user?.userName }}</span>
               <ChevronDown :size="14" class="account-chevron" aria-hidden="true" />
             </span>

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { NAvatar, NTag } from 'naive-ui'
+import { NTag } from 'naive-ui'
+import UserAvatar from '@/components/UserAvatar.vue'
 import type { UserSummary } from '@/lib/api'
-const props = withDefaults(
+withDefaults(
   defineProps<{
     user: UserSummary
     size?: number
@@ -11,7 +11,6 @@ const props = withDefaults(
   }>(),
   { size: 26, showName: true, showPosition: false },
 )
-const initial = computed(() => props.user.userName.slice(0, 1))
 </script>
 <template>
   <span class="user-identity">
@@ -20,21 +19,12 @@ const initial = computed(() => props.user.userName.slice(0, 1))
       class="user-link"
       :aria-label="user.userName"
     >
-      <NAvatar
-        v-if="user.avatar"
+      <UserAvatar
         class="user-avatar"
-        round
+        :name="user.userName"
         :size="size"
-        :src="user.avatar ?? undefined"
-        object-fit="cover"
-        color="#1f5fbf"
-        :img-props="{ alt: '' }"
-      >
-        <template #fallback>{{ initial }}</template>
-      </NAvatar>
-      <NAvatar v-else class="user-avatar" round :size="size" color="#1f5fbf">{{
-        initial
-      }}</NAvatar>
+        :src="user.avatar"
+      />
       <span v-if="showName" class="user-name">{{ user.userName }}</span>
     </RouterLink>
     <NTag
