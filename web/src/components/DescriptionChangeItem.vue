@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { NButton, NCollapseTransition, NListItem, NText } from 'naive-ui'
+import DescriptionDiff from '@/components/DescriptionDiff.vue'
 import UserIdentity from '@/components/UserIdentity.vue'
 import type { DescriptionChange } from '@/lib/api'
 import { formatDateTime, timeAgo } from '@/lib/utils'
@@ -40,17 +41,8 @@ const action = computed(() =>
         <div
           :id="`description-change-${change.id}`"
           class="description-comparison"
-          :class="{ 'is-creation': !change.before }"
         >
-          <section v-if="change.before" class="description-version">
-            <h3>修改前</h3>
-            <p>{{ change.before }}</p>
-          </section>
-          <section class="description-version">
-            <h3>{{ change.before ? '修改后' : '描述内容' }}</h3>
-            <p v-if="change.after">{{ change.after }}</p>
-            <NText v-else depth="3">描述已清空</NText>
-          </section>
+          <DescriptionDiff :before="change.before" :after="change.after" />
         </div>
       </NCollapseTransition>
     </article>
@@ -88,37 +80,10 @@ const action = computed(() =>
   color: var(--guild-primary);
 }
 .description-comparison {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
   margin: 10px 0 0 40px;
-}
-.description-comparison.is-creation {
-  grid-template-columns: minmax(0, 1fr);
-}
-.description-version {
-  min-width: 0;
-  padding: 10px 12px;
-  background: var(--guild-surface-subtle);
-  border-left: 2px solid var(--guild-border);
-}
-.description-version h3 {
-  margin: 0 0 6px;
-  color: var(--guild-muted);
-  font-size: var(--guild-meta-size);
-  font-weight: 500;
-}
-.description-version p {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  max-height: 360px;
-  overflow: auto;
-  line-height: 1.8;
 }
 @media (max-width: 639px) {
   .description-comparison {
-    grid-template-columns: minmax(0, 1fr);
     margin-left: 0;
   }
 }
