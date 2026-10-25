@@ -62,10 +62,6 @@ function reloadPage() {
       '--diffs-header-font-family': themeVars.fontFamily,
     }"
   >
-    <div class="diff-legend">
-      <span>− 删除</span>
-      <span>+ 新增</span>
-    </div>
     <NAlert v-if="failed" type="error" :show-icon="false">
       差异加载失败
       <NButton size="small" class="diff-retry" @click="reloadPage">刷新重试</NButton>
@@ -87,13 +83,7 @@ function reloadPage() {
 .description-diff {
   --diffs-font-size: 14px;
   --diffs-line-height: 24px;
-}
-.diff-legend {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 6px;
-  color: var(--guild-muted);
-  font-size: var(--guild-meta-size);
+  --diffs-gap-style: none;
 }
 .diff-content {
   min-height: 64px;
