@@ -12,59 +12,78 @@ import {
 } from 'naive-ui'
 import CommentComposer from '@/components/CommentComposer.vue'
 import CommentItem from '@/components/CommentItem.vue'
+import DescriptionChangeItem from '@/components/DescriptionChangeItem.vue'
 import ConfirmAction from '@/components/ConfirmAction.vue'
 import SectionHeading from '@/components/SectionHeading.vue'
 import {
+  ApiError,
   deleteComment,
-  fetchComments,
+  fetchProgress,
   toggleReaction,
   type Comment,
+  type ProgressCursor,
+  type ProgressItem,
 } from '@/lib/api'
 import { errorMessage } from '@/lib/utils'
-const props = defineProps<{ nodeId: number; canComment: boolean }>(),
+const props = defineProps<{
+    nodeId: number
+    canComment: boolean
+    updatedAt: string
+  }>(),
   emit = defineEmits<{ changed: [] }>()
-const items = ref<Comment[]>([]),
+const items = ref<ProgressItem[]>([]),
   loading = ref(true),
   error = ref<string | null>(null),
   loadError = ref<string | null>(null),
   hasMore = ref(false),
-  before = ref<number | null>(null),
+  before = ref<ProgressCursor | null>(null),
   loadingMore = ref(false),
   deleteTarget = ref<Comment | null>(null),
   deleting = ref(false),
   deleteError = ref<string | null>(null),
   reacting = ref(new Set<number>())
 async function load() {
+  const requestedNode = props.nodeId
+  const requestedUpdate = props.updatedAt
+  const current = () =>
+    requestedNode === props.nodeId && requestedUpdate === props.updatedAt
   loading.value = true
   loadError.value = null
   try {
-    const page = await fetchComments(props.nodeId)
+    const page = await fetchProgress(requestedNode)
+    if (!current()) return
     items.value = page.items
     hasMore.value = page.hasMore
     before.value = page.nextBefore
   } catch (err) {
-    loadError.value = errorMessage(err, '无法加载评论')
+    if (current()) {
+      loadError.value = err instanceof ApiError
+        ? err.message
+        : '无法加载进展，请检查网络后重试'
+    }
   } finally {
-    loading.value = false
+    if (current()) loading.value = false
   }
 }
 async function loadMore() {
-  if (loadingMore.value || before.value === null) return
+  if (loading.value || loadingMore.value || before.value === null) return
+  const requestedUpdate = props.updatedAt
   loadingMore.value = true
   error.value = null
   try {
-    const page = await fetchComments(props.nodeId, before.value)
+    const page = await fetchProgress(props.nodeId, before.value)
+    if (requestedUpdate !== props.updatedAt) return
     items.value.push(...page.items)
     hasMore.value = page.hasMore
     before.value = page.nextBefore
   } catch (err) {
-    error.value = errorMessage(err, '加载更多评论失败')
+    error.value = err instanceof ApiError ? err.message : '加载更多进展失败，请重试'
   } finally {
     loadingMore.value = false
   }
 }
 function created(comment: Comment) {
-  items.value.unshift(comment)
+  items.value.unshift({ kind: 'comment', comment })
   emit('changed')
 }
 async function reaction(comment: Comment, emoji: string) {
@@ -73,8 +92,10 @@ async function reaction(comment: Comment, emoji: string) {
   error.value = null
   try {
     const result = await toggleReaction(comment.id, emoji)
-    const target = items.value.find((item) => item.id === comment.id)
-    if (target) target.reactions = result.reactions
+    const target = items.value.find(
+      (item) => item.kind === 'comment' && item.comment.id === comment.id,
+    )
+    if (target?.kind === 'comment') target.comment.reactions = result.reactions
   } catch (err) {
     error.value = errorMessage(err, '表情操作失败')
   } finally {
@@ -92,21 +113,23 @@ async function confirmDelete() {
   deleteError.value = null
   try {
     await deleteComment(id)
-    items.value = items.value.filter((item) => item.id !== id)
+    items.value = items.value.filter(
+      (item) => item.kind !== 'comment' || item.comment.id !== id,
+    )
     deleteTarget.value = null
     emit('changed')
   } catch (err) {
-    deleteError.value = errorMessage(err, '删除评论失败')
+    deleteError.value = errorMessage(err, '删除进展失败')
   } finally {
     deleting.value = false
   }
 }
-watch(() => props.nodeId, load, { immediate: true })
+watch(() => [props.nodeId, props.updatedAt], load, { immediate: true })
 </script>
 <template>
   <section class="comments">
     <SectionHeading
-      title="评论"
+      title="进展"
       :count="
         !loading && !loadError
           ? `${items.length}${hasMore ? '+' : ''}`
@@ -121,36 +144,43 @@ watch(() => props.nodeId, load, { immediate: true })
       :node-id="nodeId"
       @created="created"
     /><NAlert v-else type="info"
-      >如需发表评论，请联系负责人将你添加为成员。</NAlert
+      >如需发布进展，请联系负责人将你添加为成员。</NAlert
     >
     <NCard size="small">
       <NAlert v-if="error" type="error" role="alert" class="comments-alert">{{
         error
       }}</NAlert>
-      <NSpin :show="loading"
+      <NSpin :show="loading && !items.length"
         ><NAlert v-if="loadError" type="error"
           >{{ loadError }}
           <NButton text @click="load">重新加载</NButton></NAlert
         ><NEmpty
           v-else-if="!loading && !items.length"
-          description="暂无评论" /><NList v-else
-          ><CommentItem
-            v-for="comment in items"
-            :key="comment.id"
-            :comment="comment"
-            :busy="reacting.has(comment.id)"
-            @delete="askDelete"
-            @reaction="reaction" /></NList></NSpin
+          description="暂无进展" /><NList v-else>
+          <template
+            v-for="item in items"
+            :key="`${item.kind}-${item.kind === 'comment' ? item.comment.id : item.descriptionChange.id}`"
+          >
+            <CommentItem
+              v-if="item.kind === 'comment'"
+              :comment="item.comment"
+              :busy="reacting.has(item.comment.id)"
+              @delete="askDelete"
+              @reaction="reaction"
+            />
+            <DescriptionChangeItem v-else :change="item.descriptionChange" />
+          </template>
+        </NList></NSpin
       ><NSpace v-if="hasMore" justify="center"
-        ><NButton :loading="loadingMore" @click="loadMore"
-          >加载更多评论</NButton
+        ><NButton :loading="loadingMore" :disabled="loading" @click="loadMore"
+          >加载更多进展</NButton
         ></NSpace
       ></NCard
     >
     <ConfirmAction
       :open="deleteTarget !== null"
-      title="删除评论"
-      confirm-text="删除评论"
+      title="删除进展"
+      confirm-text="删除进展"
       :busy="deleting"
       :error="deleteError"
       @confirm="confirmDelete"

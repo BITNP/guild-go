@@ -105,7 +105,7 @@ async function submit() {
   if (submitting.value || pending.value) return
   error.value = null
   if (!body.value.trim() && !images.value.length) {
-    error.value = '请输入评论或添加图片'
+    error.value = '请输入进展或添加图片'
     return
   }
   submitting.value = true
@@ -138,7 +138,7 @@ onBeforeUnmount(() => {
 <template>
   <NCard size="small"
     ><NForm @submit.prevent="submit"
-      ><NFormItem label="发表评论" :show-feedback="false"
+      ><NFormItem label="发布进展" :show-feedback="false"
         ><NInput
           v-model:value="body"
           type="textarea"
@@ -146,7 +146,7 @@ onBeforeUnmount(() => {
           :maxlength="5000"
           :autosize="{ minRows: 2, maxRows: 10 }"
           :input-props="{
-            'aria-label': '发表评论',
+            'aria-label': '发布进展',
             'aria-describedby': hintId,
           }"
           placeholder="写下进展或问题…"
@@ -180,7 +180,7 @@ onBeforeUnmount(() => {
           attr-type="submit"
           :loading="submitting"
           :disabled="pending"
-          >发表评论</NButton
+          >发布进展</NButton
         >
       </div>
       <input
@@ -192,7 +192,7 @@ onBeforeUnmount(() => {
         @change="selectFiles"
       /><NText :id="hintId" depth="3" class="composer-hint"
         >最多 4 张图片，每张不超过 5 MB；支持 JPEG、PNG、WebP、GIF。Ctrl / ⌘ +
-        Enter 发表</NText
+        Enter 发布</NText
       ><NAlert v-if="error" type="error" role="alert" class="composer-error">{{
         error
       }}</NAlert></NForm

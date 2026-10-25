@@ -272,6 +272,13 @@ func (r *Repository) Create(ctx context.Context, req CreateRequest, createdBy st
 		if err != nil {
 			return err
 		}
+		if req.Description != "" {
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO node_description_changes (node_id, author_subject, old_description, new_description, created_at)
+				SELECT id, created_by, '', description, created_at FROM nodes WHERE id=$1`, id); err != nil {
+				return err
+			}
+		}
 		for _, subject := range leaders {
 			if _, err := tx.Exec(ctx, `INSERT INTO node_members (node_id, subject, role) VALUES ($1,$2,'leader')`, id, subject); err != nil {
 				return err
@@ -293,23 +300,39 @@ func (r *Repository) Create(ctx context.Context, req CreateRequest, createdBy st
 }
 
 // Update replaces editable fields and toggles real completion time.
-func (r *Repository) Update(ctx context.Context, id int64, req UpdateRequest) (Node, error) {
+func (r *Repository) Update(ctx context.Context, id int64, req UpdateRequest, subject string) (Node, error) {
 	scan := newScan()
-	err := r.pool.QueryRow(ctx, `
+	err := database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
+		var previous string
+		err := tx.QueryRow(ctx, `SELECT description FROM nodes WHERE id=$1 FOR UPDATE`, id).Scan(&previous)
+		if err == pgx.ErrNoRows {
+			return apperr.NotFound("节点不存在")
+		}
+		if err != nil {
+			return err
+		}
+		if err := tx.QueryRow(ctx, `
 		UPDATE nodes SET
 			title=$2,
 			description=$3,
 			due_at=$4,
 			tags=$5,
 			completed_at = CASE WHEN $6 THEN COALESCE(completed_at, now()) ELSE NULL END,
-			updated_at=now()
+			updated_at=clock_timestamp()
 		WHERE id=$1
 		RETURNING id, parent_id, title, description, due_at, completed_at, tags,
 		          sort_order, created_by, created_at, updated_at`,
-		id, req.Title, req.Description, req.DueAt, req.Tags, req.Completed).Scan(scan.dest()...)
-	if err == pgx.ErrNoRows {
-		return Node{}, apperr.NotFound("节点不存在")
-	}
+			id, req.Title, req.Description, req.DueAt, req.Tags, req.Completed).Scan(scan.dest()...); err != nil {
+			return err
+		}
+		if previous != req.Description {
+			_, err := tx.Exec(ctx, `
+				INSERT INTO node_description_changes (node_id, author_subject, old_description, new_description, created_at)
+				VALUES ($1,$2,$3,$4,$5)`, id, subject, previous, req.Description, scan.node.UpdatedAt)
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return Node{}, err
 	}

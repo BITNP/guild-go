@@ -70,6 +70,31 @@ export interface CommentList {
   nextBefore: number | null
 }
 
+export interface DescriptionChange {
+  id: number
+  nodeId: number
+  author: UserSummary
+  before: string
+  after: string
+  createdAt: string
+}
+
+export type ProgressItem =
+  | { kind: 'comment'; comment: Comment }
+  | { kind: 'description_change'; descriptionChange: DescriptionChange }
+
+export interface ProgressCursor {
+  createdAt: string
+  kind: ProgressItem['kind']
+  id: number
+}
+
+export interface ProgressList {
+  items: ProgressItem[]
+  hasMore: boolean
+  nextBefore: ProgressCursor | null
+}
+
 export interface NodeSummary {
   id: number
   parentId: number | null
@@ -327,6 +352,21 @@ export function createComment(
   return apiFetch<Comment>(`/api/nodes/${nodeId}/comments`, {
     method: 'POST',
     body: JSON.stringify({ body, attachmentIds }),
+  })
+}
+
+export function fetchProgress(
+  nodeId: number,
+  before?: ProgressCursor | null,
+): Promise<ProgressList> {
+  const params = new URLSearchParams({ limit: '30' })
+  if (before) {
+    params.set('before', before.createdAt)
+    params.set('beforeKind', before.kind)
+    params.set('beforeId', String(before.id))
+  }
+  return apiFetch<ProgressList>(`/api/nodes/${nodeId}/progress?${params}`, {
+    cache: 'no-store',
   })
 }
 

@@ -18,7 +18,7 @@ import AppShell from '@/components/AppShell.vue'
 import NodeDetails from '@/components/NodeDetails.vue'
 import NodeListItem from '@/components/NodeListItem.vue'
 import NodeStatusTag from '@/components/NodeStatusTag.vue'
-import CommentSection from '@/components/CommentSection.vue'
+import ProgressSection from '@/components/ProgressSection.vue'
 import SectionHeading from '@/components/SectionHeading.vue'
 import NodeFormDialog from '@/components/NodeFormDialog.vue'
 import MembersDialog from '@/components/MembersDialog.vue'
@@ -258,10 +258,11 @@ watch(
                 ><NEmpty v-else description="暂无子节点" size="small"
               /></NCard>
             </section>
-            <CommentSection
+            <ProgressSection
               :key="detail.id"
               :node-id="detail.id"
               :can-comment="detail.permissions.canComment"
+              :updated-at="detail.updatedAt"
               @changed="onCommentChanged"
             />
           </template> </NSpace>

@@ -68,6 +68,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/nodes/{id}/members", s.auth.RequireSession(http.HandlerFunc(s.getMembers)))
 	mux.Handle("PUT /api/nodes/{id}/members", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.replaceMembers))))
 	mux.Handle("GET /api/nodes/{id}/comments", s.auth.RequireSession(http.HandlerFunc(s.listComments)))
+	mux.Handle("GET /api/nodes/{id}/progress", s.auth.RequireSession(http.HandlerFunc(s.listProgress)))
 	mux.Handle("POST /api/nodes/{id}/comments", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.createComment))))
 	mux.Handle("POST /api/nodes/{id}/comment-images", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.uploadCommentImage))))
 	mux.Handle("DELETE /api/comment-images/{id}", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.deleteCommentUpload))))

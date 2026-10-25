@@ -350,6 +350,7 @@ E_member(n) = 本节点及所有后代的直接成员（含负责人）∪ E_lea
 
 - `dueAt` 传 `null` 清除预期完成时间。
 - `completed=true` 且当前未完成时写入 `completedAt=now()`；已完成再传 `true` 不改变原时间；`false` 清空。
+- 描述有实际变化时，在同一事务内记录操作者、修改前后全文和时间。清空描述也记录；标题、状态等其他字段变化不会产生描述事件。
 - 返回更新后的 `NodeDetail`。
 
 ### `DELETE /api/nodes/{id}`
@@ -421,6 +422,38 @@ E_member(n) = 本节点及所有后代的直接成员（含负责人）∪ E_lea
 ### 不存在的接口
 
 当前版本不支持移动节点。建错父节点只能删除后重建。
+
+## Progress
+
+### `GET /api/nodes/{id}/progress?limit=30`
+
+要求登录，与节点详情使用相同的读取权限。返回评论与描述变更，按 `createdAt DESC, kind DESC, id DESC` 排序。默认 30 条，最多 100 条。
+
+```json
+{
+  "items": [
+    {
+      "kind": "description_change",
+      "descriptionChange": {
+        "id": 8,
+        "nodeId": 12,
+        "author": { "subject": "user-1", "userName": "林晓", "avatar": null, "positions": [] },
+        "before": "原需求",
+        "after": "修改后的需求",
+        "createdAt": "2026-10-25T01:00:00Z"
+      }
+    }
+  ],
+  "hasMore": true,
+  "nextBefore": { "createdAt": "2026-10-25T01:00:00Z", "kind": "description_change", "id": 8 }
+}
+```
+
+- `kind=comment` 时，`comment` 字段为下方评论接口的完整单条形状；`kind=description_change` 时，使用示例中的 `descriptionChange` 字段。
+- 加载下一页时，将 `nextBefore` 的三个字段分别作为 `before`、`beforeKind`、`beforeId` 参数传回，三者必须同时提供。时间相同或两种记录的 ID 相同时也不会重复、漏项；游标对应的评论删除后仍可继续翻页。
+- 初次添加描述时 `before` 为空；清空描述时 `after` 为空。描述事件不能单独编辑、删除或添加反应，删除节点会级联删除这些事件。
+- 新节点的非空初始描述会记录。已有节点不补造历史；从第一次修改起保留修改前后文本。
+- 评论的发布、删除、图片和反应继续使用下方接口。现有树、总览和图谱中的评论数量与评论预览仍只统计用户发布的评论。
 
 ## Comments
 
@@ -541,7 +574,7 @@ thumbs_up, thumbs_down, laugh, hooray, confused, heart, rocket, eyes
 
 | 操作 | 条件 |
 | --- | --- |
-| 查看节点/评论/附件 | 任意准入成员 |
+| 查看节点/描述历史/评论/附件 | 任意准入成员 |
 | 加/取消表情 | 任意准入成员 |
 | 创建根节点、根排序 | manager 或系统管理员 |
 | 创建子节点 | 父节点 `E_leader` 或系统管理员 |

@@ -249,7 +249,7 @@ func (s *Service) Update(ctx context.Context, session auth.Session, id int64, re
 	req.Title = title
 	req.Description = description
 	req.Tags = tags
-	if _, err := s.repo.Update(ctx, id, req); err != nil {
+	if _, err := s.repo.Update(ctx, id, req, session.Subject); err != nil {
 		return Detail{}, err
 	}
 	return s.Get(ctx, session, id)

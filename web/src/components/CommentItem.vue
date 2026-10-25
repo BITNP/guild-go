@@ -31,7 +31,7 @@ const segments = computed(() => linkify(props.comment.body))
           size="small"
           quaternary
           class="delete-comment"
-          aria-label="删除评论"
+          aria-label="删除进展"
           :disabled="busy"
           @click="emit('delete', comment)"
           ><template #icon><Trash2 :size="14" /></template>删除</NButton
@@ -55,7 +55,7 @@ const segments = computed(() => linkify(props.comment.body))
               v-for="(image, index) in comment.attachments"
               :key="image.id"
               :src="image.url"
-              :alt="`评论图片 ${index + 1}`"
+              :alt="`进展图片 ${index + 1}`"
               :width="88"
               :height="88"
               lazy

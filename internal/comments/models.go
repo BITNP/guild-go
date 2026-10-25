@@ -1,4 +1,4 @@
-// Package comments owns linear comments, emoji reactions and image attachments.
+// Package comments owns node progress, linear comments, emoji reactions and image attachments.
 package comments
 
 import (
