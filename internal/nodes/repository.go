@@ -351,7 +351,7 @@ func (r *Repository) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// ReplaceMembers replaces all direct member rows for a node.
+// ReplaceMembers updates the direct membership set without recreating unchanged rows.
 func (r *Repository) ReplaceMembers(ctx context.Context, id int64, leaders, members []string) error {
 	return database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
 		var lockedID int64
@@ -361,17 +361,20 @@ func (r *Repository) ReplaceMembers(ctx context.Context, id int64, leaders, memb
 			}
 			return err
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM node_members WHERE node_id=$1`, id); err != nil {
+		// Keep unchanged (subject, role) pairs; recreate only removed/changed roles.
+		if _, err := tx.Exec(ctx, `DELETE FROM node_members
+            WHERE node_id=$1 AND NOT (
+                (role='leader' AND subject = ANY(COALESCE($2::text[], '{}'))) OR
+                (role='member' AND subject = ANY(COALESCE($3::text[], '{}')))
+            )`, id, leaders, members); err != nil {
 			return err
 		}
-		for _, subject := range leaders {
-			if _, err := tx.Exec(ctx, `INSERT INTO node_members (node_id, subject, role) VALUES ($1,$2,'leader')`, id, subject); err != nil {
-				return err
-			}
-		}
-		for _, subject := range members {
-			if _, err := tx.Exec(ctx, `INSERT INTO node_members (node_id, subject, role) VALUES ($1,$2,'member')`, id, subject); err != nil {
-				return err
+		for role, subjects := range map[string][]string{"leader": leaders, "member": members} {
+			for _, subject := range subjects {
+				if _, err := tx.Exec(ctx, `INSERT INTO node_members (node_id, subject, role)
+                    VALUES ($1,$2,$3) ON CONFLICT (node_id, subject) DO NOTHING`, id, subject, role); err != nil {
+					return err
+				}
 			}
 		}
 		_, err := tx.Exec(ctx, `UPDATE nodes SET updated_at=now() WHERE id=$1`, id)

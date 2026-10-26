@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"testing"
+	"time"
 
 	"git.bitnp.net/BITNP/guild-go/internal/apperr"
 	"git.bitnp.net/BITNP/guild-go/internal/nodes"
@@ -108,5 +109,39 @@ func assertDirectMembers(t *testing.T, node nodes.Detail, want ...string) {
 	slices.Sort(want)
 	if !slices.Equal(got, want) {
 		t.Fatalf("node %d direct members = %v, want %v", node.ID, got, want)
+	}
+}
+
+// Saving the same membership set must preserve the original assignment time.
+func TestMembershipSavePreservesUnchangedRows(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	node, err := f.nodes.Create(ctx, f.admin, nodes.CreateRequest{
+		Title: "Stable membership", LeaderSubjects: []string{"alice"}, MemberSubjects: []string{"bob"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var before, after time.Time
+	if err := f.pool.QueryRow(ctx, `SELECT created_at FROM node_members WHERE node_id=$1 AND subject='alice'`, node.ID).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.nodes.ReplaceMembers(ctx, f.admin, node.ID, nodes.MembersRequest{
+		Leaders: []string{"alice"}, Members: []string{"carol"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.pool.QueryRow(ctx, `SELECT created_at FROM node_members WHERE node_id=$1 AND subject='alice'`, node.ID).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	if !before.Equal(after) {
+		t.Fatalf("unchanged leader was reassigned: %v -> %v", before, after)
+	}
+	var removed bool
+	if err := f.pool.QueryRow(ctx, `SELECT NOT EXISTS (SELECT 1 FROM node_members WHERE node_id=$1 AND subject='bob')`, node.ID).Scan(&removed); err != nil {
+		t.Fatal(err)
+	}
+	if !removed {
+		t.Fatal("removed member still exists")
 	}
 }
