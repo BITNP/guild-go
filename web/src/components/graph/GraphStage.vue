@@ -3,21 +3,26 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Comment } from '@/lib/api'
 import type { GraphNeighborhood, GraphNode } from '@/graph/types'
 import { GraphScene } from '@/graph/GraphScene'
+import GraphCommentComposer from '@/components/graph/GraphCommentComposer.vue'
 
 const props = defineProps<{
   nodes: GraphNode[]
   focus: GraphNeighborhood | null
   comments: Comment[]
   commentsLoading: boolean
+  canComment: boolean
 }>()
 
 const emit = defineEmits<{
   select: [id: number]
   blank: []
+  reaction: [commentId: number, emoji: string]
+  commentCreated: [comment: Comment]
   commentsEdge: []
 }>()
 
 const container = ref<HTMLDivElement | null>(null)
+const composer = ref<{ $el: Element } | null>(null)
 const error = ref<string | null>(null)
 let scene: GraphScene | null = null
 
@@ -27,11 +32,13 @@ onMounted(() => {
     scene = new GraphScene(container.value, {
       onSelect: (id) => emit('select', id),
       onBlank: () => emit('blank'),
+      onReaction: (commentId, emoji) => emit('reaction', commentId, emoji),
       onCommentsNeedOlder: () => emit('commentsEdge'),
     })
     scene.setNodes(props.nodes)
     scene.setFocus(props.focus)
     scene.setComments(props.comments, props.commentsLoading)
+    syncComposer()
   } catch (err) {
     error.value = err instanceof Error ? err.message : '当前浏览器无法初始化 3D 画布'
   }
@@ -43,11 +50,23 @@ watch(
   [() => props.comments, () => props.commentsLoading],
   ([comments, loading]) => scene?.setComments(comments, loading),
 )
+watch(
+  [composer, () => props.focus, () => props.canComment],
+  syncComposer,
+  { flush: 'post' },
+)
 
 onBeforeUnmount(() => {
+  scene?.attachCommentComposer(null)
   scene?.destroy()
   scene = null
 })
+
+function syncComposer() {
+  const element = composer.value?.$el
+  scene?.attachCommentComposer(element instanceof HTMLElement ? element : null)
+  scene?.setCommentComposerVisible(Boolean(props.focus && props.canComment))
+}
 
 function fitView() {
   scene?.fitView()
@@ -62,7 +81,15 @@ defineExpose({ fitView, scrollComments })
 
 <template>
   <div class="graph-stage">
-    <div ref="container" class="graph-canvas" />
+    <div ref="container" class="graph-canvas">
+      <GraphCommentComposer
+        v-if="focus && canComment"
+        ref="composer"
+        :key="focus.node.id"
+        :node-id="focus.node.id"
+        @created="(comment) => emit('commentCreated', comment)"
+      />
+    </div>
     <div class="graph-horizon" aria-hidden="true" />
     <div class="graph-vignette" />
     <div class="graph-hud-frame" aria-hidden="true">

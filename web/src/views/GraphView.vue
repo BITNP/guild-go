@@ -7,7 +7,12 @@ import GraphStage from '@/components/graph/GraphStage.vue'
 import { useGraphComments } from '@/composables/useGraphComments'
 import { useNodeStore } from '@/composables/useNodeStore'
 import type { GraphNeighborhood } from '@/graph/types'
-import { fetchNode, type NodeDetail } from '@/lib/api'
+import {
+  fetchNode,
+  toggleReaction,
+  type Comment,
+  type NodeDetail,
+} from '@/lib/api'
 import { errorMessage } from '@/lib/utils'
 
 interface GraphStageExpose {
@@ -31,6 +36,8 @@ const {
   error: commentsError,
   load: loadComments,
   loadOlder: loadOlderComments,
+  add: addComment,
+  updateReactions,
   clear: clearComments,
 } = useGraphComments()
 const stage = ref<GraphStageExpose | null>(null)
@@ -38,6 +45,8 @@ const active = ref<GraphNeighborhood | null>(null)
 const detail = ref<NodeDetail | null>(null)
 const detailLoading = ref(false)
 const detailError = ref<string | null>(null)
+const reactionError = ref<string | null>(null)
+const reacting = ref(new Set<number>())
 let detailGeneration = 0
 
 // The whole tree is already in the node store, so the focused neighborhood is a
@@ -51,6 +60,43 @@ function selectNode(id: number) {
 
 function clearSelection() {
   active.value = null
+  reactionError.value = null
+}
+
+function onCommentCreated(comment: Comment) {
+  addComment(comment)
+  reactionError.value = null
+  if (detail.value?.id === comment.nodeId) {
+    detail.value = {
+      ...detail.value,
+      subtreeCommentCount: detail.value.subtreeCommentCount + 1,
+    }
+  }
+  if (active.value?.node.id === comment.nodeId) {
+    active.value = {
+      ...active.value,
+      node: {
+        ...active.value.node,
+        commentCount: active.value.node.commentCount + 1,
+      },
+    }
+  }
+}
+
+async function reactToComment(commentId: number, emoji: string) {
+  if (reacting.value.has(commentId)) return
+  reacting.value = new Set([...reacting.value, commentId])
+  reactionError.value = null
+  try {
+    const result = await toggleReaction(commentId, emoji)
+    updateReactions(commentId, result.reactions)
+  } catch (err) {
+    reactionError.value = errorMessage(err, '表情操作失败')
+  } finally {
+    const next = new Set(reacting.value)
+    next.delete(commentId)
+    reacting.value = next
+  }
 }
 
 async function loadDetail() {
@@ -93,7 +139,9 @@ function onWheel(event: WheelEvent) {
   if (!active.value) return
   if (
     event.target instanceof Element &&
-    event.target.closest('[data-graph-node-panel]')
+    event.target.closest(
+      '[data-graph-node-panel], [data-graph-comment-composer]',
+    )
   ) {
     return
   }
@@ -129,8 +177,17 @@ watch(() => active.value?.node.id ?? null, (id) => {
         :focus="active"
         :comments="comments"
         :comments-loading="commentsLoading"
+        :can-comment="
+          !!(
+            active &&
+            detail?.id === active.node.id &&
+            detail.permissions.canComment
+          )
+        "
         @select="selectNode"
         @blank="clearSelection"
+        @reaction="reactToComment"
+        @comment-created="onCommentCreated"
         @comments-edge="loadOlderComments"
       />
 
@@ -186,7 +243,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
         <div class="graph-help-row">
           <span class="graph-inline"><MousePointer2 :size="12" /> 点击节点聚焦</span>
           <span v-if="!active">拖拽平移 · 滚轮缩放 · 点击空白淡出</span>
-          <span v-else>滚轮翻阅节点评注 · 点击空白返回</span>
+          <span v-else>滚轮翻阅评注 · 点击评注底部表情快速回应</span>
         </div>
         <p class="graph-help-note">同层同环，子节点沿父节点扇区向外展开；聚焦时从外圈回望公会核心。</p>
       </aside>
@@ -198,7 +255,13 @@ watch(() => active.value?.node.id ?? null, (id) => {
         </div>
       </div>
 
-      <p v-if="commentsError" class="graph-toast" role="alert">{{ commentsError }}</p>
+      <p
+        v-if="commentsError || reactionError"
+        class="graph-toast"
+        role="alert"
+      >
+        {{ commentsError || reactionError }}
+      </p>
     </div>
   </AppShell>
 </template>

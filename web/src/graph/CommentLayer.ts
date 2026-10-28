@@ -1,28 +1,60 @@
 import * as THREE from 'three'
 import type { Comment } from '@/lib/api'
+import { reactionEmoji, reactionKeys } from '@/lib/utils'
 
 interface CommentVisual {
   anchor: THREE.Group
   card: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>
   dot: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>
   line: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>
+  textureKey: string
   y: number
   targetY: number
   opacity: number
+  reveal: number
+  pulse: number
 }
 
-const CARD_WIDTH = 6.2
-const CARD_HEIGHT = 1.95
+export interface CommentHit {
+  commentId: number
+  emoji: string | null
+}
+
+export interface ComposerPose {
+  position: THREE.Vector3
+  rotationY: number
+  opacity: number
+}
+
+export const COMMENT_CARD_WIDTH = 6.2
+export const COMMENT_CARD_HEIGHT = 2.36
+
+const CARD_WIDTH = COMMENT_CARD_WIDTH
+const CARD_HEIGHT = COMMENT_CARD_HEIGHT
 const CARD_CENTER_X = CARD_WIDTH / 2 + 0.28
-const BASE_Y = 2.45
-const SPACING = 2.25
+const BASE_Y = 2.62
+const SPACING = 2.85
 const FADE_START = 6.2
 const FADE_END = 15.5
+const CARD_CANVAS_WIDTH = 1024
+const CARD_CANVAS_HEIGHT = 400
+const REACTION_ROW_TOP = 300
+const REACTION_ROW_BOTTOM = 374
+const REACTION_START_X = 34
+const REACTION_CELL_WIDTH = 110
+const REACTION_GAP = 10
 
 export class CommentLayer {
   readonly group = new THREE.Group()
+  readonly composerPose: ComposerPose = {
+    position: new THREE.Vector3(),
+    rotationY: 0,
+    opacity: 0,
+  }
   private readonly cardGeometry = new THREE.PlaneGeometry(CARD_WIDTH, CARD_HEIGHT)
   private readonly dotGeometry = new THREE.SphereGeometry(0.15, 16, 12)
+  private readonly composerDot: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>
+  private readonly composerLine: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>
   private readonly emptyLabel: THREE.Sprite
   private readonly visuals = new Map<number, CommentVisual>()
   private targetScroll = 0
@@ -30,10 +62,37 @@ export class CommentLayer {
   private lastNodePosition: THREE.Vector3 | null = null
   private commentsLoading = false
   private emptyOpacity = 0
+  private composerVisible = false
+  private composerOpacity = 0
+  private composerY = BASE_Y
 
   constructor() {
     this.group.visible = false
     this.group.renderOrder = 5
+    this.composerDot = new THREE.Mesh(
+      this.dotGeometry,
+      new THREE.MeshBasicMaterial({
+        color: 0xe7b34d,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        depthTest: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    )
+    this.composerLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 1, 0),
+      ]),
+      new THREE.LineBasicMaterial({
+        color: 0xd8a84c,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        depthTest: false,
+      }),
+    )
     this.emptyLabel = new THREE.Sprite(new THREE.SpriteMaterial({
       map: createEmptyTexture(),
       transparent: true,
@@ -44,12 +103,16 @@ export class CommentLayer {
     }))
     this.emptyLabel.scale.set(6.2, 0.98, 1)
     this.emptyLabel.visible = false
-    this.group.add(this.emptyLabel)
+    this.group.add(this.composerLine, this.composerDot, this.emptyLabel)
   }
 
   setComments(comments: Comment[], loading = false) {
     this.commentsLoading = loading
     const previousCount = this.visuals.size
+    const previousIDs = new Set(this.visuals.keys())
+    const previousMaxID = previousIDs.size
+      ? Math.max(...previousIDs)
+      : Number.NEGATIVE_INFINITY
     const active = new Set(comments.map((comment) => comment.id))
     for (const [id, visual] of this.visuals) {
       if (active.has(id)) continue
@@ -64,14 +127,48 @@ export class CommentLayer {
         visual = this.createVisual(comment)
         this.visuals.set(comment.id, visual)
         this.group.add(visual.anchor, visual.line)
+      } else {
+        const textureKey = commentTextureKey(comment)
+        if (visual.textureKey !== textureKey) {
+          const previousTexture = visual.card.material.map
+          visual.card.material.map = createCommentTexture(comment)
+          visual.card.material.needsUpdate = true
+          previousTexture?.dispose()
+          visual.textureKey = textureKey
+          visual.dot.material.color.setHex(
+            comment.reactions.length > 0 ? 0x6de2c2 : 0xe7b34d,
+          )
+          visual.pulse = 1
+        }
       }
-      visual.targetY = BASE_Y + (comments.length - 1 - index) * SPACING
+      visual.targetY = this.commentY(comments.length, index)
     })
 
     if (previousCount > 0 && comments.length > previousCount) {
       const added = (comments.length - previousCount) * SPACING
-      this.scroll -= added
-      this.targetScroll -= added
+      const hasNewComment = comments.some((comment) =>
+        !previousIDs.has(comment.id) && comment.id > previousMaxID,
+      )
+      if (hasNewComment) {
+        this.targetScroll = 0
+      } else {
+        this.scroll -= added
+        this.targetScroll -= added
+      }
+    }
+    this.clampScroll()
+  }
+
+  setComposerVisible(visible: boolean) {
+    if (this.composerVisible === visible) return
+    this.composerVisible = visible
+    const comments = [...this.visuals.values()]
+    comments.forEach((visual, index) => {
+      visual.targetY = this.commentY(comments.length, index)
+    })
+    if (visible) {
+      this.scroll = 0
+      this.targetScroll = 0
     }
     this.clampScroll()
   }
@@ -80,6 +177,32 @@ export class CommentLayer {
     this.targetScroll += delta * 0.022
     this.clampScroll()
     return this.targetScroll <= this.minScroll() + 0.15
+  }
+
+  pickReactionAt(raycaster: THREE.Raycaster): CommentHit | null {
+    const cards = [...this.visuals.values()]
+      .filter((visual) => visual.opacity > 0.04 && visual.card.visible)
+      .map((visual) => visual.card)
+    const hit = raycaster.intersectObjects(cards, false)[0]
+    if (!hit?.uv) return null
+    const commentId = hit.object.userData.commentId
+    if (typeof commentId !== 'number') return null
+    const x = hit.uv.x * CARD_CANVAS_WIDTH
+    const y = (1 - hit.uv.y) * CARD_CANVAS_HEIGHT
+    if (y < REACTION_ROW_TOP || y > REACTION_ROW_BOTTOM) {
+      return { commentId, emoji: null }
+    }
+    const slotWidth = REACTION_CELL_WIDTH + REACTION_GAP
+    const index = Math.floor((x - REACTION_START_X) / slotWidth)
+    const withinSlot = (x - REACTION_START_X) % slotWidth <= REACTION_CELL_WIDTH
+    if (
+      index < 0 ||
+      index >= reactionKeys.length ||
+      !withinSlot
+    ) {
+      return { commentId, emoji: null }
+    }
+    return { commentId, emoji: reactionKeys[index] ?? null }
   }
 
   update(
@@ -99,6 +222,7 @@ export class CommentLayer {
     const scrollDamping = 1 - Math.exp(-delta * 13)
     const positionDamping = 1 - Math.exp(-delta * 10)
     const opacityDamping = 1 - Math.exp(-delta * 9)
+    const revealDamping = 1 - Math.exp(-delta * 11)
     this.scroll += (this.targetScroll - this.scroll) * scrollDamping
     const cameraRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion)
     cameraRight.y = 0
@@ -120,15 +244,65 @@ export class CommentLayer {
       const verticalVisible = smoothstep(0.75, 1.7, visual.y)
       const targetOpacity = selected ? farFade * verticalVisible : 0
       visual.opacity += (targetOpacity - visual.opacity) * opacityDamping
-      visual.card.material.opacity = visual.opacity * 0.88
+      visual.reveal += (1 - visual.reveal) * revealDamping
+      visual.pulse *= Math.exp(-delta * 5.5)
+      const revealScale = 0.93 + visual.reveal * 0.07
+      const pulseScale = 1 + visual.pulse * 0.028
+      visual.card.scale.setScalar(revealScale * pulseScale)
+      visual.card.material.opacity = visual.opacity * visual.reveal * 0.9
       visual.dot.material.opacity = visual.opacity
       visual.line.material.opacity = visual.opacity * 0.3
-      visual.card.visible = visual.opacity > 0.012
+      visual.card.visible = visual.opacity > 0.012 && visual.reveal > 0.01
       visual.dot.visible = visual.opacity > 0.012
       visual.line.visible = visual.opacity > 0.012
     }
 
-    const showEmpty = selected && !this.commentsLoading && this.visuals.size === 0
+    const composerTargetY = BASE_Y + this.scroll
+    this.composerY += (composerTargetY - this.composerY) * positionDamping
+    const composerTargetOpacity = selected && this.composerVisible
+      ? (1 - smoothstep(FADE_START, FADE_END, this.composerY)) *
+        smoothstep(0.75, 1.7, this.composerY)
+      : 0
+    this.composerOpacity +=
+      (composerTargetOpacity - this.composerOpacity) * opacityDamping
+    const composerAnchor = new THREE.Vector3(
+      this.lastNodePosition.x,
+      this.lastNodePosition.y + this.composerY,
+      this.lastNodePosition.z,
+    )
+    const composerRight = cameraRight.lengthSq() > 0.0001
+      ? cameraRight.clone().normalize()
+      : new THREE.Vector3(1, 0, 0)
+    this.composerPose.position
+      .copy(composerAnchor)
+      .addScaledVector(composerRight, CARD_CENTER_X)
+    this.composerPose.rotationY = cardRotation
+    this.composerPose.opacity = this.composerOpacity
+    this.composerDot.position.copy(composerAnchor)
+    this.composerDot.material.opacity = this.composerOpacity
+    this.composerDot.visible = this.composerOpacity > 0.012
+    const composerPositions =
+      this.composerLine.geometry.getAttribute('position') as THREE.BufferAttribute
+    composerPositions.setXYZ(
+      0,
+      this.lastNodePosition.x,
+      this.lastNodePosition.y,
+      this.lastNodePosition.z,
+    )
+    composerPositions.setXYZ(
+      1,
+      this.lastNodePosition.x,
+      this.lastNodePosition.y + this.composerY,
+      this.lastNodePosition.z,
+    )
+    composerPositions.needsUpdate = true
+    this.composerLine.material.opacity = this.composerOpacity * 0.3
+    this.composerLine.visible = this.composerOpacity > 0.012
+
+    const showEmpty = selected &&
+      !this.composerVisible &&
+      !this.commentsLoading &&
+      this.visuals.size === 0
     this.emptyOpacity += ((showEmpty ? 1 : 0) - this.emptyOpacity) * opacityDamping
     this.emptyLabel.position.set(
       this.lastNodePosition.x,
@@ -138,6 +312,7 @@ export class CommentLayer {
     this.emptyLabel.material.opacity = this.emptyOpacity
     this.emptyLabel.visible = this.emptyOpacity > 0.012
     this.group.visible = this.emptyOpacity > 0.012
+      || this.composerOpacity > 0.012
       || [...this.visuals.values()].some((visual) => visual.opacity > 0.012)
   }
 
@@ -146,6 +321,9 @@ export class CommentLayer {
     this.visuals.clear()
     this.cardGeometry.dispose()
     this.dotGeometry.dispose()
+    this.composerDot.material.dispose()
+    this.composerLine.geometry.dispose()
+    this.composerLine.material.dispose()
     this.emptyLabel.material.map?.dispose()
     this.emptyLabel.material.dispose()
     this.group.clear()
@@ -164,6 +342,7 @@ export class CommentLayer {
         side: THREE.DoubleSide,
       }),
     )
+    card.userData.commentId = comment.id
     const dot = new THREE.Mesh(
       this.dotGeometry,
       new THREE.MeshBasicMaterial({
@@ -199,9 +378,12 @@ export class CommentLayer {
       card,
       dot,
       line,
+      textureKey: commentTextureKey(comment),
       y: BASE_Y,
       targetY: BASE_Y,
       opacity: 0,
+      reveal: 0,
+      pulse: 0,
     }
   }
 
@@ -213,8 +395,15 @@ export class CommentLayer {
     visual.line.material.dispose()
   }
 
+  private commentY(count: number, index: number): number {
+    const composerOffset = this.composerVisible ? 1 : 0
+    return BASE_Y + (count - 1 - index + composerOffset) * SPACING
+  }
+
   private minScroll(): number {
-    return -Math.max(0, (this.visuals.size - 1) * SPACING)
+    if (this.visuals.size === 0) return 0
+    const composerOffset = this.composerVisible ? 1 : 0
+    return -(this.visuals.size - 1 + composerOffset) * SPACING
   }
 
   private clampScroll() {
@@ -226,8 +415,8 @@ export class CommentLayer {
 
 function createCommentTexture(comment: Comment): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
-  canvas.width = 1024
-  canvas.height = 320
+  canvas.width = CARD_CANVAS_WIDTH
+  canvas.height = CARD_CANVAS_HEIGHT
   const context = canvas.getContext('2d')
   if (!context) throw new Error('Canvas 2D context is unavailable')
 
@@ -262,10 +451,10 @@ function createCommentTexture(comment: Comment): THREE.CanvasTexture {
   const lines = wrapText(context, body, 940, 4)
   lines.forEach((line, index) => context.fillText(line, 34, 96 + index * 52))
   if (comment.attachments.length > 0) {
-    context.font = '30px "Noto Sans SC", "PingFang SC", sans-serif'
+    context.font = '26px "Noto Sans SC", "PingFang SC", sans-serif'
     context.fillStyle = 'rgba(102, 219, 186, 0.82)'
     context.textAlign = 'right'
-    context.fillText(`附 ${comment.attachments.length} 张图片`, 990, 292)
+    context.fillText(`附 ${comment.attachments.length} 张图片`, 990, 276)
     context.textAlign = 'left'
   }
   context.strokeStyle = 'rgba(224, 177, 79, 0.28)'
@@ -274,12 +463,77 @@ function createCommentTexture(comment: Comment): THREE.CanvasTexture {
   context.moveTo(34, 76)
   context.lineTo(990, 76)
   context.stroke()
+  context.strokeStyle = 'rgba(139, 166, 171, 0.2)'
+  context.beginPath()
+  context.moveTo(34, 288)
+  context.lineTo(990, 288)
+  context.stroke()
+
+  const counts = new Map(
+    comment.reactions
+      .filter((reaction) => reaction.count > 0)
+      .map((reaction) => [reaction.emoji, reaction]),
+  )
+  reactionKeys.forEach((emoji, index) => {
+    const x = REACTION_START_X + index * (REACTION_CELL_WIDTH + REACTION_GAP)
+    const reaction = counts.get(emoji)
+    context.fillStyle = reaction?.reactedByMe
+      ? 'rgba(224, 174, 66, 0.27)'
+      : reaction
+        ? 'rgba(75, 201, 174, 0.15)'
+        : 'rgba(91, 119, 124, 0.1)'
+    context.fillRect(x, REACTION_ROW_TOP, REACTION_CELL_WIDTH, 72)
+    context.strokeStyle = reaction?.reactedByMe
+      ? 'rgba(241, 192, 87, 0.78)'
+      : reaction
+        ? 'rgba(98, 218, 186, 0.48)'
+        : 'rgba(103, 137, 142, 0.24)'
+    context.strokeRect(x + 0.5, REACTION_ROW_TOP + 0.5, REACTION_CELL_WIDTH - 1, 71)
+
+    context.font = '32px "Apple Color Emoji", "Segoe UI Emoji", sans-serif'
+    context.textAlign = 'center'
+    context.textBaseline = 'middle'
+    context.fillStyle = reaction
+      ? 'rgba(244, 247, 239, 0.98)'
+      : 'rgba(176, 196, 198, 0.48)'
+    context.fillText(
+      reactionEmoji[emoji]?.symbol ?? emoji,
+      x + (reaction ? 40 : REACTION_CELL_WIDTH / 2),
+      REACTION_ROW_TOP + 36,
+    )
+    if (reaction) {
+      context.font = '600 25px "Noto Sans SC", "PingFang SC", sans-serif'
+      context.fillStyle = reaction.reactedByMe
+        ? 'rgba(255, 220, 141, 0.96)'
+        : 'rgba(133, 226, 203, 0.9)'
+      context.textAlign = 'left'
+      context.fillText(String(reaction.count), x + 66, REACTION_ROW_TOP + 39)
+    }
+  })
+  context.textAlign = 'left'
+  context.textBaseline = 'middle'
 
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
   texture.minFilter = THREE.LinearMipmapLinearFilter
   texture.magFilter = THREE.LinearFilter
   return texture
+}
+
+function commentTextureKey(comment: Comment): string {
+  const reactions = comment.reactions
+    .map((reaction) =>
+      `${reaction.emoji}:${reaction.count}:${reaction.reactedByMe ? 1 : 0}`,
+    )
+    .join(',')
+  return [
+    comment.id,
+    comment.author.userName,
+    comment.createdAt,
+    comment.body,
+    comment.attachments.length,
+    reactions,
+  ].join('|')
 }
 
 function createEmptyTexture(): THREE.CanvasTexture {

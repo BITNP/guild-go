@@ -1,4 +1,8 @@
 import * as THREE from 'three'
+import {
+  CSS3DObject,
+  CSS3DRenderer,
+} from 'three/addons/renderers/CSS3DRenderer.js'
 import type { Comment } from '@/lib/api'
 import type { GraphNeighborhood, GraphNode } from '@/graph/types'
 import {
@@ -6,7 +10,10 @@ import {
   VIRTUAL_ROOT_ID,
   type GraphLayout,
 } from './layout'
-import { CommentLayer } from './CommentLayer'
+import {
+  CommentLayer,
+  COMMENT_CARD_WIDTH,
+} from './CommentLayer'
 import {
   createDust,
   createEdgeGeometry,
@@ -18,6 +25,7 @@ import {
 interface SceneCallbacks {
   onSelect: (id: number) => void
   onBlank: () => void
+  onReaction: (commentId: number, emoji: string) => void
   onCommentsNeedOlder: () => void
 }
 
@@ -90,6 +98,7 @@ export class GraphScene {
   private readonly scene = new THREE.Scene()
   private readonly camera = new THREE.PerspectiveCamera(44, 1, 0.1, 1800)
   private readonly renderer: THREE.WebGLRenderer
+  private readonly cssRenderer = new CSS3DRenderer()
   private readonly world = new THREE.Group()
   private readonly nodeViews = new Map<number, NodeVisual>()
   private readonly edgeViews = new Map<string, EdgeVisual>()
@@ -109,6 +118,8 @@ export class GraphScene {
   )
   private readonly glowTexture = createNodeGlowTexture()
   private readonly commentLayer = new CommentLayer()
+  private composerObject: CSS3DObject | null = null
+  private composerElement: HTMLElement | null = null
   private readonly raycaster = new THREE.Raycaster()
   private readonly pointerNdc = new THREE.Vector2()
   private readonly pointerClient = new THREE.Vector2()
@@ -179,6 +190,11 @@ export class GraphScene {
     this.renderer.domElement.style.cursor = 'grab'
     this.renderer.domElement.style.touchAction = 'none'
     container.appendChild(this.renderer.domElement)
+    this.cssRenderer.domElement.style.position = 'absolute'
+    this.cssRenderer.domElement.style.inset = '0'
+    this.cssRenderer.domElement.style.zIndex = '1'
+    this.cssRenderer.domElement.style.pointerEvents = 'none'
+    container.appendChild(this.cssRenderer.domElement)
 
     this.scene.background = new THREE.Color(0x070a0d)
     this.scene.fog = new THREE.FogExp2(0x070a0d, 0.0024)
@@ -212,9 +228,34 @@ export class GraphScene {
   }
 
   setComments(comments: Comment[], loading = false) {
-    this.commentNodeId = comments[0]?.nodeId ?? null
+    this.commentNodeId = comments[0]?.nodeId ?? this.focus?.node.id ?? null
     this.commentLayer.setComments(comments, loading)
     this.updateLabelTargets()
+  }
+
+  setCommentComposerVisible(visible: boolean) {
+    this.commentLayer.setComposerVisible(visible)
+    if (this.composerObject) this.composerObject.visible = visible
+  }
+
+  attachCommentComposer(element: HTMLElement | null) {
+    if (this.composerElement === element) return
+    if (this.composerObject) {
+      this.scene.remove(this.composerObject)
+      this.composerObject = null
+    }
+    this.composerElement = element
+    if (!element) return
+    const object = new CSS3DObject(element)
+    const width = Math.max(1, element.offsetWidth || 620)
+    object.scale.setScalar(COMMENT_CARD_WIDTH / width)
+    object.visible = false
+    object.element.style.pointerEvents = 'auto'
+    object.element.style.userSelect = 'text'
+    object.element.style.touchAction = 'auto'
+    object.element.style.visibility = 'visible'
+    this.composerObject = object
+    this.scene.add(object)
   }
 
   scrollComments(delta: number) {
@@ -262,6 +303,7 @@ export class GraphScene {
 
     this.focus = neighborhood
     this.selectedId = neighborhood.node.id
+    this.commentNodeId = neighborhood.node.id
     this.hoveredId = null
     this.focusedIds = ids
     this.world.updateMatrixWorld(true)
@@ -359,6 +401,11 @@ export class GraphScene {
     for (const edge of this.edgeViews.values()) this.disposeEdge(edge)
     this.edgeViews.clear()
     this.commentLayer.dispose()
+    if (this.composerObject) {
+      this.scene.remove(this.composerObject)
+      this.composerObject = null
+      this.composerElement = null
+    }
     this.world.traverse((object) => {
       if (object === this.world) return
       if (object instanceof THREE.Mesh || object instanceof THREE.Line) {
@@ -382,6 +429,7 @@ export class GraphScene {
     }
     this.renderer.dispose()
     this.renderer.domElement.remove()
+    this.cssRenderer.domElement.remove()
   }
 
   private rebuildViews() {
@@ -822,6 +870,13 @@ export class GraphScene {
 
   private onPointerDown = (event: PointerEvent) => {
     if (event.button !== 0) return
+    if (this.isPointerOverComposer(event.clientX, event.clientY)) {
+      event.preventDefault()
+      event.stopPropagation()
+      this.focusComposer()
+      this.renderer.domElement.style.cursor = 'text'
+      return
+    }
     this.introActive = false
     this.dragging = true
     this.pointerInside = true
@@ -883,6 +938,12 @@ export class GraphScene {
       this.renderer.domElement.style.cursor = 'grab'
       return
     }
+    const comment = this.pickCommentAt(event.clientX, event.clientY)
+    if (comment) {
+      if (comment.emoji) this.callbacks.onReaction(comment.commentId, comment.emoji)
+      this.renderer.domElement.style.cursor = comment.emoji ? 'pointer' : 'default'
+      return
+    }
     const id = this.pickNodeAt(event.clientX, event.clientY)
     this.renderer.domElement.style.cursor = id == null ? 'grab' : 'pointer'
     if (id == null) this.callbacks.onBlank()
@@ -912,6 +973,31 @@ export class GraphScene {
 
   private updateHoverFromPointer() {
     if (!this.pointerInside || this.dragging) return
+    if (this.isPointerOverComposer(
+      this.pointerClient.x,
+      this.pointerClient.y,
+    )) {
+      if (this.hoveredId !== null) {
+        this.hoveredId = null
+        this.applyVisualState()
+      }
+      this.renderer.domElement.style.cursor = 'text'
+      return
+    }
+    const comment = this.pickCommentAt(
+      this.pointerClient.x,
+      this.pointerClient.y,
+    )
+    if (comment) {
+      if (this.hoveredId !== null) {
+        this.hoveredId = null
+        this.applyVisualState()
+      }
+      this.renderer.domElement.style.cursor = comment.emoji
+        ? 'pointer'
+        : 'default'
+      return
+    }
     const hovered = this.pickNodeAt(
       this.pointerClient.x,
       this.pointerClient.y,
@@ -922,6 +1008,41 @@ export class GraphScene {
     this.applyVisualState()
     this.renderer.domElement.style.cursor =
       hovered == null ? 'grab' : 'pointer'
+  }
+
+  private pickCommentAt(clientX: number, clientY: number) {
+    if (!this.focus) return null
+    const rect = this.renderer.domElement.getBoundingClientRect()
+    this.pointerNdc.set(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    )
+    this.raycaster.setFromCamera(this.pointerNdc, this.camera)
+    return this.commentLayer.pickReactionAt(this.raycaster)
+  }
+
+  private isPointerOverComposer(clientX: number, clientY: number): boolean {
+    const element = this.composerElement
+    if (
+      !this.composerObject ||
+      !this.composerObject.visible ||
+      !element
+    ) {
+      return false
+    }
+    const rect = element.getBoundingClientRect()
+    return clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
+  }
+
+  private focusComposer() {
+    const textarea = this.composerElement?.querySelector('textarea')
+    if (!(textarea instanceof HTMLTextAreaElement)) return
+    textarea.focus({ preventScroll: true })
+    const position = textarea.value.length
+    textarea.setSelectionRange(position, position)
   }
 
   private pickNodeAt(
@@ -998,6 +1119,7 @@ export class GraphScene {
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height, false)
+    this.cssRenderer.setSize(width, height)
     if (this.focus && this.focusNodePosition) {
       this.desiredTarget.copy(this.focusTarget(
         this.focusNodePosition,
@@ -1337,7 +1459,19 @@ export class GraphScene {
     } else {
       this.commentLayer.update(delta, this.camera, new THREE.Vector3(), false)
     }
+    if (this.composerObject) {
+      const pose = this.commentLayer.composerPose
+      this.composerObject.position.copy(pose.position)
+      this.composerObject.rotation.set(0, pose.rotationY, 0)
+      this.composerObject.visible = pose.opacity > 0.01
+      this.composerObject.element.style.opacity = String(
+        Math.min(1, pose.opacity * 1.08),
+      )
+      this.composerObject.element.style.pointerEvents =
+        pose.opacity > 0.01 ? 'auto' : 'none'
+    }
     this.renderer.render(this.scene, this.camera)
+    this.cssRenderer.render(this.scene, this.camera)
   }
 }
 
