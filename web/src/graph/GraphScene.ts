@@ -31,9 +31,12 @@ interface NodeVisual {
   glow: THREE.Sprite
   particles: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>
   particleSeeds: Float32Array
-  label: THREE.Sprite
+  label: THREE.Sprite | null
   labelTargetPosition: THREE.Vector3
   radius: number
+  accent: number
+  title: string
+  completed: boolean
   baseEmissive: {
     plate: number
     cap: number
@@ -59,7 +62,7 @@ interface EdgeVisual {
 interface LabelCandidate {
   id: number
   view: NodeVisual
-  priority: number
+  depth: number
   left: number
   right: number
   top: number
@@ -410,6 +413,11 @@ export class GraphScene {
         view = this.createNode(node)
         this.nodeViews.set(node.id, view)
         this.world.add(view.group)
+      } else if (
+        view.completed !== (node.completedAt != null) ||
+        view.title !== node.title
+      ) {
+        this.updateNodeAppearance(view, node)
       }
       view.targetPosition.set(position.x, 0.9, position.z)
     }
@@ -530,19 +538,23 @@ export class GraphScene {
     particles.frustumCulled = false
     particles.visible = false
 
-    const labelMaterial = new THREE.SpriteMaterial({
-      map: createLabelTexture(node.title, node.completedAt != null, virtual),
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      toneMapped: false,
-    })
-    const label = new THREE.Sprite(labelMaterial)
-    label.center.set(0.5, 0)
-    label.scale.set(4.8, 0.9, 1)
+    const label = virtual
+      ? null
+      : new THREE.Sprite(new THREE.SpriteMaterial({
+          map: createLabelTexture(node.title, node.completedAt != null, false),
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          toneMapped: false,
+        }))
+    if (label) {
+      label.center.set(0.5, 0)
+      label.scale.set(4.8, 0.9, 1)
+    }
     const labelTargetPosition = new THREE.Vector3()
 
-    group.add(plate, cap, crystal, innerRing, outerRing, glow, particles, label)
+    group.add(plate, cap, crystal, innerRing, outerRing, glow, particles)
+    if (label) group.add(label)
     const position = this.layout.positions.get(node.id)
     group.position.set(position?.x ?? 0, 0.9, position?.z ?? 0)
     return {
@@ -558,6 +570,9 @@ export class GraphScene {
       label,
       labelTargetPosition,
       radius,
+      accent,
+      title: node.title,
+      completed: node.completedAt != null,
       baseEmissive: {
         plate: basePlateEmissive,
         cap: baseCapEmissive,
@@ -574,22 +589,42 @@ export class GraphScene {
     }
   }
 
+  private updateNodeAppearance(view: NodeVisual, node: GraphNode) {
+    const virtual = node.id === VIRTUAL_ROOT_ID
+    const completed = node.completedAt != null
+    const accent = virtual ? 0xf3ba46 : completed ? 0x58d7ad : 0xe0a83d
+    view.accent = accent
+    view.title = node.title
+    view.completed = completed
+    view.plate.material.emissive.setHex(accent)
+    view.cap.material.color.setHex(accent)
+    view.cap.material.emissive.setHex(accent)
+    view.crystal.material.emissive.setHex(accent)
+    view.innerRing.material.color.setHex(accent)
+    view.outerRing.material.color.setHex(accent)
+    view.glow.material.color.setHex(accent)
+    view.particles.material.color.setHex(accent)
+    if (!view.label || virtual) return
+
+    const previousMap = view.label.material.map
+    view.label.material.map = createLabelTexture(node.title, completed, false)
+    view.label.material.needsUpdate = true
+    previousMap?.dispose()
+  }
+
   private updateLabelTargets() {
     for (const [id, view] of this.nodeViews) {
+      if (!view.label || id === VIRTUAL_ROOT_ID) continue
       const position = this.layout.positions.get(id)
       if (!position) continue
-      const virtual = id === VIRTUAL_ROOT_ID
-      const moveBehindComments = !virtual &&
-        id === this.selectedId &&
+      const moveBehindComments = id === this.selectedId &&
         this.commentNodeId === id
-      const labelOffset = virtual
-        ? 0
-        : moveBehindComments
-          ? -LABEL_REAR_OFFSET
-          : LABEL_DEFAULT_OFFSET
+      const labelOffset = moveBehindComments
+        ? -LABEL_REAR_OFFSET
+        : LABEL_DEFAULT_OFFSET
       view.labelTargetPosition.set(
         Math.cos(position.angle) * labelOffset,
-        virtual ? 1.85 : 1.42,
+        1.42,
         Math.sin(position.angle) * labelOffset,
       )
       if (view.label.position.lengthSq() === 0) {
@@ -602,8 +637,8 @@ export class GraphScene {
     const view = this.nodeViews.get(id)
     if (!view) return
     this.world.remove(view.group)
-    view.label.material.map?.dispose()
-    view.label.material.dispose()
+    view.label?.material.map?.dispose()
+    view.label?.material.dispose()
     view.plate.material.dispose()
     view.cap.material.dispose()
     view.crystal.material.dispose()
@@ -989,6 +1024,10 @@ export class GraphScene {
         view.targetLabelOpacity = 0
         continue
       }
+      if (!view.label) {
+        view.targetLabelOpacity = 0
+        continue
+      }
       if (hideOverviewLabels && id !== this.hoveredId) {
         view.targetLabelOpacity = 0
         continue
@@ -1030,19 +1069,12 @@ export class GraphScene {
       const right = Math.max(...points.map((point) => point.x))
       const top = Math.min(...points.map((point) => point.y))
       const bottom = Math.max(...points.map((point) => point.y))
-      const priority = id === this.hoveredId
-        ? 0
-        : id === this.selectedId
-          ? 1
-          : id === VIRTUAL_ROOT_ID
-            ? 2
-            : this.focusedIds.has(id)
-              ? 3
-              : 4
+      const depth = this.layout.positions.get(id)?.depth ??
+        Number.MAX_SAFE_INTEGER
       candidates.push({
         id,
         view,
-        priority,
+        depth,
         left,
         right,
         top,
@@ -1051,12 +1083,20 @@ export class GraphScene {
       })
     }
 
-    candidates.sort((a, b) => a.priority - b.priority || a.top - b.top)
+    candidates.sort((a, b) => {
+      const aSelected = a.id === this.selectedId
+      const bSelected = b.id === this.selectedId
+      if (aSelected !== bSelected) return aSelected ? -1 : 1
+      const aHovered = a.id === this.hoveredId
+      const bHovered = b.id === this.hoveredId
+      if (aHovered !== bHovered) return aHovered ? -1 : 1
+      if (a.depth !== b.depth) return a.depth - b.depth
+      return a.top - b.top
+    })
     const occupied: LabelCandidate[] = []
     for (const candidate of candidates) {
-      const mustShow = candidate.id === this.hoveredId ||
-        candidate.id === this.selectedId ||
-        candidate.id === VIRTUAL_ROOT_ID
+      const selected = candidate.id === this.selectedId
+      const hovered = candidate.id === this.hoveredId
       const offscreen = candidate.right < 0 ||
         candidate.left > width ||
         candidate.bottom < 0 ||
@@ -1067,8 +1107,9 @@ export class GraphScene {
         candidate.top < other.bottom + LABEL_GAP &&
         candidate.bottom + LABEL_GAP > other.top,
       )
-      const visible = candidate.id === this.hoveredId ||
-        (!offscreen && (mustShow || (candidate.readable && !collides)))
+      const visible = selected ||
+        (hovered && !collides) ||
+        (!offscreen && candidate.readable && !collides)
       candidate.view.targetLabelOpacity = visible
         ? candidate.view.opacity * candidate.view.labelEmphasis
         : 0
@@ -1168,7 +1209,7 @@ export class GraphScene {
       const hovered = id === this.hoveredId
       const selected = id === this.selectedId
       view.group.position.lerp(view.targetPosition, damping)
-      view.label.position.lerp(view.labelTargetPosition, damping)
+      view.label?.position.lerp(view.labelTargetPosition, damping)
       view.opacity += (view.targetOpacity - view.opacity) * opacityDamping
       view.hoverAmount += ((hovered ? 1 : 0) - view.hoverAmount) * hoverDamping
       const neighborTitle = Boolean(
@@ -1252,7 +1293,7 @@ export class GraphScene {
         viewportHeight
       const rootScale = id === VIRTUAL_ROOT_ID ? 1.08 : 1
       const labelWorldHeight = labelScreenHeight * worldPerPixel * view.labelScale * rootScale
-      view.label.scale.set(
+      view.label?.scale.set(
         labelWorldHeight * LABEL_ASPECT_RATIO,
         labelWorldHeight,
         1,
@@ -1284,7 +1325,7 @@ export class GraphScene {
     this.updateLabelDeclutter()
     for (const view of this.nodeViews.values()) {
       view.labelOpacity += (view.targetLabelOpacity - view.labelOpacity) * opacityDamping
-      view.label.material.opacity = view.labelOpacity
+      if (view.label) view.label.material.opacity = view.labelOpacity
     }
 
     const selected = this.focus ? this.nodeViews.get(this.focus.node.id) : null

@@ -2,17 +2,28 @@
 import { onMounted, ref, watch } from 'vue'
 import { Focus, Loader2, MousePointer2, Network } from '@lucide/vue'
 import AppShell from '@/components/AppShell.vue'
+import GraphNodePanel from '@/components/graph/GraphNodePanel.vue'
 import GraphStage from '@/components/graph/GraphStage.vue'
 import { useGraphComments } from '@/composables/useGraphComments'
 import { useNodeStore } from '@/composables/useNodeStore'
 import type { GraphNeighborhood } from '@/graph/types'
+import { fetchNode, type NodeDetail } from '@/lib/api'
+import { errorMessage } from '@/lib/utils'
 
 interface GraphStageExpose {
   fitView: () => void
   scrollComments: (delta: number) => void
 }
 
-const { nodes, byId, childrenOf, loading, error: dataError, load, reload } = useNodeStore()
+const {
+  nodes,
+  byId,
+  childrenOf,
+  loading,
+  error: dataError,
+  load,
+  reload,
+} = useNodeStore()
 const {
   items: comments,
   loading: commentsLoading,
@@ -20,9 +31,14 @@ const {
   error: commentsError,
   load: loadComments,
   loadOlder: loadOlderComments,
+  clear: clearComments,
 } = useGraphComments()
 const stage = ref<GraphStageExpose | null>(null)
 const active = ref<GraphNeighborhood | null>(null)
+const detail = ref<NodeDetail | null>(null)
+const detailLoading = ref(false)
+const detailError = ref<string | null>(null)
+let detailGeneration = 0
 
 // The whole tree is already in the node store, so the focused neighborhood is a
 // pure lookup. childrenOf keeps the same (sortOrder, id) order as the server.
@@ -37,8 +53,50 @@ function clearSelection() {
   active.value = null
 }
 
+async function loadDetail() {
+  const id = active.value?.node.id
+  if (id == null) return
+  const current = ++detailGeneration
+  detailLoading.value = true
+  detailError.value = null
+  try {
+    const node = await fetchNode(id)
+    if (current === detailGeneration && active.value?.node.id === id) {
+      detail.value = node
+    }
+  } catch (err) {
+    if (current === detailGeneration && active.value?.node.id === id) {
+      detailError.value = errorMessage(err, '无法加载节点详情')
+    }
+  } finally {
+    if (current === detailGeneration) detailLoading.value = false
+  }
+}
+
+function onDetailUpdated(node: NodeDetail) {
+  if (active.value?.node.id === node.id) {
+    detail.value = node
+    active.value = {
+      ...active.value,
+      node: {
+        ...active.value.node,
+        title: node.title,
+        parentId: node.parentId,
+        completedAt: node.completedAt,
+      },
+    }
+  }
+  void reload()
+}
+
 function onWheel(event: WheelEvent) {
   if (!active.value) return
+  if (
+    event.target instanceof Element &&
+    event.target.closest('[data-graph-node-panel]')
+  ) {
+    return
+  }
   event.preventDefault()
   event.stopPropagation()
   stage.value?.scrollComments(event.deltaY)
@@ -49,10 +107,15 @@ onMounted(() => {
 })
 
 watch(() => active.value?.node.id ?? null, (id) => {
+  detailGeneration++
+  detail.value = null
+  detailError.value = null
+  detailLoading.value = id != null
   if (id == null) {
-    commentsError.value = null
+    clearComments()
     return
   }
+  void loadDetail()
   void loadComments(id)
 })
 </script>
@@ -70,6 +133,21 @@ watch(() => active.value?.node.id ?? null, (id) => {
         @blank="clearSelection"
         @comments-edge="loadOlderComments"
       />
+
+      <Transition name="node-panel">
+        <GraphNodePanel
+          v-if="active"
+          :selected="active.node"
+          :detail="detail?.id === active.node.id ? detail : null"
+          :parent-title="active.parent?.title ?? null"
+          :loading="detailLoading"
+          :error="detailError"
+          @close="clearSelection"
+          @navigate="selectNode"
+          @retry="loadDetail"
+          @updated="onDetailUpdated"
+        />
+      </Transition>
 
       <header class="graph-header">
         <div class="graph-title">

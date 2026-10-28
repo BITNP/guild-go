@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 
-const LABEL_CANVAS_WIDTH = 1024
+const LABEL_CANVAS_WIDTH = 768
 const LABEL_CANVAS_HEIGHT = 192
 
 export const LABEL_ASPECT_RATIO = LABEL_CANVAS_WIDTH / LABEL_CANVAS_HEIGHT
@@ -17,7 +17,7 @@ export function createLabelTexture(
   if (!context) throw new Error('Canvas 2D context is unavailable')
 
   context.clearRect(0, 0, canvas.width, canvas.height)
-  roundedRect(context, 8, 8, 1008, 176, 16)
+  roundedRect(context, 8, 8, 752, 176, 16)
   context.fillStyle = virtual
     ? 'rgba(17, 15, 10, 0.9)'
     : 'rgba(7, 13, 16, 0.84)'
@@ -45,7 +45,7 @@ export function createLabelTexture(
 
   context.font = '700 64px Inter, "Noto Sans SC", "PingFang SC", sans-serif'
   context.fillStyle = '#f4f1e8'
-  const lines = wrapText(context, title || '未命名节点', 920, 1)
+  const lines = wrapText(context, title || '未命名节点', 664, 1)
   context.fillText(lines[0] ?? '未命名节点', 54, 110)
 
   const texture = new THREE.CanvasTexture(canvas)
