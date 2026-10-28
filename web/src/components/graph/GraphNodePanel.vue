@@ -234,7 +234,7 @@ async function toggleCompletion() {
         aria-live="polite"
       >
         <span class="panel-loading-mark" />
-        正在读取节点档案…
+        正在连接到开拓者网络……
       </div>
 
       <div v-else-if="error && !detail" class="panel-error" role="alert">
@@ -363,7 +363,7 @@ async function toggleCompletion() {
               <dd>{{ detail.effectiveMemberCount }}</dd>
             </div>
             <div>
-              <dt>评注</dt>
+              <dt>进展</dt>
               <dd>{{ detail.subtreeCommentCount }}</dd>
             </div>
           </dl>

@@ -1,8 +1,8 @@
 import * as THREE from 'three'
-import type { Comment } from '@/lib/api'
+import type { ProgressItem } from '@/lib/api'
 import { reactionEmoji, reactionKeys } from '@/lib/utils'
 
-interface CommentVisual {
+interface ProgressVisual {
   anchor: THREE.Group
   card: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>
   dot: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>
@@ -15,8 +15,9 @@ interface CommentVisual {
   pulse: number
 }
 
-export interface CommentHit {
-  commentId: number
+export interface ProgressCardHit {
+  key: string
+  commentId: number | null
   emoji: string | null
 }
 
@@ -56,7 +57,7 @@ export class CommentLayer {
   private readonly composerDot: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>
   private readonly composerLine: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>
   private readonly emptyLabel: THREE.Sprite
-  private readonly visuals = new Map<number, CommentVisual>()
+  private readonly visuals = new Map<string, ProgressVisual>()
   private targetScroll = 0
   private scroll = 0
   private lastNodePosition: THREE.Vector3 | null = null
@@ -106,14 +107,19 @@ export class CommentLayer {
     this.group.add(this.composerLine, this.composerDot, this.emptyLabel)
   }
 
-  setComments(comments: Comment[], loading = false) {
+  setProgress(items: ProgressItem[], loading = false) {
     this.commentsLoading = loading
     const previousCount = this.visuals.size
     const previousIDs = new Set(this.visuals.keys())
-    const previousMaxID = previousIDs.size
-      ? Math.max(...previousIDs)
+    const previousCommentIDs = [...previousIDs]
+      .filter((key) => key.startsWith('comment:'))
+      .map((key) => Number(key.slice('comment:'.length)))
+    const previousMaxCommentID = previousCommentIDs.length
+      ? Math.max(
+          ...previousCommentIDs,
+        )
       : Number.NEGATIVE_INFINITY
-    const active = new Set(comments.map((comment) => comment.id))
+    const active = new Set(items.map(progressKey))
     for (const [id, visual] of this.visuals) {
       if (active.has(id)) continue
       this.group.remove(visual.anchor, visual.line)
@@ -121,35 +127,40 @@ export class CommentLayer {
       this.visuals.delete(id)
     }
 
-    comments.forEach((comment, index) => {
-      let visual = this.visuals.get(comment.id)
+    items.forEach((item, index) => {
+      const id = progressKey(item)
+      let visual = this.visuals.get(id)
       if (!visual) {
-        visual = this.createVisual(comment)
-        this.visuals.set(comment.id, visual)
+        visual = this.createVisual(item)
+        this.visuals.set(id, visual)
         this.group.add(visual.anchor, visual.line)
       } else {
-        const textureKey = commentTextureKey(comment)
+        const textureKey = progressTextureKey(item)
         if (visual.textureKey !== textureKey) {
           const previousTexture = visual.card.material.map
-          visual.card.material.map = createCommentTexture(comment)
+          visual.card.material.map = createProgressTexture(item)
           visual.card.material.needsUpdate = true
           previousTexture?.dispose()
           visual.textureKey = textureKey
           visual.dot.material.color.setHex(
-            comment.reactions.length > 0 ? 0x6de2c2 : 0xe7b34d,
+            item.kind === 'comment' && item.comment.reactions.length > 0
+              ? 0x6de2c2
+              : 0xe7b34d,
           )
           visual.pulse = 1
         }
       }
-      visual.targetY = this.commentY(comments.length, index)
+      visual.targetY = this.progressY(items.length, index)
     })
 
-    if (previousCount > 0 && comments.length > previousCount) {
-      const added = (comments.length - previousCount) * SPACING
-      const hasNewComment = comments.some((comment) =>
-        !previousIDs.has(comment.id) && comment.id > previousMaxID,
+    if (previousCount > 0 && items.length > previousCount) {
+      const added = (items.length - previousCount) * SPACING
+      const hasNewProgress = items.some((item) =>
+        item.kind === 'comment' &&
+        !previousIDs.has(progressKey(item)) &&
+        item.comment.id > previousMaxCommentID,
       )
-      if (hasNewComment) {
+      if (hasNewProgress) {
         this.targetScroll = 0
       } else {
         this.scroll -= added
@@ -164,7 +175,7 @@ export class CommentLayer {
     this.composerVisible = visible
     const comments = [...this.visuals.values()]
     comments.forEach((visual, index) => {
-      visual.targetY = this.commentY(comments.length, index)
+      visual.targetY = this.progressY(comments.length, index)
     })
     if (visible) {
       this.scroll = 0
@@ -179,18 +190,25 @@ export class CommentLayer {
     return this.targetScroll <= this.minScroll() + 0.15
   }
 
-  pickReactionAt(raycaster: THREE.Raycaster): CommentHit | null {
+  pickProgressAt(raycaster: THREE.Raycaster): ProgressCardHit | null {
     const cards = [...this.visuals.values()]
       .filter((visual) => visual.opacity > 0.04 && visual.card.visible)
       .map((visual) => visual.card)
     const hit = raycaster.intersectObjects(cards, false)[0]
     if (!hit?.uv) return null
+    const key = hit.object.userData.progressKey
     const commentId = hit.object.userData.commentId
-    if (typeof commentId !== 'number') return null
+    if (typeof key !== 'string') return null
+    const resolvedCommentID =
+      typeof commentId === 'number' ? commentId : null
     const x = hit.uv.x * CARD_CANVAS_WIDTH
     const y = (1 - hit.uv.y) * CARD_CANVAS_HEIGHT
-    if (y < REACTION_ROW_TOP || y > REACTION_ROW_BOTTOM) {
-      return { commentId, emoji: null }
+    if (
+      resolvedCommentID == null ||
+      y < REACTION_ROW_TOP ||
+      y > REACTION_ROW_BOTTOM
+    ) {
+      return { key, commentId: resolvedCommentID, emoji: null }
     }
     const slotWidth = REACTION_CELL_WIDTH + REACTION_GAP
     const index = Math.floor((x - REACTION_START_X) / slotWidth)
@@ -200,9 +218,13 @@ export class CommentLayer {
       index >= reactionKeys.length ||
       !withinSlot
     ) {
-      return { commentId, emoji: null }
+      return { key, commentId: resolvedCommentID, emoji: null }
     }
-    return { commentId, emoji: reactionKeys[index] ?? null }
+    return {
+      key,
+      commentId: resolvedCommentID,
+      emoji: reactionKeys[index] ?? null,
+    }
   }
 
   update(
@@ -329,8 +351,8 @@ export class CommentLayer {
     this.group.clear()
   }
 
-  private createVisual(comment: Comment): CommentVisual {
-    const texture = createCommentTexture(comment)
+  private createVisual(item: ProgressItem): ProgressVisual {
+    const texture = createProgressTexture(item)
     const card = new THREE.Mesh(
       this.cardGeometry,
       new THREE.MeshBasicMaterial({
@@ -342,11 +364,14 @@ export class CommentLayer {
         side: THREE.DoubleSide,
       }),
     )
-    card.userData.commentId = comment.id
+    card.userData.progressKey = progressKey(item)
+    if (item.kind === 'comment') card.userData.commentId = item.comment.id
     const dot = new THREE.Mesh(
       this.dotGeometry,
       new THREE.MeshBasicMaterial({
-        color: comment.reactions.length > 0 ? 0x6de2c2 : 0xe7b34d,
+        color: item.kind === 'comment' && item.comment.reactions.length > 0
+          ? 0x6de2c2
+          : 0xe7b34d,
         transparent: true,
         opacity: 0,
         depthWrite: false,
@@ -378,7 +403,7 @@ export class CommentLayer {
       card,
       dot,
       line,
-      textureKey: commentTextureKey(comment),
+      textureKey: progressTextureKey(item),
       y: BASE_Y,
       targetY: BASE_Y,
       opacity: 0,
@@ -387,7 +412,7 @@ export class CommentLayer {
     }
   }
 
-  private disposeVisual(visual: CommentVisual) {
+  private disposeVisual(visual: ProgressVisual) {
     visual.card.material.map?.dispose()
     visual.card.material.dispose()
     visual.dot.material.dispose()
@@ -395,7 +420,7 @@ export class CommentLayer {
     visual.line.material.dispose()
   }
 
-  private commentY(count: number, index: number): number {
+  private progressY(count: number, index: number): number {
     const composerOffset = this.composerVisible ? 1 : 0
     return BASE_Y + (count - 1 - index + composerOffset) * SPACING
   }
@@ -413,7 +438,7 @@ export class CommentLayer {
   }
 }
 
-function createCommentTexture(comment: Comment): THREE.CanvasTexture {
+function createProgressTexture(item: ProgressItem): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
   canvas.width = CARD_CANVAS_WIDTH
   canvas.height = CARD_CANVAS_HEIGHT
@@ -431,7 +456,16 @@ function createCommentTexture(comment: Comment): THREE.CanvasTexture {
   context.font = '600 46px "Noto Sans SC", "PingFang SC", sans-serif'
   context.fillStyle = '#f3c35f'
   context.textBaseline = 'middle'
-  context.fillText(trimToWidth(context, comment.author.userName, 590, 46), 34, 42)
+  const author = item.kind === 'comment'
+    ? item.comment.author
+    : item.descriptionChange.author
+  const createdAt = item.kind === 'comment'
+    ? item.comment.createdAt
+    : item.descriptionChange.createdAt
+  const authorLabel = item.kind === 'description_change'
+    ? `${author.userName} · 描述更新`
+    : author.userName
+  context.fillText(trimToWidth(context, authorLabel, 590, 46), 34, 42)
   context.font = '34px "Noto Sans SC", "PingFang SC", sans-serif'
   context.fillStyle = 'rgba(178, 201, 208, 0.68)'
   const time = new Intl.DateTimeFormat('zh-CN', {
@@ -440,17 +474,30 @@ function createCommentTexture(comment: Comment): THREE.CanvasTexture {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-  }).format(new Date(comment.createdAt))
+  }).format(new Date(createdAt))
   context.textAlign = 'right'
-  context.fillText(time, 990, 42)
+  context.fillText(`${time} · 展开`, 990, 42)
   context.textAlign = 'left'
 
   context.font = '44px "Noto Sans SC", "PingFang SC", sans-serif'
   context.fillStyle = 'rgba(240, 244, 238, 0.94)'
-  const body = comment.body.trim() || (comment.attachments.length > 0 ? '图片评注' : '无正文')
-  const lines = wrapText(context, body, 940, 4)
-  lines.forEach((line, index) => context.fillText(line, 34, 96 + index * 52))
-  if (comment.attachments.length > 0) {
+  const comment = item.kind === 'comment' ? item.comment : null
+  const change = item.kind === 'description_change'
+    ? item.descriptionChange
+    : null
+  const rawBody = comment?.body ?? change?.after ?? ''
+  const body = rawBody.trim()
+    ? rawBody
+    : comment
+      ? comment.attachments.length > 0
+        ? '图片进展'
+        : '无正文'
+      : '清空了节点描述'
+  const wrapped = wrapTextPreserving(context, body, 940, 4)
+  wrapped.lines.forEach((line, index) =>
+    context.fillText(line, 34, 96 + index * 52),
+  )
+  if (comment && comment.attachments.length > 0) {
     context.font = '26px "Noto Sans SC", "PingFang SC", sans-serif'
     context.fillStyle = 'rgba(102, 219, 186, 0.82)'
     context.textAlign = 'right'
@@ -469,47 +516,64 @@ function createCommentTexture(comment: Comment): THREE.CanvasTexture {
   context.lineTo(990, 288)
   context.stroke()
 
-  const counts = new Map(
-    comment.reactions
-      .filter((reaction) => reaction.count > 0)
-      .map((reaction) => [reaction.emoji, reaction]),
-  )
-  reactionKeys.forEach((emoji, index) => {
-    const x = REACTION_START_X + index * (REACTION_CELL_WIDTH + REACTION_GAP)
-    const reaction = counts.get(emoji)
-    context.fillStyle = reaction?.reactedByMe
-      ? 'rgba(224, 174, 66, 0.27)'
-      : reaction
-        ? 'rgba(75, 201, 174, 0.15)'
-        : 'rgba(91, 119, 124, 0.1)'
-    context.fillRect(x, REACTION_ROW_TOP, REACTION_CELL_WIDTH, 72)
-    context.strokeStyle = reaction?.reactedByMe
-      ? 'rgba(241, 192, 87, 0.78)'
-      : reaction
-        ? 'rgba(98, 218, 186, 0.48)'
-        : 'rgba(103, 137, 142, 0.24)'
-    context.strokeRect(x + 0.5, REACTION_ROW_TOP + 0.5, REACTION_CELL_WIDTH - 1, 71)
+  if (comment) {
+    const counts = new Map(
+      comment.reactions
+        .filter((reaction) => reaction.count > 0)
+        .map((reaction) => [reaction.emoji, reaction]),
+    )
+    reactionKeys.forEach((emoji, index) => {
+      const x = REACTION_START_X + index * (REACTION_CELL_WIDTH + REACTION_GAP)
+      const reaction = counts.get(emoji)
+      context.fillStyle = reaction?.reactedByMe
+        ? 'rgba(224, 174, 66, 0.27)'
+        : reaction
+          ? 'rgba(75, 201, 174, 0.15)'
+          : 'rgba(91, 119, 124, 0.1)'
+      context.fillRect(x, REACTION_ROW_TOP, REACTION_CELL_WIDTH, 72)
+      context.strokeStyle = reaction?.reactedByMe
+        ? 'rgba(241, 192, 87, 0.78)'
+        : reaction
+          ? 'rgba(98, 218, 186, 0.48)'
+          : 'rgba(103, 137, 142, 0.24)'
+      context.strokeRect(
+        x + 0.5,
+        REACTION_ROW_TOP + 0.5,
+        REACTION_CELL_WIDTH - 1,
+        71,
+      )
 
-    context.font = '32px "Apple Color Emoji", "Segoe UI Emoji", sans-serif'
+      context.font = '32px "Apple Color Emoji", "Segoe UI Emoji", sans-serif'
+      context.textAlign = 'center'
+      context.textBaseline = 'middle'
+      context.fillStyle = reaction
+        ? 'rgba(244, 247, 239, 0.98)'
+        : 'rgba(176, 196, 198, 0.48)'
+      context.fillText(
+        reactionEmoji[emoji]?.symbol ?? emoji,
+        x + (reaction ? 40 : REACTION_CELL_WIDTH / 2),
+        REACTION_ROW_TOP + 36,
+      )
+      if (reaction) {
+        context.font = '600 25px "Noto Sans SC", "PingFang SC", sans-serif'
+        context.fillStyle = reaction.reactedByMe
+          ? 'rgba(255, 220, 141, 0.96)'
+          : 'rgba(133, 226, 203, 0.9)'
+        context.textAlign = 'left'
+        context.fillText(String(reaction.count), x + 66, REACTION_ROW_TOP + 39)
+      }
+    })
+  } else {
+    context.fillStyle = 'rgba(75, 201, 174, 0.1)'
+    context.fillRect(34, REACTION_ROW_TOP, 956, 72)
+    context.strokeStyle = 'rgba(98, 218, 186, 0.35)'
+    context.strokeRect(34.5, REACTION_ROW_TOP + 0.5, 955, 71)
+    context.font = '600 27px "Noto Sans SC", "PingFang SC", sans-serif'
+    context.fillStyle = 'rgba(116, 224, 198, 0.88)'
     context.textAlign = 'center'
     context.textBaseline = 'middle'
-    context.fillStyle = reaction
-      ? 'rgba(244, 247, 239, 0.98)'
-      : 'rgba(176, 196, 198, 0.48)'
-    context.fillText(
-      reactionEmoji[emoji]?.symbol ?? emoji,
-      x + (reaction ? 40 : REACTION_CELL_WIDTH / 2),
-      REACTION_ROW_TOP + 36,
-    )
-    if (reaction) {
-      context.font = '600 25px "Noto Sans SC", "PingFang SC", sans-serif'
-      context.fillStyle = reaction.reactedByMe
-        ? 'rgba(255, 220, 141, 0.96)'
-        : 'rgba(133, 226, 203, 0.9)'
-      context.textAlign = 'left'
-      context.fillText(String(reaction.count), x + 66, REACTION_ROW_TOP + 39)
-    }
-  })
+    context.fillText('点击展开完整描述变更', 512, REACTION_ROW_TOP + 37)
+  }
   context.textAlign = 'left'
   context.textBaseline = 'middle'
 
@@ -520,20 +584,37 @@ function createCommentTexture(comment: Comment): THREE.CanvasTexture {
   return texture
 }
 
-function commentTextureKey(comment: Comment): string {
+function progressTextureKey(item: ProgressItem): string {
+  if (item.kind === 'description_change') {
+    const change = item.descriptionChange
+    return [
+      progressKey(item),
+      change.author.userName,
+      change.createdAt,
+      change.before,
+      change.after,
+    ].join('|')
+  }
+  const comment = item.comment
   const reactions = comment.reactions
     .map((reaction) =>
       `${reaction.emoji}:${reaction.count}:${reaction.reactedByMe ? 1 : 0}`,
     )
     .join(',')
   return [
-    comment.id,
+    progressKey(item),
     comment.author.userName,
     comment.createdAt,
     comment.body,
     comment.attachments.length,
     reactions,
   ].join('|')
+}
+
+function progressKey(item: ProgressItem): string {
+  return item.kind === 'comment'
+    ? `comment:${item.comment.id}`
+    : `description_change:${item.descriptionChange.id}`
 }
 
 function createEmptyTexture(): THREE.CanvasTexture {
@@ -555,33 +636,61 @@ function createEmptyTexture(): THREE.CanvasTexture {
   return texture
 }
 
-function wrapText(
+function wrapTextPreserving(
   context: CanvasRenderingContext2D,
   text: string,
   maxWidth: number,
   maxLines: number,
-): string[] {
+): { lines: string[]; truncated: boolean } {
   const lines: string[] = []
-  let current = ''
-  for (const character of Array.from(text.replace(/\s+/g, ' '))) {
-    const candidate = current + character
-    if (current && context.measureText(candidate).width > maxWidth) {
+  const logicalLines = text
+    .replace(/\r\n?/g, '\n')
+    .replace(/\t/g, '    ')
+    .split('\n')
+  let truncated = false
+
+  outer:
+  for (let lineIndex = 0; lineIndex < logicalLines.length; lineIndex++) {
+    const logicalLine = logicalLines[lineIndex] ?? ''
+    if (!logicalLine) {
+      lines.push('')
+      if (lines.length >= maxLines) {
+        truncated = lineIndex < logicalLines.length - 1
+        break
+      }
+      continue
+    }
+
+    let current = ''
+    for (const character of Array.from(logicalLine)) {
+      const candidate = current + character
+      if (!current || context.measureText(candidate).width <= maxWidth) {
+        current = candidate
+        continue
+      }
       lines.push(current)
       current = character
-      if (lines.length === maxLines) break
-    } else {
-      current = candidate
+      if (lines.length >= maxLines) {
+        truncated = true
+        break outer
+      }
+    }
+    if (current) lines.push(current)
+    if (lines.length >= maxLines) {
+      truncated = lineIndex < logicalLines.length - 1
+      break
     }
   }
-  if (lines.length < maxLines && current) lines.push(current)
-  if (lines.length === maxLines && Array.from(text).join('') !== lines.join('')) {
+
+  if (lines.length > maxLines) lines.length = maxLines
+  if (truncated && lines.length) {
     let last = lines[maxLines - 1] ?? ''
     while (last && context.measureText(`${last}…`).width > maxWidth) {
       last = Array.from(last).slice(0, -1).join('')
     }
     lines[maxLines - 1] = `${last}…`
   }
-  return lines
+  return { lines, truncated }
 }
 
 function trimToWidth(

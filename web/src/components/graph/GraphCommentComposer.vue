@@ -77,7 +77,7 @@ function selectFiles(event: Event) {
   error.value = null
   for (const file of selected) {
     if (images.value.length >= 4) {
-      error.value = '每条评注最多添加 4 张图片'
+      error.value = '每条进展最多添加 4 张图片'
       break
     }
     if (!acceptedTypes.has(file.type)) {
@@ -120,7 +120,7 @@ function clearImages(abandon: boolean) {
 async function submit() {
   if (!canSubmit.value) {
     if (!body.value.trim() && !images.value.length) {
-      error.value = '写下评注或添加一张图片'
+      error.value = '写下一步进展或添加一张图片'
     }
     return
   }
@@ -136,7 +136,7 @@ async function submit() {
     clearImages(false)
     emit('created', comment)
   } catch (err) {
-    error.value = errorMessage(err, '评注发送失败，请重试')
+    error.value = errorMessage(err, '进展发送失败，请重试')
   } finally {
     submitting.value = false
   }
@@ -179,7 +179,7 @@ onBeforeUnmount(() => {
   <section
     class="graph-comment-composer"
     data-graph-comment-composer
-    aria-label="输入评注"
+    aria-label="输入进展"
     @pointerdown.capture="focusComposer"
     @pointermove.stop
     @pointerup.stop
@@ -196,8 +196,8 @@ onBeforeUnmount(() => {
       maxlength="5000"
       :disabled="submitting"
       :aria-invalid="!!error"
-      aria-label="请输入评论"
-      placeholder="请输入评论"
+      aria-label="请输入进展"
+      placeholder="请输入进展"
       @keydown="shortcut"
     />
 
@@ -250,8 +250,8 @@ onBeforeUnmount(() => {
         type="button"
         class="send-button"
         :disabled="submitting || pending || (!body.trim() && !images.length)"
-        :aria-label="submitting ? '正在发送评论' : pending ? '正在上传图片' : '发送评论'"
-        :title="submitting ? '正在发送评论' : pending ? '正在上传图片' : '发送评论'"
+        :aria-label="submitting ? '正在发送进展' : pending ? '正在上传图片' : '发送进展'"
+        :title="submitting ? '正在发送进展' : pending ? '正在上传图片' : '发送进展'"
         @click="submit"
       >
         <Loader2 v-if="submitting" :size="15" class="spin" />

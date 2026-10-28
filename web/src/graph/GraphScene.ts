@@ -3,7 +3,7 @@ import {
   CSS3DObject,
   CSS3DRenderer,
 } from 'three/addons/renderers/CSS3DRenderer.js'
-import type { Comment } from '@/lib/api'
+import type { ProgressItem } from '@/lib/api'
 import type { GraphNeighborhood, GraphNode } from '@/graph/types'
 import {
   layoutGraph,
@@ -26,7 +26,8 @@ interface SceneCallbacks {
   onSelect: (id: number) => void
   onBlank: () => void
   onReaction: (commentId: number, emoji: string) => void
-  onCommentsNeedOlder: () => void
+  onProgressOpen: (key: string) => void
+  onProgressNeedOlder: () => void
 }
 
 interface NodeVisual {
@@ -81,6 +82,7 @@ interface LabelCandidate {
 const LABEL_GAP = 10
 const LABEL_REAR_OFFSET = 2.15
 const LABEL_DEFAULT_OFFSET = 1.7
+const LABEL_COMMENT_SIDE_CLEARANCE = (4.8 * 1.1) / 2
 const INITIAL_PITCH = THREE.MathUtils.degToRad(60)
 const INITIAL_YAW = THREE.MathUtils.degToRad(24)
 const INTRO_DURATION_MS = 1700
@@ -91,6 +93,8 @@ const HOVER_FADE_SPEED = 9
 const LABEL_ZOOM_HIDE_THRESHOLD = 0.68
 const HOVER_PARTICLE_COUNT = 18
 const HOVER_PARTICLE_STRIDE = 5
+const GRAVITY_ROLL_STRENGTH = 0.034
+const GRAVITY_PITCH_STRENGTH = 0.027
 
 export class GraphScene {
   private readonly container: HTMLElement
@@ -149,6 +153,7 @@ export class GraphScene {
   private desiredPitch = this.pitch
   private yaw = INITIAL_YAW
   private desiredYaw = this.yaw
+  private layoutYaw = 0
   private introStarted = false
   private introActive = false
   private introStartedAt = 0
@@ -227,9 +232,12 @@ export class GraphScene {
     if (!this.hasInteracted && !this.focus) this.fitView()
   }
 
-  setComments(comments: Comment[], loading = false) {
-    this.commentNodeId = comments[0]?.nodeId ?? this.focus?.node.id ?? null
-    this.commentLayer.setComments(comments, loading)
+  setProgress(items: ProgressItem[], loading = false) {
+    const nodeId = items[0]?.kind === 'comment'
+      ? items[0].comment.nodeId
+      : items[0]?.descriptionChange.nodeId
+    this.commentNodeId = nodeId ?? this.focus?.node.id ?? null
+    this.commentLayer.setProgress(items, loading)
     this.updateLabelTargets()
   }
 
@@ -261,7 +269,7 @@ export class GraphScene {
   scrollComments(delta: number) {
     if (!this.focus) return
     if (this.commentLayer.scrollBy(delta)) {
-      this.callbacks.onCommentsNeedOlder()
+      this.callbacks.onProgressNeedOlder()
     }
   }
 
@@ -675,6 +683,15 @@ export class GraphScene {
         1.42,
         Math.sin(position.angle) * labelOffset,
       )
+      if (moveBehindComments) {
+        // Comment cards extend to screen-right from the focused node. Convert
+        // that screen-space left direction into the rotating world's local axes.
+        const localYaw = this.desiredYaw + this.layoutYaw
+        view.labelTargetPosition.x -= Math.cos(localYaw) *
+          LABEL_COMMENT_SIDE_CLEARANCE
+        view.labelTargetPosition.z += Math.sin(localYaw) *
+          LABEL_COMMENT_SIDE_CLEARANCE
+      }
       if (view.label.position.lengthSq() === 0) {
         view.label.position.copy(view.labelTargetPosition)
       }
@@ -938,10 +955,14 @@ export class GraphScene {
       this.renderer.domElement.style.cursor = 'grab'
       return
     }
-    const comment = this.pickCommentAt(event.clientX, event.clientY)
-    if (comment) {
-      if (comment.emoji) this.callbacks.onReaction(comment.commentId, comment.emoji)
-      this.renderer.domElement.style.cursor = comment.emoji ? 'pointer' : 'default'
+    const progress = this.pickProgressAt(event.clientX, event.clientY)
+    if (progress) {
+      if (progress.emoji && progress.commentId != null) {
+        this.callbacks.onReaction(progress.commentId, progress.emoji)
+      } else {
+        this.callbacks.onProgressOpen(progress.key)
+      }
+      this.renderer.domElement.style.cursor = 'pointer'
       return
     }
     const id = this.pickNodeAt(event.clientX, event.clientY)
@@ -984,18 +1005,16 @@ export class GraphScene {
       this.renderer.domElement.style.cursor = 'text'
       return
     }
-    const comment = this.pickCommentAt(
+    const progress = this.pickProgressAt(
       this.pointerClient.x,
       this.pointerClient.y,
     )
-    if (comment) {
+    if (progress) {
       if (this.hoveredId !== null) {
         this.hoveredId = null
         this.applyVisualState()
       }
-      this.renderer.domElement.style.cursor = comment.emoji
-        ? 'pointer'
-        : 'default'
+      this.renderer.domElement.style.cursor = 'pointer'
       return
     }
     const hovered = this.pickNodeAt(
@@ -1010,7 +1029,7 @@ export class GraphScene {
       hovered == null ? 'grab' : 'pointer'
   }
 
-  private pickCommentAt(clientX: number, clientY: number) {
+  private pickProgressAt(clientX: number, clientY: number) {
     if (!this.focus) return null
     const rect = this.renderer.domElement.getBoundingClientRect()
     this.pointerNdc.set(
@@ -1018,7 +1037,7 @@ export class GraphScene {
       -((clientY - rect.top) / rect.height) * 2 + 1,
     )
     this.raycaster.setFromCamera(this.pointerNdc, this.camera)
-    return this.commentLayer.pickReactionAt(this.raycaster)
+    return this.commentLayer.pickProgressAt(this.raycaster)
   }
 
   private isPointerOverComposer(clientX: number, clientY: number): boolean {
@@ -1284,10 +1303,29 @@ export class GraphScene {
 
     this.smoothPointerX += (this.pointerX - this.smoothPointerX) * damping
     this.smoothPointerY += (this.pointerY - this.smoothPointerY) * damping
-    const pointerInfluence = this.focus ? 0.2 : 1
-    this.world.rotation.z = -this.smoothPointerX * 0.013 * pointerInfluence
-    this.world.rotation.x = this.smoothPointerY * 0.01 * pointerInfluence
-    if (!this.focus) this.world.rotation.y += delta * LAYOUT_ROTATION_SPEED
+    const pointerInfluence = this.focus ? 0.5 : 1
+    if (!this.focus) this.layoutYaw += delta * LAYOUT_ROTATION_SPEED
+    const layoutRotation = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(0, 1, 0),
+      this.layoutYaw,
+    )
+    const cameraForward = new THREE.Vector3(0, 0, -1)
+      .applyQuaternion(this.camera.quaternion)
+      .normalize()
+    const cameraRight = new THREE.Vector3(1, 0, 0)
+      .applyQuaternion(this.camera.quaternion)
+      .normalize()
+    const gravityTilt = new THREE.Quaternion().setFromAxisAngle(
+      cameraForward,
+      this.smoothPointerX * GRAVITY_ROLL_STRENGTH * pointerInfluence,
+    )
+    gravityTilt.multiply(
+      new THREE.Quaternion().setFromAxisAngle(
+        cameraRight,
+        this.smoothPointerY * GRAVITY_PITCH_STRENGTH * pointerInfluence,
+      ),
+    )
+    this.world.quaternion.copy(layoutRotation).premultiply(gravityTilt)
     this.dust.rotation.y += delta * 0.004
 
     this.viewTarget.lerp(this.desiredTarget, damping)

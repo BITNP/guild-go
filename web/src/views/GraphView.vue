@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Focus, Loader2, MousePointer2, Network } from '@lucide/vue'
 import AppShell from '@/components/AppShell.vue'
 import GraphNodePanel from '@/components/graph/GraphNodePanel.vue'
+import GraphProgressDetail from '@/components/graph/GraphProgressDetail.vue'
 import GraphStage from '@/components/graph/GraphStage.vue'
-import { useGraphComments } from '@/composables/useGraphComments'
+import { useGraphProgress } from '@/composables/useGraphProgress'
 import { useNodeStore } from '@/composables/useNodeStore'
 import type { GraphNeighborhood } from '@/graph/types'
 import {
@@ -12,12 +13,13 @@ import {
   toggleReaction,
   type Comment,
   type NodeDetail,
+  type ProgressItem,
 } from '@/lib/api'
 import { errorMessage } from '@/lib/utils'
 
 interface GraphStageExpose {
   fitView: () => void
-  scrollComments: (delta: number) => void
+  scrollProgress: (delta: number) => void
 }
 
 const {
@@ -30,16 +32,16 @@ const {
   reload,
 } = useNodeStore()
 const {
-  items: comments,
-  loading: commentsLoading,
-  hasMore: commentsHaveMore,
-  error: commentsError,
-  load: loadComments,
-  loadOlder: loadOlderComments,
-  add: addComment,
+  items: progress,
+  loading: progressLoading,
+  hasMore: progressHaveMore,
+  error: progressError,
+  load: loadProgress,
+  loadOlder: loadOlderProgress,
+  add: addProgressComment,
   updateReactions,
-  clear: clearComments,
-} = useGraphComments()
+  clear: clearProgress,
+} = useGraphProgress()
 const stage = ref<GraphStageExpose | null>(null)
 const active = ref<GraphNeighborhood | null>(null)
 const detail = ref<NodeDetail | null>(null)
@@ -47,13 +49,43 @@ const detailLoading = ref(false)
 const detailError = ref<string | null>(null)
 const reactionError = ref<string | null>(null)
 const reacting = ref(new Set<number>())
+const expandedProgressKey = ref<string | null>(null)
 let detailGeneration = 0
+const expandedProgress = computed(() => {
+  const key = expandedProgressKey.value
+  return key == null
+    ? null
+    : progress.value.find((item) => progressKey(item) === key) ?? null
+})
+const selectionLoading = computed(() => {
+  const selected = active.value
+  if (!selected) return false
+  const detailPending = detailLoading.value ||
+    (detail.value?.id !== selected.node.id && !detailError.value)
+  return detailPending || progressLoading.value
+})
+
+function progressKey(item: ProgressItem): string {
+  return item.kind === 'comment'
+    ? `comment:${item.comment.id}`
+    : `description_change:${item.descriptionChange.id}`
+}
 
 // The whole tree is already in the node store, so the focused neighborhood is a
 // pure lookup. childrenOf keeps the same (sortOrder, id) order as the server.
 function selectNode(id: number) {
   const node = byId.value.get(id)
   if (!node) return
+  const changed = active.value?.node.id !== id
+  if (changed) {
+    detailGeneration++
+    detail.value = null
+    detailError.value = null
+    detailLoading.value = true
+    reactionError.value = null
+    expandedProgressKey.value = null
+    clearProgress()
+  }
   const parent = node.parentId == null ? null : byId.value.get(node.parentId) ?? null
   active.value = { node, parent, children: childrenOf(id) }
 }
@@ -61,10 +93,11 @@ function selectNode(id: number) {
 function clearSelection() {
   active.value = null
   reactionError.value = null
+  expandedProgressKey.value = null
 }
 
 function onCommentCreated(comment: Comment) {
-  addComment(comment)
+  addProgressComment(comment)
   reactionError.value = null
   if (detail.value?.id === comment.nodeId) {
     detail.value = {
@@ -109,6 +142,8 @@ async function loadDetail() {
     const node = await fetchNode(id)
     if (current === detailGeneration && active.value?.node.id === id) {
       detail.value = node
+      detailLoading.value = false
+      await loadProgress(id)
     }
   } catch (err) {
     if (current === detailGeneration && active.value?.node.id === id) {
@@ -117,6 +152,10 @@ async function loadDetail() {
   } finally {
     if (current === detailGeneration) detailLoading.value = false
   }
+}
+
+function openProgress(key: string) {
+  expandedProgressKey.value = key
 }
 
 function onDetailUpdated(node: NodeDetail) {
@@ -140,14 +179,14 @@ function onWheel(event: WheelEvent) {
   if (
     event.target instanceof Element &&
     event.target.closest(
-      '[data-graph-node-panel], [data-graph-comment-composer]',
+      '[data-graph-node-panel], [data-graph-comment-composer], [data-graph-progress-detail]',
     )
   ) {
     return
   }
   event.preventDefault()
   event.stopPropagation()
-  stage.value?.scrollComments(event.deltaY)
+  stage.value?.scrollProgress(event.deltaY)
 }
 
 onMounted(() => {
@@ -159,12 +198,12 @@ watch(() => active.value?.node.id ?? null, (id) => {
   detail.value = null
   detailError.value = null
   detailLoading.value = id != null
+  expandedProgressKey.value = null
   if (id == null) {
-    clearComments()
+    clearProgress()
     return
   }
   void loadDetail()
-  void loadComments(id)
 })
 </script>
 
@@ -175,8 +214,8 @@ watch(() => active.value?.node.id ?? null, (id) => {
         ref="stage"
         :nodes="nodes"
         :focus="active"
-        :comments="comments"
-        :comments-loading="commentsLoading"
+        :progress="progress"
+        :progress-loading="progressLoading"
         :can-comment="
           !!(
             active &&
@@ -188,8 +227,39 @@ watch(() => active.value?.node.id ?? null, (id) => {
         @blank="clearSelection"
         @reaction="reactToComment"
         @comment-created="onCommentCreated"
-        @comments-edge="loadOlderComments"
+        @progress-open="openProgress"
+        @progress-edge="loadOlderProgress"
       />
+
+      <Transition name="network-loading">
+        <div
+          v-if="active && selectionLoading"
+          class="graph-network-loading"
+          role="status"
+          aria-live="polite"
+        >
+          <div class="network-loading-card">
+            <span class="network-loading-sigil" aria-hidden="true">
+              <span />
+            </span>
+            <p>正在连接到开拓者网络……</p>
+          </div>
+        </div>
+      </Transition>
+
+      <Transition name="progress-detail">
+        <GraphProgressDetail
+          v-if="expandedProgress"
+          :item="expandedProgress"
+          :node-title="active?.node.title ?? ''"
+          :busy="
+            expandedProgress.kind === 'comment' &&
+            reacting.has(expandedProgress.comment.id)
+          "
+          @close="expandedProgressKey = null"
+          @reaction="reactToComment"
+        />
+      </Transition>
 
       <Transition name="node-panel">
         <GraphNodePanel
@@ -220,10 +290,12 @@ watch(() => active.value?.node.id ?? null, (id) => {
           <span v-if="loading" class="graph-inline">
             <Loader2 :size="10" class="graph-spin" /> 正在展开档案
           </span>
-          <span v-else-if="active && commentsLoading" class="graph-inline">
-            <Loader2 :size="10" class="graph-spin" /> 正在展开评注
+          <span v-else-if="active && selectionLoading" class="graph-inline">
+            <Loader2 :size="10" class="graph-spin" /> 正在连接开拓者网络
           </span>
-          <span v-else-if="active">{{ comments.length }}{{ commentsHaveMore ? '+' : '' }} 条评注</span>
+          <span v-else-if="active">
+            {{ progress.length }}{{ progressHaveMore ? '+' : '' }} 条进展
+          </span>
           <span v-else>图谱已完整展开</span>
         </div>
       </header>
@@ -243,7 +315,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
         <div class="graph-help-row">
           <span class="graph-inline"><MousePointer2 :size="12" /> 点击节点聚焦</span>
           <span v-if="!active">拖拽平移 · 滚轮缩放 · 点击空白淡出</span>
-          <span v-else>滚轮翻阅评注 · 点击评注底部表情快速回应</span>
+          <span v-else>滚轮翻阅进展 · 点击进展展开 · 点击底部表情回应</span>
         </div>
         <p class="graph-help-note">同层同环，子节点沿父节点扇区向外展开；聚焦时从外圈回望公会核心。</p>
       </aside>
@@ -256,11 +328,11 @@ watch(() => active.value?.node.id ?? null, (id) => {
       </div>
 
       <p
-        v-if="commentsError || reactionError"
+        v-if="progressError || reactionError"
         class="graph-toast"
         role="alert"
       >
-        {{ commentsError || reactionError }}
+        {{ progressError || reactionError }}
       </p>
     </div>
   </AppShell>
@@ -424,6 +496,95 @@ watch(() => active.value?.node.id ?? null, (id) => {
   color: rgba(224, 184, 101, 0.68);
 }
 
+.graph-network-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 50% 46%,
+    rgba(6, 17, 20, 0.3),
+    rgba(4, 8, 10, 0.12) 36%,
+    transparent 62%
+  );
+}
+
+.network-loading-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 18px;
+  border: 1px solid rgba(230, 178, 73, 0.38);
+  border-radius: 2px;
+  background: rgba(6, 13, 16, 0.9);
+  color: #e9ce91;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.38),
+    inset 0 0 24px rgba(229, 174, 58, 0.04);
+  backdrop-filter: blur(14px);
+}
+
+.network-loading-card p {
+  margin: 0;
+}
+
+.network-loading-sigil {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border: 1px solid rgba(94, 206, 188, 0.28);
+  border-top-color: #64d6be;
+  border-radius: 50%;
+  animation: network-loading-spin 1.1s linear infinite;
+}
+
+.network-loading-sigil::before {
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgba(235, 184, 74, 0.42);
+  border-right-color: #e8b954;
+  border-radius: 50%;
+  content: '';
+  animation: network-loading-spin 0.7s linear infinite reverse;
+}
+
+.network-loading-sigil span {
+  position: absolute;
+  inset: 11px;
+  border-radius: 50%;
+  background: #f0c263;
+  box-shadow: 0 0 12px rgba(240, 194, 99, 0.86);
+  animation: network-loading-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes network-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes network-loading-pulse {
+  50% {
+    opacity: 0.45;
+    transform: scale(0.72);
+  }
+}
+
+.network-loading-enter-active,
+.network-loading-leave-active {
+  transition: opacity 180ms ease;
+}
+
+.network-loading-enter-from,
+.network-loading-leave-to {
+  opacity: 0;
+}
+
 .graph-error-overlay {
   position: absolute;
   inset: 0;
@@ -482,6 +643,17 @@ watch(() => active.value?.node.id ?? null, (id) => {
 @media (prefers-reduced-motion: reduce) {
   .graph-spin {
     animation: none;
+  }
+
+  .network-loading-sigil,
+  .network-loading-sigil::before,
+  .network-loading-sigil span {
+    animation: none;
+  }
+
+  .network-loading-enter-active,
+  .network-loading-leave-active {
+    transition: none;
   }
 }
 

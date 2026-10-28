@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { Comment } from '@/lib/api'
+import type { Comment, ProgressItem } from '@/lib/api'
 import type { GraphNeighborhood, GraphNode } from '@/graph/types'
 import { GraphScene } from '@/graph/GraphScene'
 import GraphCommentComposer from '@/components/graph/GraphCommentComposer.vue'
@@ -8,8 +8,8 @@ import GraphCommentComposer from '@/components/graph/GraphCommentComposer.vue'
 const props = defineProps<{
   nodes: GraphNode[]
   focus: GraphNeighborhood | null
-  comments: Comment[]
-  commentsLoading: boolean
+  progress: ProgressItem[]
+  progressLoading: boolean
   canComment: boolean
 }>()
 
@@ -18,7 +18,8 @@ const emit = defineEmits<{
   blank: []
   reaction: [commentId: number, emoji: string]
   commentCreated: [comment: Comment]
-  commentsEdge: []
+  progressOpen: [key: string]
+  progressEdge: []
 }>()
 
 const container = ref<HTMLDivElement | null>(null)
@@ -33,11 +34,12 @@ onMounted(() => {
       onSelect: (id) => emit('select', id),
       onBlank: () => emit('blank'),
       onReaction: (commentId, emoji) => emit('reaction', commentId, emoji),
-      onCommentsNeedOlder: () => emit('commentsEdge'),
+      onProgressOpen: (key) => emit('progressOpen', key),
+      onProgressNeedOlder: () => emit('progressEdge'),
     })
     scene.setNodes(props.nodes)
     scene.setFocus(props.focus)
-    scene.setComments(props.comments, props.commentsLoading)
+    scene.setProgress(props.progress, props.progressLoading)
     syncComposer()
   } catch (err) {
     error.value = err instanceof Error ? err.message : '当前浏览器无法初始化 3D 画布'
@@ -47,8 +49,8 @@ onMounted(() => {
 watch(() => props.nodes, (nodes) => scene?.setNodes(nodes))
 watch(() => props.focus, (focus) => scene?.setFocus(focus))
 watch(
-  [() => props.comments, () => props.commentsLoading],
-  ([comments, loading]) => scene?.setComments(comments, loading),
+  [() => props.progress, () => props.progressLoading],
+  ([progress, loading]) => scene?.setProgress(progress, loading),
 )
 watch(
   [composer, () => props.focus, () => props.canComment],
@@ -72,11 +74,11 @@ function fitView() {
   scene?.fitView()
 }
 
-function scrollComments(delta: number) {
+function scrollProgress(delta: number) {
   scene?.scrollComments(delta)
 }
 
-defineExpose({ fitView, scrollComments })
+defineExpose({ fitView, scrollProgress })
 </script>
 
 <template>
