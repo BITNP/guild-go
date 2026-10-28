@@ -110,7 +110,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
           <span v-if="!active">拖拽平移 · 滚轮缩放 · 点击空白淡出</span>
           <span v-else>滚轮翻阅节点评注 · 点击空白返回</span>
         </div>
-        <p class="graph-help-note">父子关系构成地面路径；鼠标移动会影响空间重心。</p>
+        <p class="graph-help-note">同层同环，子节点沿父节点扇区向外展开；聚焦时从外圈回望公会核心。</p>
       </aside>
 
       <div v-if="dataError" class="graph-error-overlay">
@@ -132,7 +132,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: #fff;
+  background: #070a0d;
 }
 
 .graph-header,
@@ -144,10 +144,10 @@ watch(() => active.value?.node.id ?? null, (id) => {
 }
 
 .graph-header {
-  top: 16px;
-  left: 16px;
+  top: 28px;
+  left: 30px;
   max-width: min(420px, calc(100% - 32px));
-  color: #64748b;
+  color: #a6b8be;
 }
 
 .graph-title {
@@ -159,29 +159,33 @@ watch(() => active.value?.node.id ?? null, (id) => {
 .graph-title-mark {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid rgba(203, 213, 225, 0.7);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
-  backdrop-filter: blur(6px);
-  color: var(--guild-primary);
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(236, 181, 75, 0.72);
+  clip-path: polygon(22% 0, 100% 0, 100% 78%, 78% 100%, 0 100%, 0 22%);
+  background:
+    linear-gradient(135deg, rgba(238, 181, 73, 0.2), transparent 62%),
+    rgba(10, 17, 20, 0.88);
+  box-shadow:
+    inset 0 0 18px rgba(237, 180, 72, 0.08),
+    0 0 24px rgba(237, 180, 72, 0.08);
+  color: #f0bd57;
 }
 
 .graph-heading {
   margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  color: var(--guild-text);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #f1ede2;
 }
 
 .graph-kicker {
   margin: 2px 0 0;
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  color: #94a3b8;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: rgba(232, 182, 86, 0.72);
 }
 
 .graph-status {
@@ -190,14 +194,15 @@ watch(() => active.value?.node.id ?? null, (id) => {
   gap: 8px;
   margin-top: 12px;
   font-size: 10px;
-  color: #64748b;
+  color: #9cafb6;
 }
 
 .graph-dot {
   width: 4px;
   height: 4px;
   border-radius: 999px;
-  background: #cbd5e1;
+  background: #e8b44c;
+  box-shadow: 0 0 8px rgba(232, 180, 76, 0.8);
 }
 
 .graph-inline {
@@ -217,8 +222,8 @@ watch(() => active.value?.node.id ?? null, (id) => {
 }
 
 .graph-toolbar {
-  top: 16px;
-  right: 16px;
+  top: 28px;
+  right: 28px;
   display: flex;
   gap: 6px;
   pointer-events: auto;
@@ -229,36 +234,40 @@ watch(() => active.value?.node.id ?? null, (id) => {
   height: 32px;
   align-items: center;
   gap: 6px;
-  padding: 0 10px;
-  border: 1px solid rgba(203, 213, 225, 0.7);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.85);
-  color: #475569;
+  padding: 0 12px;
+  border: 1px solid rgba(221, 176, 83, 0.42);
+  border-radius: 3px;
+  background: rgba(8, 14, 17, 0.78);
+  color: #e6c37b;
   font-size: 11px;
   line-height: 1;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
-  backdrop-filter: blur(6px);
+  box-shadow:
+    inset 0 0 16px rgba(225, 173, 70, 0.04),
+    0 8px 24px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(12px);
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 
 .graph-button:hover {
-  border-color: #94a3b8;
-  color: var(--guild-text);
+  border-color: rgba(242, 190, 83, 0.8);
+  background: rgba(25, 27, 20, 0.9);
+  color: #fff3d1;
 }
 
 .graph-help {
-  bottom: 16px;
-  left: 16px;
+  bottom: 26px;
+  left: 28px;
   max-width: min(460px, calc(100% - 128px));
-  padding: 8px 12px;
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.82);
-  color: #64748b;
+  padding: 9px 13px;
+  border: 1px solid rgba(142, 164, 168, 0.22);
+  border-left-color: rgba(230, 178, 73, 0.64);
+  border-radius: 2px;
+  background: rgba(7, 13, 16, 0.76);
+  color: #9eb0b4;
   font-size: 10px;
   line-height: 20px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22);
   backdrop-filter: blur(12px);
 }
 
@@ -271,7 +280,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
 
 .graph-help-note {
   margin: 2px 0 0;
-  color: #94a3b8;
+  color: rgba(224, 184, 101, 0.68);
 }
 
 .graph-error-overlay {
@@ -285,10 +294,10 @@ watch(() => active.value?.node.id ?? null, (id) => {
 
 .graph-error-card {
   padding: 16px 20px;
-  border: 1px solid rgba(253, 164, 175, 0.2);
-  border-radius: 12px;
-  background: rgba(26, 22, 32, 0.92);
-  color: #fecdd3;
+  border: 1px solid rgba(240, 182, 82, 0.32);
+  border-radius: 3px;
+  background: rgba(7, 13, 16, 0.94);
+  color: #f2c66f;
   text-align: center;
   font-size: 14px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
@@ -301,8 +310,8 @@ watch(() => active.value?.node.id ?? null, (id) => {
 .graph-error-action {
   margin-top: 12px;
   padding: 6px 12px;
-  border: 1px solid rgba(254, 205, 211, 0.25);
-  border-radius: 6px;
+  border: 1px solid rgba(240, 182, 82, 0.36);
+  border-radius: 2px;
   background: transparent;
   color: inherit;
   font-size: 12px;
@@ -310,7 +319,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
 }
 
 .graph-error-action:hover {
-  background: rgba(254, 205, 211, 0.1);
+  background: rgba(240, 182, 82, 0.1);
 }
 
 .graph-toast {
@@ -321,10 +330,10 @@ watch(() => active.value?.node.id ?? null, (id) => {
   transform: translateX(-50%);
   margin: 0;
   padding: 6px 12px;
-  border: 1px solid rgba(253, 164, 175, 0.2);
-  border-radius: 6px;
-  background: rgba(36, 21, 27, 0.92);
-  color: #fecdd3;
+  border: 1px solid rgba(240, 182, 82, 0.3);
+  border-radius: 2px;
+  background: rgba(8, 14, 17, 0.94);
+  color: #f2c66f;
   font-size: 12px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
 }
@@ -332,6 +341,29 @@ watch(() => active.value?.node.id ?? null, (id) => {
 @media (prefers-reduced-motion: reduce) {
   .graph-spin {
     animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .graph-header {
+    top: 20px;
+    left: 20px;
+  }
+
+  .graph-toolbar {
+    top: 20px;
+    right: 20px;
+  }
+
+  .graph-help {
+    right: 20px;
+    bottom: 20px;
+    left: 20px;
+    max-width: none;
+  }
+
+  .graph-help-note {
+    display: none;
   }
 }
 </style>

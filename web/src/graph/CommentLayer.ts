@@ -39,6 +39,7 @@ export class CommentLayer {
       transparent: true,
       opacity: 0,
       depthWrite: false,
+      depthTest: false,
       toneMapped: false,
     }))
     this.emptyLabel.scale.set(6.2, 0.98, 1)
@@ -159,16 +160,19 @@ export class CommentLayer {
         transparent: true,
         opacity: 0,
         depthWrite: false,
+        depthTest: false,
         side: THREE.DoubleSide,
       }),
     )
     const dot = new THREE.Mesh(
       this.dotGeometry,
       new THREE.MeshBasicMaterial({
-        color: comment.reactions.length > 0 ? 0x2b86ba : 0x4c789c,
+        color: comment.reactions.length > 0 ? 0x6de2c2 : 0xe7b34d,
         transparent: true,
         opacity: 0,
         depthWrite: false,
+        depthTest: false,
+        blending: THREE.AdditiveBlending,
       }),
     )
     const anchor = new THREE.Group()
@@ -182,10 +186,11 @@ export class CommentLayer {
     const line = new THREE.Line(
       lineGeometry,
       new THREE.LineBasicMaterial({
-        color: 0x6f91ad,
+        color: 0xd8a84c,
         transparent: true,
         opacity: 0,
         depthWrite: false,
+        depthTest: false,
         blending: THREE.NormalBlending,
       }),
     )
@@ -227,17 +232,19 @@ function createCommentTexture(comment: Comment): THREE.CanvasTexture {
   if (!context) throw new Error('Canvas 2D context is unavailable')
 
   context.clearRect(0, 0, canvas.width, canvas.height)
-  context.fillStyle = 'rgba(255, 255, 255, 0.74)'
+  context.fillStyle = 'rgba(8, 14, 17, 0.9)'
   context.fillRect(0, 0, canvas.width, canvas.height)
-  context.fillStyle = 'rgba(45, 114, 168, 0.78)'
-  context.fillRect(0, 0, 5, canvas.height)
+  context.fillStyle = 'rgba(239, 180, 66, 0.92)'
+  context.fillRect(0, 0, 6, canvas.height)
+  context.fillStyle = 'rgba(83, 224, 188, 0.32)'
+  context.fillRect(canvas.width - 4, 0, 4, canvas.height)
 
   context.font = '600 46px "Noto Sans SC", "PingFang SC", sans-serif'
-  context.fillStyle = '#1f4f73'
+  context.fillStyle = '#f3c35f'
   context.textBaseline = 'middle'
   context.fillText(trimToWidth(context, comment.author.userName, 590, 46), 34, 42)
   context.font = '34px "Noto Sans SC", "PingFang SC", sans-serif'
-  context.fillStyle = 'rgba(83, 108, 129, 0.65)'
+  context.fillStyle = 'rgba(178, 201, 208, 0.68)'
   const time = new Intl.DateTimeFormat('zh-CN', {
     month: '2-digit',
     day: '2-digit',
@@ -250,18 +257,18 @@ function createCommentTexture(comment: Comment): THREE.CanvasTexture {
   context.textAlign = 'left'
 
   context.font = '44px "Noto Sans SC", "PingFang SC", sans-serif'
-  context.fillStyle = 'rgba(31, 53, 74, 0.92)'
+  context.fillStyle = 'rgba(240, 244, 238, 0.94)'
   const body = comment.body.trim() || (comment.attachments.length > 0 ? '图片评注' : '无正文')
   const lines = wrapText(context, body, 940, 4)
   lines.forEach((line, index) => context.fillText(line, 34, 96 + index * 52))
   if (comment.attachments.length > 0) {
     context.font = '30px "Noto Sans SC", "PingFang SC", sans-serif'
-    context.fillStyle = 'rgba(52, 114, 159, 0.72)'
+    context.fillStyle = 'rgba(102, 219, 186, 0.82)'
     context.textAlign = 'right'
     context.fillText(`附 ${comment.attachments.length} 张图片`, 990, 292)
     context.textAlign = 'left'
   }
-  context.strokeStyle = 'rgba(84, 124, 155, 0.24)'
+  context.strokeStyle = 'rgba(224, 177, 79, 0.28)'
   context.lineWidth = 1
   context.beginPath()
   context.moveTo(34, 76)
@@ -283,7 +290,7 @@ function createEmptyTexture(): THREE.CanvasTexture {
   if (!context) throw new Error('Canvas 2D context is unavailable')
   context.clearRect(0, 0, canvas.width, canvas.height)
   context.font = '600 52px "Noto Sans SC", "PingFang SC", sans-serif'
-  context.fillStyle = 'rgba(57, 86, 110, 0.82)'
+  context.fillStyle = 'rgba(232, 185, 85, 0.86)'
   context.textAlign = 'center'
   context.textBaseline = 'middle'
   context.fillText('该节点还没有发布进展', canvas.width / 2, canvas.height / 2)

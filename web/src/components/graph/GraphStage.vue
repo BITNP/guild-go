@@ -63,7 +63,15 @@ defineExpose({ fitView, scrollComments })
 <template>
   <div class="graph-stage">
     <div ref="container" class="graph-canvas" />
+    <div class="graph-horizon" aria-hidden="true" />
     <div class="graph-vignette" />
+    <div class="graph-hud-frame" aria-hidden="true">
+      <span class="graph-corner is-tl" />
+      <span class="graph-corner is-tr" />
+      <span class="graph-corner is-bl" />
+      <span class="graph-corner is-br" />
+    </div>
+    <div class="graph-scanline" aria-hidden="true" />
     <div v-if="error" class="graph-stage-error">
       <p class="graph-stage-error-card">无法创建关系图谱：{{ error }}</p>
     </div>
@@ -76,7 +84,7 @@ defineExpose({ fitView, scrollComments })
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #fff;
+  background: #070a0d;
 }
 
 .graph-canvas {
@@ -84,16 +92,74 @@ defineExpose({ fitView, scrollComments })
   inset: 0;
 }
 
-.graph-vignette {
+.graph-horizon,
+.graph-vignette,
+.graph-hud-frame,
+.graph-scanline {
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+.graph-horizon {
+  background:
+    radial-gradient(circle at 72% 24%, rgba(232, 170, 58, 0.14), transparent 28%),
+    radial-gradient(circle at 46% 48%, rgba(77, 167, 169, 0.08), transparent 38%);
+  mix-blend-mode: screen;
+}
+
+.graph-vignette {
   background: radial-gradient(
-    circle at 50% 42%,
-    transparent 18%,
-    rgba(241, 245, 249, 0.08) 65%,
-    rgba(226, 232, 240, 0.28) 100%
+    ellipse at 50% 43%,
+    transparent 20%,
+    rgba(3, 7, 9, 0.1) 58%,
+    rgba(2, 5, 7, 0.78) 100%
   );
+}
+
+.graph-hud-frame {
+  inset: 12px;
+  opacity: 0.62;
+}
+
+.graph-corner {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-color: rgba(225, 178, 79, 0.48);
+  border-style: solid;
+}
+
+.graph-corner.is-tl {
+  top: 0;
+  left: 0;
+  border-width: 1px 0 0 1px;
+}
+
+.graph-corner.is-tr {
+  top: 0;
+  right: 0;
+  border-width: 1px 1px 0 0;
+}
+
+.graph-corner.is-bl {
+  bottom: 0;
+  left: 0;
+  border-width: 0 0 1px 1px;
+}
+
+.graph-corner.is-br {
+  right: 0;
+  bottom: 0;
+  border-width: 0 1px 1px 0;
+}
+
+.graph-scanline {
+  inset: auto 7% 9%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(239, 183, 72, 0.42), transparent);
+  box-shadow: 0 0 18px rgba(239, 183, 72, 0.28);
+  opacity: 0.5;
 }
 
 .graph-stage-error {
@@ -108,10 +174,10 @@ defineExpose({ fitView, scrollComments })
   max-width: 28rem;
   margin: 0;
   padding: 12px 16px;
-  border: 1px solid rgba(194, 59, 59, 0.3);
+  border: 1px solid rgba(245, 174, 82, 0.36);
   border-radius: 8px;
-  background: rgba(253, 242, 242, 0.95);
-  color: var(--guild-danger);
+  background: rgba(11, 16, 18, 0.94);
+  color: #f3c66f;
   font-size: 14px;
 }
 </style>
