@@ -200,6 +200,18 @@ go test ./...
 cd web && pnpm build
 ```
 
+向本地开发库补充可重复执行的图谱测试节点：
+
+```bash
+set -a
+source .env
+set +a
+go run ./cmd/seed-test-nodes
+```
+
+命令按“父节点 + 固定标题”去重，可安全重复执行。默认使用库中最早创建的
+用户作为负责人，也可以通过 `SEED_OWNER_SUBJECT` 指定本地账号。
+
 数据库集成测试需要 `TEST_DATABASE_URL`：
 
 ```bash

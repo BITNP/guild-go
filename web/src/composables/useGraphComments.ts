@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { fetchComments, type Comment } from '@/lib/api'
+import { fetchComments, type Comment, type Reaction } from '@/lib/api'
 import { errorMessage } from '@/lib/utils'
 
 export function useGraphComments() {
@@ -24,7 +24,16 @@ export function useGraphComments() {
     try {
       const page = await fetchComments(id)
       if (current !== generation) return
-      items.value = [...page.items].reverse()
+      const fetched = [...page.items].reverse()
+      const fetchedIDs = new Set(fetched.map((comment) => comment.id))
+      const locallyAdded = items.value.filter(
+        (comment) => comment.nodeId === id && !fetchedIDs.has(comment.id),
+      )
+      items.value = [...fetched, ...locallyAdded].sort(
+        (left, right) =>
+          new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime() ||
+          left.id - right.id,
+      )
       hasMore.value = page.hasMore
       nextBefore = page.nextBefore
     } catch (err) {
@@ -52,6 +61,19 @@ export function useGraphComments() {
     }
   }
 
+  function add(comment: Comment) {
+    if (nodeId !== comment.nodeId || items.value.some((item) => item.id === comment.id)) {
+      return
+    }
+    items.value = [...items.value, comment]
+  }
+
+  function updateReactions(commentId: number, reactions: Reaction[]) {
+    items.value = items.value.map((comment) =>
+      comment.id === commentId ? { ...comment, reactions } : comment,
+    )
+  }
+
   function clear() {
     generation++
     nodeId = null
@@ -63,5 +85,16 @@ export function useGraphComments() {
     error.value = null
   }
 
-  return { items, loading, loadingOlder, hasMore, error, load, loadOlder, clear }
+  return {
+    items,
+    loading,
+    loadingOlder,
+    hasMore,
+    error,
+    load,
+    loadOlder,
+    add,
+    updateReactions,
+    clear,
+  }
 }
