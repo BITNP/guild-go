@@ -88,6 +88,9 @@ const INITIAL_YAW = THREE.MathUtils.degToRad(24)
 const INTRO_DURATION_MS = 1700
 const INTRO_START_DISTANCE_MULTIPLIER = 3.2
 const LAYOUT_ROTATION_SPEED = THREE.MathUtils.degToRad(0.45)
+const VIRTUAL_ROOT_ROTATION_SPEED = (Math.PI * 2) / 80
+const VIRTUAL_ROOT_ROTATION_DELAY_MS = 800
+const ROTATION_SPEED_RESPONSE = 2.4
 const HOVER_HIT_RADIUS_PX = 24
 const HOVER_FADE_SPEED = 9
 const LABEL_ZOOM_HIDE_THRESHOLD = 0.68
@@ -154,6 +157,8 @@ export class GraphScene {
   private yaw = INITIAL_YAW
   private desiredYaw = this.yaw
   private layoutYaw = 0
+  private layoutRotationSpeed = LAYOUT_ROTATION_SPEED
+  private virtualFocusStartedAt = 0
   private introStarted = false
   private introActive = false
   private introStartedAt = 0
@@ -228,6 +233,11 @@ export class GraphScene {
   setNodes(nodes: GraphNode[]) {
     this.dataNodes.clear()
     for (const node of nodes) this.dataNodes.set(node.id, node)
+    for (const id of this.extraNodes.keys()) {
+      if (id !== VIRTUAL_ROOT_ID && !this.dataNodes.has(id)) {
+        this.extraNodes.delete(id)
+      }
+    }
     this.rebuildViews()
     if (!this.hasInteracted && !this.focus) this.fitView()
   }
@@ -312,6 +322,7 @@ export class GraphScene {
     this.focus = neighborhood
     this.selectedId = neighborhood.node.id
     this.commentNodeId = neighborhood.node.id
+    this.commentLayer.setEmptyEnabled(neighborhood.node.id !== VIRTUAL_ROOT_ID)
     this.hoveredId = null
     this.focusedIds = ids
     this.world.updateMatrixWorld(true)
@@ -324,18 +335,33 @@ export class GraphScene {
     // The camera sits beyond the selected node on its radial axis. Looking back
     // toward the center therefore places the selected archive in front and the
     // guild origin deep in the scene.
-    const radialYaw = this.focusNodePosition.lengthSq() > 0.01
-      ? Math.atan2(this.focusNodePosition.x, this.focusNodePosition.z)
-      : this.yaw
-    this.desiredDistance = Math.max(16, Math.min(21, this.camera.fov / 2.2))
-    this.desiredPitch = THREE.MathUtils.degToRad(21)
-    this.desiredYaw = nearestAngle(this.yaw, radialYaw)
-    this.desiredTarget.copy(this.focusTarget(
-      this.focusNodePosition,
-      this.desiredYaw,
-      this.desiredPitch,
-      this.desiredDistance,
-    ))
+    if (neighborhood.node.id === VIRTUAL_ROOT_ID) {
+      this.virtualFocusStartedAt = performance.now()
+      this.desiredDistance = this.overviewFitDistance(1.12)
+      this.fitDistance = this.desiredDistance
+      this.desiredPitch = Math.PI / 2 - 0.018
+      this.desiredYaw = this.yaw
+      this.desiredTarget.copy(this.focusTarget(
+        new THREE.Vector3(0, 0.9, 0),
+        this.desiredYaw,
+        this.desiredPitch,
+        this.desiredDistance,
+        0,
+      ))
+    } else {
+      const radialYaw = this.focusNodePosition.lengthSq() > 0.01
+        ? Math.atan2(this.focusNodePosition.x, this.focusNodePosition.z)
+        : this.yaw
+      this.desiredDistance = Math.max(16, Math.min(21, this.camera.fov / 2.2))
+      this.desiredPitch = THREE.MathUtils.degToRad(21)
+      this.desiredYaw = nearestAngle(this.yaw, radialYaw)
+      this.desiredTarget.copy(this.focusTarget(
+        this.focusNodePosition,
+        this.desiredYaw,
+        this.desiredPitch,
+        this.desiredDistance,
+      ))
+    }
     this.hasInteracted = true
     this.rebuildViews()
   }
@@ -354,7 +380,6 @@ export class GraphScene {
       this.desiredPitch = this.snapshot.pitch
       // Keep the frozen layout bearing and return only the overview framing.
       this.desiredYaw = this.yaw
-      this.snapshot = null
     }
     this.updateLabelTargets()
     this.applyVisualState()
@@ -362,18 +387,18 @@ export class GraphScene {
 
   fitView() {
     if (this.dataNodes.size === 0) return
-    const verticalFov = THREE.MathUtils.degToRad(this.camera.fov)
-    const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * this.camera.aspect)
-    const sceneRadius = Math.max(this.layout.radius + 6, 16)
-    const horizontalDistance = sceneRadius / Math.tan(horizontalFov / 2)
-    const verticalDistance = sceneRadius / Math.tan(verticalFov / 2)
     this.desiredTarget.set(0, 0.6, 0)
     this.viewTarget.copy(this.desiredTarget)
-    this.desiredDistance = Math.max(28, horizontalDistance, verticalDistance) * 1.08
+    this.desiredDistance = this.overviewFitDistance()
     this.fitDistance = this.desiredDistance
     this.desiredPitch = INITIAL_PITCH
     this.desiredYaw = nearestAngle(this.yaw, INITIAL_YAW)
     this.focusNodePosition = null
+    this.snapshot = {
+      target: this.desiredTarget.clone(),
+      distance: this.desiredDistance,
+      pitch: this.desiredPitch,
+    }
     if (!this.introStarted) {
       this.introStarted = true
       this.introActive = true
@@ -398,6 +423,17 @@ export class GraphScene {
     this.distance = this.desiredDistance
     this.pitch = this.desiredPitch
     this.yaw = this.desiredYaw
+  }
+
+  private overviewFitDistance(padding = 1.08): number {
+    const verticalFov = THREE.MathUtils.degToRad(this.camera.fov)
+    const horizontalFov = 2 * Math.atan(
+      Math.tan(verticalFov / 2) * this.camera.aspect,
+    )
+    const sceneRadius = Math.max(this.layout.radius + 6, 16)
+    const horizontalDistance = sceneRadius / Math.tan(horizontalFov / 2)
+    const verticalDistance = sceneRadius / Math.tan(verticalFov / 2)
+    return Math.max(28, horizontalDistance, verticalDistance) * padding
   }
 
   destroy() {
@@ -446,15 +482,17 @@ export class GraphScene {
     for (const node of this.dataNodes.values()) {
       if (!known.has(node.id)) nodes.push(node)
     }
-    nodes.push({
-      id: VIRTUAL_ROOT_ID,
-      parentId: null,
-      title: '公会',
-      sortOrder: -1,
-      completedAt: null,
-      childCount: nodes.filter((node) => node.parentId == null).length,
-      commentCount: 0,
-    })
+    if (!known.has(VIRTUAL_ROOT_ID)) {
+      nodes.push({
+        id: VIRTUAL_ROOT_ID,
+        parentId: null,
+        title: '开拓者公会',
+        sortOrder: -1,
+        completedAt: null,
+        childCount: nodes.filter((node) => node.parentId == null).length,
+        commentCount: 0,
+      })
+    }
     this.layout = layoutGraph(nodes)
 
     const activeIds = new Set(nodes.map((node) => node.id))
@@ -753,8 +791,10 @@ export class GraphScene {
   }
 
   private applyVisualState() {
+    const showEntireGraph =
+      this.selectedId === VIRTUAL_ROOT_ID
     for (const [id, view] of this.nodeViews) {
-      const visible = !this.focus || this.focusedIds.has(id)
+      const visible = !this.focus || showEntireGraph || this.focusedIds.has(id)
       view.targetOpacity = visible
         ? id === this.selectedId
           ? 1
@@ -768,7 +808,9 @@ export class GraphScene {
     for (const edge of this.edgeViews.values()) {
       edge.targetOpacity = !this.focus
         ? 0.34
-        : this.focusedIds.has(edge.parentId) && this.focusedIds.has(edge.childId)
+        : showEntireGraph ||
+            (this.focusedIds.has(edge.parentId) &&
+              this.focusedIds.has(edge.childId))
           ? 0.86
           : 0
     }
@@ -965,7 +1007,7 @@ export class GraphScene {
       this.renderer.domElement.style.cursor = 'pointer'
       return
     }
-    const id = this.pickNodeAt(event.clientX, event.clientY)
+    const id = this.pickNodeAt(event.clientX, event.clientY, true)
     this.renderer.domElement.style.cursor = id == null ? 'grab' : 'pointer'
     if (id == null) this.callbacks.onBlank()
     else this.callbacks.onSelect(id)
@@ -1116,6 +1158,7 @@ export class GraphScene {
     yaw: number,
     pitch: number,
     distance: number,
+    verticalOffset = 0.18,
   ): THREE.Vector3 {
     const verticalExtent = 2 * distance * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))
     const horizontalExtent = verticalExtent * this.camera.aspect
@@ -1129,7 +1172,7 @@ export class GraphScene {
     const screenUp = new THREE.Vector3().crossVectors(right, forward).normalize()
     return nodePosition.clone()
       .addScaledVector(right, horizontalExtent * 0.16)
-      .addScaledVector(screenUp, verticalExtent * 0.18)
+      .addScaledVector(screenUp, verticalExtent * verticalOffset)
   }
 
   private resize() {
@@ -1145,6 +1188,7 @@ export class GraphScene {
         this.desiredYaw,
         this.desiredPitch,
         this.desiredDistance,
+        this.focus.node.id === VIRTUAL_ROOT_ID ? 0 : 0.18,
       ))
     }
   }
@@ -1304,7 +1348,19 @@ export class GraphScene {
     this.smoothPointerX += (this.pointerX - this.smoothPointerX) * damping
     this.smoothPointerY += (this.pointerY - this.smoothPointerY) * damping
     const pointerInfluence = this.focus ? 0.5 : 1
-    if (!this.focus) this.layoutYaw += delta * LAYOUT_ROTATION_SPEED
+    const virtualRotationReady =
+      this.selectedId === VIRTUAL_ROOT_ID &&
+      now - this.virtualFocusStartedAt >= VIRTUAL_ROOT_ROTATION_DELAY_MS
+    const targetRotationSpeed = !this.focus
+      ? LAYOUT_ROTATION_SPEED
+      : virtualRotationReady
+        ? VIRTUAL_ROOT_ROTATION_SPEED
+        : 0
+    const rotationSpeedDamping =
+      1 - Math.exp(-delta * ROTATION_SPEED_RESPONSE)
+    this.layoutRotationSpeed +=
+      (targetRotationSpeed - this.layoutRotationSpeed) * rotationSpeedDamping
+    this.layoutYaw += delta * this.layoutRotationSpeed
     const layoutRotation = new THREE.Quaternion().setFromAxisAngle(
       new THREE.Vector3(0, 1, 0),
       this.layoutYaw,
@@ -1363,8 +1419,16 @@ export class GraphScene {
     this.camera.position.copy(this.viewTarget).add(cameraOffset)
     this.camera.lookAt(this.viewTarget)
     this.camera.updateMatrixWorld()
+    if (!this.focus && !this.introActive && this.snapshot) {
+      const snapshotSettled =
+        this.viewTarget.distanceToSquared(this.snapshot.target) < 0.0004 &&
+        Math.abs(this.distance - this.snapshot.distance) < 0.05 &&
+        Math.abs(this.pitch - this.snapshot.pitch) < 0.001
+      if (snapshotSettled) this.snapshot = null
+    }
     this.updateHoverFromPointer()
 
+    const labelNodeWorldPosition = new THREE.Vector3()
     for (const [id, view] of this.nodeViews) {
       const hovered = id === this.hoveredId
       const selected = id === this.selectedId
@@ -1444,9 +1508,10 @@ export class GraphScene {
         62,
       )
       const viewportHeight = Math.max(1, this.container.clientHeight)
+      view.group.getWorldPosition(labelNodeWorldPosition)
       const nodeDistance = Math.max(
         1,
-        this.camera.position.distanceTo(view.group.position),
+        this.camera.position.distanceTo(labelNodeWorldPosition),
       )
       const worldPerPixel = 2 * nodeDistance *
         Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) /

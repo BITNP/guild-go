@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { FileText, MessageSquare, X } from '@lucide/vue'
+import ImageGallery from '@/components/ImageGallery.vue'
+import PreviewImage from '@/components/PreviewImage.vue'
 import type { ProgressItem } from '@/lib/api'
 import {
   formatDateTime,
@@ -90,15 +92,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       <div class="progress-detail-body">
         <p>{{ body }}</p>
 
-        <div v-if="comment?.attachments.length" class="progress-detail-images">
-          <img
+        <ImageGallery
+          v-if="comment?.attachments.length"
+          class="progress-detail-gallery"
+        >
+          <div class="progress-detail-images">
+            <PreviewImage
             v-for="(image, index) in comment.attachments"
             :key="image.id"
             :src="image.url"
             :alt="`进展图片 ${index + 1}`"
-            loading="lazy"
-          />
-        </div>
+            :width="132"
+            :height="100"
+            lazy
+            class="progress-detail-image"
+            />
+          </div>
+        </ImageGallery>
 
         <details v-if="change" class="progress-before">
           <summary>查看修改前内容</summary>
@@ -253,19 +263,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   white-space: pre-wrap;
 }
 
+.progress-detail-gallery {
+  display: block;
+  margin-top: 16px;
+}
+
 .progress-detail-images {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
   gap: 8px;
-  margin-top: 16px;
 }
 
-.progress-detail-images img {
-  width: 100%;
-  max-height: 190px;
+.progress-detail-image {
+  width: 132px;
+  height: 100px;
   border: 1px solid rgba(139, 166, 171, 0.26);
   border-radius: 3px;
-  object-fit: cover;
+  overflow: hidden;
 }
 
 .progress-before {

@@ -62,6 +62,7 @@ export class CommentLayer {
   private scroll = 0
   private lastNodePosition: THREE.Vector3 | null = null
   private commentsLoading = false
+  private emptyEnabled = true
   private emptyOpacity = 0
   private composerVisible = false
   private composerOpacity = 0
@@ -182,6 +183,15 @@ export class CommentLayer {
       this.targetScroll = 0
     }
     this.clampScroll()
+  }
+
+  setEmptyEnabled(enabled: boolean) {
+    this.emptyEnabled = enabled
+    if (!enabled) {
+      this.emptyOpacity = 0
+      this.emptyLabel.material.opacity = 0
+      this.emptyLabel.visible = false
+    }
   }
 
   scrollBy(delta: number): boolean {
@@ -322,6 +332,7 @@ export class CommentLayer {
     this.composerLine.visible = this.composerOpacity > 0.012
 
     const showEmpty = selected &&
+      this.emptyEnabled &&
       !this.composerVisible &&
       !this.commentsLoading &&
       this.visuals.size === 0

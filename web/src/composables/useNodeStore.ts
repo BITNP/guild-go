@@ -5,6 +5,7 @@ const nodes = ref<NodeSummary[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
 let inflight: Promise<void> | null = null
+let generation = 0
 
 const byId = computed(() => {
   const map = new Map<number, NodeSummary>()
@@ -36,21 +37,49 @@ function ancestorsOf(nodeId: number): NodeSummary[] {
   return result
 }
 
+function removeSubtree(rootId: number) {
+  const removed = new Set<number>([rootId])
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const node of nodes.value) {
+      if (
+        node.parentId != null &&
+        removed.has(node.parentId) &&
+        !removed.has(node.id)
+      ) {
+        removed.add(node.id)
+        changed = true
+      }
+    }
+  }
+  nodes.value = nodes.value.filter((node) => !removed.has(node.id))
+}
+
 async function load(force = false): Promise<void> {
   if (inflight && !force) return inflight
-  inflight = (async () => {
+  const current = ++generation
+  const request = (async () => {
     loading.value = true
     try {
-      nodes.value = await fetchNodes()
-      error.value = null
+      const result = await fetchNodes()
+      if (current === generation) {
+        nodes.value = result
+        error.value = null
+      }
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '无法加载节点树'
+      if (current === generation) {
+        error.value = err instanceof Error ? err.message : '无法加载节点树'
+      }
     } finally {
-      loading.value = false
-      inflight = null
+      if (current === generation) {
+        loading.value = false
+        inflight = null
+      }
     }
   })()
-  return inflight
+  inflight = request
+  return request
 }
 
 async function reload(): Promise<void> {
@@ -68,5 +97,6 @@ export function useNodeStore() {
     reload,
     childrenOf,
     ancestorsOf,
+    removeSubtree,
   }
 }
