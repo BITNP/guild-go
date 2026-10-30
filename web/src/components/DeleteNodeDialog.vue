@@ -4,7 +4,11 @@ import ConfirmAction from '@/components/ConfirmAction.vue'
 import { deleteNode, type NodeDetail } from '@/lib/api'
 import { errorMessage } from '@/lib/utils'
 const props = defineProps<{ open: boolean; node: NodeDetail }>(),
-  emit = defineEmits<{ close: []; deleted: [] }>()
+  emit = defineEmits<{
+    close: []
+    deleted: []
+    'update:open': [open: boolean]
+  }>()
 const deleting = ref(false),
   error = ref<string | null>(null)
 watch(
@@ -27,6 +31,11 @@ async function confirm() {
     deleting.value = false
   }
 }
+
+function close() {
+  emit('update:open', false)
+  emit('close')
+}
 </script>
 <template>
   <ConfirmAction
@@ -36,7 +45,7 @@ async function confirm() {
     :busy="deleting"
     :error="error"
     @confirm="confirm"
-    @close="emit('close')"
+    @close="close"
     ><p>将删除「{{ node.title }}」及其所有下级节点，共 {{ node.subtreeNodeCount }} 个节点。</p>
     <p>
       这些节点的全部进展记录和 {{ node.subtreeAttachmentCount }} 张图片也会一并删除，操作不可撤销。

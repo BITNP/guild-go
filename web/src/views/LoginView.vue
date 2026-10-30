@@ -90,7 +90,7 @@ onMounted(async () => {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: #f3f5f8;
+  background: var(--guild-app-bg);
 }
 .login-card {
   max-width: 800px;
@@ -98,7 +98,7 @@ onMounted(async () => {
 }
 .login-product {
   padding: 32px;
-  background: #e8f0ff;
+  background: var(--guild-primary-soft);
   height: 100%;
 }
 .login-product h1,

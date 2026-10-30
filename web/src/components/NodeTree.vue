@@ -87,10 +87,10 @@ function treeOption(node: NodeSummary): TreeOption[] {
         h(node.completedAt ? Check : Circle, {
           size: 14,
           color: node.completedAt
-            ? '#157347'
+            ? 'var(--guild-success)'
             : isOverdue(node.dueAt, node.completedAt)
-              ? '#966200'
-              : '#687587',
+              ? 'var(--guild-warning)'
+              : 'var(--guild-muted)',
           'aria-label': node.completedAt ? '已完成' : '未完成',
         }),
       suffix:

@@ -1,20 +1,28 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { NAlert, NButton, NSpin, useThemeVars } from 'naive-ui'
 import type { DiffSurfaceController } from 'stream-diffs'
+import { useTheme } from '@/composables/useTheme'
 
 const props = defineProps<{ before: string; after: string }>()
 const themeVars = useThemeVars()
+const { isDark } = useTheme()
 const container = ref<HTMLElement>()
 const loading = ref(true)
 const failed = ref(false)
 let controller: DiffSurfaceController | undefined
 let disposed = false
+let generation = 0
 
-onMounted(async () => {
+async function mountDiff() {
+  controller?.dispose()
+  controller = undefined
+  failed.value = false
+  loading.value = true
+  const current = ++generation
   try {
     const { createDiffSurface } = await import('stream-diffs')
-    if (disposed) return
+    if (disposed || current !== generation) return
     controller = createDiffSurface({
       kind: 'diff',
       // Descriptions are trimmed on save; terminate display lines to omit Git's EOF metadata.
@@ -28,24 +36,28 @@ onMounted(async () => {
         disableFileHeader: true,
         disableLineNumbers: true,
         expandUnchanged: true,
-        themeType: 'light',
+        themeType: isDark.value ? 'dark' : 'light',
         preferredHighlighter: 'shiki-js',
       },
     })
     await controller.mount(container.value!)
     await controller.whenVisualReady()
   } catch {
-    if (!disposed) {
+    if (!disposed && current === generation) {
       controller?.dispose()
       failed.value = true
     }
   } finally {
-    if (!disposed) loading.value = false
+    if (!disposed && current === generation) loading.value = false
   }
-})
+}
+
+onMounted(mountDiff)
+watch(isDark, mountDiff)
 
 onBeforeUnmount(() => {
   disposed = true
+  generation++
   controller?.dispose()
 })
 

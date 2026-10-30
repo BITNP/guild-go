@@ -12,11 +12,14 @@ import {
   NDatePicker,
 } from 'naive-ui'
 import {
+  ArrowUpDown,
   CalendarClock,
   ChevronRight,
   ExternalLink,
   Network,
   Pencil,
+  Plus,
+  Trash2,
   UserRound,
   X,
 } from '@lucide/vue'
@@ -30,9 +33,11 @@ import { errorMessage, formatDateTime, timeAgo } from '@/lib/utils'
 const props = defineProps<{
   selected: GraphNode
   detail: NodeDetail | null
+  parentId: number | null
   parentTitle: string | null
   loading: boolean
   error: string | null
+  isVirtualRoot: boolean
 }>()
 
 const emit = defineEmits<{
@@ -40,6 +45,11 @@ const emit = defineEmits<{
   navigate: [id: number]
   retry: []
   updated: [node: NodeDetail]
+  edit: []
+  createChild: []
+  createRoot: []
+  remove: []
+  reorder: []
 }>()
 
 const membersOpen = ref(false)
@@ -51,7 +61,6 @@ const savingStatus = ref(false)
 const statusError = ref<string | null>(null)
 const panel = ref<HTMLElement | null>(null)
 const title = computed(() => props.detail?.title ?? props.selected.title)
-const parentId = computed(() => props.detail?.parentId ?? props.selected.parentId)
 let pointerTargetX = 0
 let pointerTargetY = 0
 let pointerX = 0
@@ -103,6 +112,14 @@ watch(
 function onMembersSaved(node: NodeDetail) {
   membersOpen.value = false
   emit('updated', node)
+}
+
+function createNode() {
+  if (props.isVirtualRoot) {
+    emit('createRoot')
+  } else {
+    emit('createChild')
+  }
 }
 
 function startMetaEdit() {
@@ -195,7 +212,7 @@ async function toggleCompletion() {
         <X :size="17" />
       </button>
       <h2>{{ title }}</h2>
-      <div v-if="detail" class="panel-status-row">
+      <div v-if="detail && !isVirtualRoot" class="panel-status-row">
         <NodeStatusTag
           :due-at="detail.dueAt"
           :completed-at="detail.completedAt"
@@ -225,6 +242,26 @@ async function toggleCompletion() {
           {{ tag }}
         </span>
       </div>
+      <div v-if="detail && !isVirtualRoot" class="panel-node-actions">
+        <button
+          v-if="detail.permissions.canEdit"
+          type="button"
+          class="panel-edit-button"
+          @click="emit('edit')"
+        >
+          <Pencil :size="12" />
+          编辑节点
+        </button>
+        <button
+          v-if="detail.permissions.canDelete"
+          type="button"
+          class="panel-delete-button"
+          @click="emit('remove')"
+        >
+          <Trash2 :size="12" />
+          删除节点
+        </button>
+      </div>
     </header>
 
     <div class="panel-scroll">
@@ -244,8 +281,10 @@ async function toggleCompletion() {
 
       <template v-else-if="detail">
         <section class="panel-section" aria-labelledby="panel-structure-title">
-          <h3 id="panel-structure-title">层级关系</h3>
-          <div class="panel-relation">
+          <h3 id="panel-structure-title">
+            {{ isVirtualRoot ? '始祖节点' : '层级关系' }}
+          </h3>
+          <div v-if="!isVirtualRoot" class="panel-relation">
             <span class="relation-label">父节点</span>
             <button
               v-if="parentId != null"
@@ -261,8 +300,31 @@ async function toggleCompletion() {
 
           <div class="panel-children">
             <div class="children-heading">
-              <span>子节点</span>
+              <span>{{ isVirtualRoot ? '根节点' : '子节点' }}</span>
               <span>{{ detail.children.length }}</span>
+            </div>
+            <div class="children-actions">
+              <button
+                v-if="
+                  detail.permissions.canReorderChildren &&
+                  detail.children.length > 1
+                "
+                type="button"
+                class="panel-edit-button"
+                @click="emit('reorder')"
+              >
+                <ArrowUpDown :size="12" />
+                {{ isVirtualRoot ? '调整根节点顺序' : '调整子节点顺序' }}
+              </button>
+              <button
+                v-if="detail.permissions.canAddChild"
+                type="button"
+                class="panel-edit-button is-primary"
+                @click="createNode"
+              >
+                <Plus :size="12" />
+                {{ isVirtualRoot ? '新建根节点' : '新建子节点' }}
+              </button>
             </div>
             <div v-if="detail.children.length" class="children-list">
               <button
@@ -278,11 +340,17 @@ async function toggleCompletion() {
                 <ChevronRight :size="13" />
               </button>
             </div>
-            <p v-else class="relation-empty">暂无子节点</p>
+            <p v-else class="relation-empty">
+              {{ isVirtualRoot ? '暂无根节点' : '暂无子节点' }}
+            </p>
           </div>
         </section>
 
-        <section class="panel-section" aria-labelledby="panel-description-title">
+        <section
+          v-if="!isVirtualRoot"
+          class="panel-section"
+          aria-labelledby="panel-description-title"
+        >
           <h3 id="panel-description-title">节点描述</h3>
           <p v-if="detail.description" class="panel-description">
             {{ detail.description }}
@@ -290,7 +358,11 @@ async function toggleCompletion() {
           <p v-else class="panel-empty-copy">暂无节点描述</p>
         </section>
 
-        <section class="panel-section" aria-labelledby="panel-meta-title">
+        <section
+          v-if="!isVirtualRoot"
+          class="panel-section"
+          aria-labelledby="panel-meta-title"
+        >
           <div class="panel-section-heading">
             <h3 id="panel-meta-title">节点信息</h3>
             <button
@@ -369,7 +441,11 @@ async function toggleCompletion() {
           </dl>
         </section>
 
-        <section class="panel-section panel-people" aria-labelledby="panel-people-title">
+        <section
+          v-if="!isVirtualRoot"
+          class="panel-section panel-people"
+          aria-labelledby="panel-people-title"
+        >
           <div class="people-heading">
             <h3 id="panel-people-title">负责人 / 参与者</h3>
             <button
@@ -416,6 +492,7 @@ async function toggleCompletion() {
 
     <footer class="panel-footer">
       <RouterLink
+        v-if="!isVirtualRoot"
         :to="{ name: 'node', params: { id: selected.id } }"
         class="panel-page-link"
       >
@@ -424,12 +501,16 @@ async function toggleCompletion() {
       </RouterLink>
       <p>
         <UserRound :size="12" />
-        节点详情与成员变更由普通页面同步管理
+        {{
+          isVirtualRoot
+            ? '始祖节点汇集所有根节点，并从这里扩展新的分支'
+            : '节点详情与成员变更由普通页面同步管理'
+        }}
       </p>
     </footer>
 
     <MembersDialog
-      v-if="detail"
+      v-if="detail && !isVirtualRoot"
       :open="membersOpen"
       :node="detail"
       @close="membersOpen = false"
@@ -620,6 +701,21 @@ async function toggleCompletion() {
   border-radius: 2px;
   color: #9eb2b6;
   font-size: 13px;
+}
+
+.panel-node-actions,
+.children-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.panel-node-actions {
+  margin-top: 12px;
+}
+
+.children-actions {
+  margin: -3px 0 9px;
 }
 
 .panel-scroll {
@@ -888,6 +984,31 @@ async function toggleCompletion() {
   color: #ffe0a2;
 }
 
+.panel-edit-button.is-primary {
+  border-color: rgba(232, 181, 75, 0.58);
+  background: rgba(218, 170, 67, 0.1);
+  color: #f0cb7e;
+}
+
+.panel-delete-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 1px solid rgba(226, 125, 104, 0.34);
+  border-radius: 2px;
+  background: transparent;
+  color: #e3a091;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.panel-delete-button:hover {
+  border-color: rgba(241, 143, 119, 0.7);
+  background: rgba(177, 69, 50, 0.12);
+  color: #ffb9a8;
+}
+
 .panel-edit-button:disabled {
   cursor: wait;
   opacity: 0.55;
@@ -997,6 +1118,149 @@ async function toggleCompletion() {
   margin: 8px 0 0;
   color: #61767b;
   font-size: 12px;
+}
+
+:global([data-theme='light'] .node-control-panel) {
+  border-color: rgba(157, 105, 25, 0.28);
+  border-right-color: rgba(151, 94, 12, 0.5);
+  background:
+    linear-gradient(155deg, rgba(255, 249, 235, 0.92), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(246, 249, 250, 0.98));
+  box-shadow:
+    -24px 0 70px rgba(51, 66, 75, 0.16),
+    inset 0 0 50px rgba(167, 107, 17, 0.02);
+  color: #263640;
+}
+
+:global([data-theme='light'] .panel-header) {
+  border-bottom-color: rgba(81, 105, 116, 0.15);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+:global([data-theme='light'] .panel-kicker) {
+  color: rgba(139, 86, 8, 0.78);
+}
+
+:global([data-theme='light'] .panel-header h2) {
+  color: #17242d;
+}
+
+:global([data-theme='light'] .panel-close) {
+  border-color: rgba(84, 107, 117, 0.22);
+  background: rgba(255, 255, 255, 0.76);
+  color: #5c7079;
+}
+
+:global([data-theme='light'] .status-toggle),
+:global([data-theme='light'] .panel-edit-button) {
+  border-color: rgba(155, 101, 17, 0.3);
+  background: rgba(184, 119, 21, 0.06);
+  color: #80510d;
+}
+
+:global([data-theme='light'] .panel-tag) {
+  border-color: rgba(87, 119, 132, 0.26);
+  color: #607783;
+}
+
+:global([data-theme='light'] .panel-section) {
+  border-bottom-color: rgba(82, 105, 116, 0.13);
+}
+
+:global([data-theme='light'] .panel-section h3),
+:global([data-theme='light'] .people-heading h3) {
+  color: #8e590d;
+}
+
+:global([data-theme='light'] .relation-label),
+:global([data-theme='light'] .children-heading),
+:global([data-theme='light'] .people-group h4),
+:global([data-theme='light'] .panel-meta-grid dt) {
+  color: #607580;
+}
+
+:global([data-theme='light'] .relation-link),
+:global([data-theme='light'] .child-link) {
+  color: #344650;
+}
+
+:global([data-theme='light'] .relation-link) {
+  border-color: rgba(157, 104, 21, 0.22);
+  background: rgba(183, 120, 24, 0.05);
+}
+
+:global([data-theme='light'] .relation-link:hover),
+:global([data-theme='light'] .child-link:hover) {
+  border-color: rgba(157, 100, 17, 0.48);
+  background: rgba(183, 120, 24, 0.08);
+  color: #714707;
+}
+
+:global([data-theme='light'] .relation-empty),
+:global([data-theme='light'] .panel-empty-copy) {
+  color: #758993;
+}
+
+:global([data-theme='light'] .children-heading span:last-child) {
+  color: #936013;
+}
+
+:global([data-theme='light'] .child-count) {
+  color: #758993;
+}
+
+:global([data-theme='light'] .panel-description),
+:global([data-theme='light'] .panel-meta-grid dd),
+:global([data-theme='light'] .people-list) {
+  color: #344650;
+}
+
+:global([data-theme='light'] .inherited-count) {
+  color: #70848e;
+}
+
+:global([data-theme='light'] .meta-editor-field),
+:global([data-theme='light'] .panel-loading),
+:global([data-theme='light'] .panel-error) {
+  color: #627781;
+}
+
+:global([data-theme='light'] .meta-editor-actions button) {
+  border-color: rgba(81, 106, 118, 0.25);
+  background: rgba(255, 255, 255, 0.78);
+  color: #4f6570;
+}
+
+:global([data-theme='light'] .meta-editor-actions button.is-primary) {
+  border-color: rgba(156, 101, 17, 0.46);
+  background: rgba(187, 123, 24, 0.09);
+  color: #7d4e0a;
+}
+
+:global([data-theme='light'] .panel-error p) {
+  color: #8d590d;
+}
+
+:global([data-theme='light'] .panel-error button) {
+  border-color: rgba(156, 101, 17, 0.34);
+  color: #7f500b;
+}
+
+:global([data-theme='light'] .panel-footer) {
+  border-top-color: rgba(157, 105, 22, 0.2);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+:global([data-theme='light'] .panel-page-link) {
+  border-color: rgba(157, 102, 18, 0.38);
+  background:
+    linear-gradient(90deg, rgba(190, 127, 29, 0.1), transparent),
+    rgba(255, 252, 246, 0.86);
+  color: #81510b;
+}
+
+:global([data-theme='light'] .panel-footer p) {
+  color: #71858e;
 }
 
 @keyframes panel-spin {
