@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import type { ProgressItem } from '@/lib/api'
 import { reactionEmoji, reactionKeys } from '@/lib/utils'
+import type { ThemeMode } from '@/composables/useTheme'
 
 interface ProgressVisual {
   anchor: THREE.Group
@@ -13,6 +14,7 @@ interface ProgressVisual {
   opacity: number
   reveal: number
   pulse: number
+  item: ProgressItem
 }
 
 export interface ProgressCardHit {
@@ -45,6 +47,29 @@ const REACTION_START_X = 34
 const REACTION_CELL_WIDTH = 110
 const REACTION_GAP = 10
 
+const CARD_PALETTES = {
+  dark: {
+    surface: 'rgba(8, 14, 17, 0.9)',
+    author: '#f3c35f',
+    meta: 'rgba(178, 201, 208, 0.68)',
+    body: 'rgba(240, 244, 238, 0.94)',
+    accentSoft: 'rgba(239, 180, 66, 0.92)',
+    cyan: 'rgba(102, 219, 186, 0.82)',
+    divider: 'rgba(139, 166, 171, 0.2)',
+    empty: 'rgba(232, 185, 85, 0.86)',
+  },
+  light: {
+    surface: 'rgba(255, 255, 255, 0.94)',
+    author: '#a56812',
+    meta: 'rgba(69, 87, 101, 0.74)',
+    body: 'rgba(23, 32, 43, 0.96)',
+    accentSoft: 'rgba(181, 120, 24, 0.9)',
+    cyan: 'rgba(21, 124, 89, 0.9)',
+    divider: 'rgba(82, 105, 119, 0.18)',
+    empty: 'rgba(133, 83, 12, 0.86)',
+  },
+} as const
+
 export class CommentLayer {
   readonly group = new THREE.Group()
   readonly composerPose: ComposerPose = {
@@ -67,6 +92,7 @@ export class CommentLayer {
   private composerVisible = false
   private composerOpacity = 0
   private composerY = BASE_Y
+  private theme: ThemeMode = 'dark'
 
   constructor() {
     this.group.visible = false
@@ -96,7 +122,7 @@ export class CommentLayer {
       }),
     )
     this.emptyLabel = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: createEmptyTexture(),
+      map: createEmptyTexture(this.theme),
       transparent: true,
       opacity: 0,
       depthWrite: false,
@@ -136,10 +162,11 @@ export class CommentLayer {
         this.visuals.set(id, visual)
         this.group.add(visual.anchor, visual.line)
       } else {
+        visual.item = item
         const textureKey = progressTextureKey(item)
         if (visual.textureKey !== textureKey) {
           const previousTexture = visual.card.material.map
-          visual.card.material.map = createProgressTexture(item)
+          visual.card.material.map = createProgressTexture(item, this.theme)
           visual.card.material.needsUpdate = true
           previousTexture?.dispose()
           visual.textureKey = textureKey
@@ -183,6 +210,23 @@ export class CommentLayer {
       this.targetScroll = 0
     }
     this.clampScroll()
+  }
+
+  setTheme(theme: ThemeMode) {
+    this.theme = theme
+    for (const visual of this.visuals.values()) {
+      const previousTexture = visual.card.material.map
+      visual.card.material.map = createProgressTexture(
+        visual.item,
+        theme,
+      )
+      visual.card.material.needsUpdate = true
+      previousTexture?.dispose()
+    }
+    const previousEmpty = this.emptyLabel.material.map
+    this.emptyLabel.material.map = createEmptyTexture(theme)
+    this.emptyLabel.material.needsUpdate = true
+    previousEmpty?.dispose()
   }
 
   setEmptyEnabled(enabled: boolean) {
@@ -363,7 +407,7 @@ export class CommentLayer {
   }
 
   private createVisual(item: ProgressItem): ProgressVisual {
-    const texture = createProgressTexture(item)
+    const texture = createProgressTexture(item, this.theme)
     const card = new THREE.Mesh(
       this.cardGeometry,
       new THREE.MeshBasicMaterial({
@@ -420,6 +464,7 @@ export class CommentLayer {
       opacity: 0,
       reveal: 0,
       pulse: 0,
+      item,
     }
   }
 
@@ -449,23 +494,27 @@ export class CommentLayer {
   }
 }
 
-function createProgressTexture(item: ProgressItem): THREE.CanvasTexture {
+function createProgressTexture(
+  item: ProgressItem,
+  theme: ThemeMode,
+): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
   canvas.width = CARD_CANVAS_WIDTH
   canvas.height = CARD_CANVAS_HEIGHT
   const context = canvas.getContext('2d')
   if (!context) throw new Error('Canvas 2D context is unavailable')
+  const palette = CARD_PALETTES[theme]
 
   context.clearRect(0, 0, canvas.width, canvas.height)
-  context.fillStyle = 'rgba(8, 14, 17, 0.9)'
+  context.fillStyle = palette.surface
   context.fillRect(0, 0, canvas.width, canvas.height)
-  context.fillStyle = 'rgba(239, 180, 66, 0.92)'
+  context.fillStyle = palette.accentSoft
   context.fillRect(0, 0, 6, canvas.height)
-  context.fillStyle = 'rgba(83, 224, 188, 0.32)'
+  context.fillStyle = palette.cyan
   context.fillRect(canvas.width - 4, 0, 4, canvas.height)
 
   context.font = '600 46px "Noto Sans SC", "PingFang SC", sans-serif'
-  context.fillStyle = '#f3c35f'
+  context.fillStyle = palette.author
   context.textBaseline = 'middle'
   const author = item.kind === 'comment'
     ? item.comment.author
@@ -478,7 +527,7 @@ function createProgressTexture(item: ProgressItem): THREE.CanvasTexture {
     : author.userName
   context.fillText(trimToWidth(context, authorLabel, 590, 46), 34, 42)
   context.font = '34px "Noto Sans SC", "PingFang SC", sans-serif'
-  context.fillStyle = 'rgba(178, 201, 208, 0.68)'
+  context.fillStyle = palette.meta
   const time = new Intl.DateTimeFormat('zh-CN', {
     month: '2-digit',
     day: '2-digit',
@@ -491,7 +540,7 @@ function createProgressTexture(item: ProgressItem): THREE.CanvasTexture {
   context.textAlign = 'left'
 
   context.font = '44px "Noto Sans SC", "PingFang SC", sans-serif'
-  context.fillStyle = 'rgba(240, 244, 238, 0.94)'
+  context.fillStyle = palette.body
   const comment = item.kind === 'comment' ? item.comment : null
   const change = item.kind === 'description_change'
     ? item.descriptionChange
@@ -510,18 +559,18 @@ function createProgressTexture(item: ProgressItem): THREE.CanvasTexture {
   )
   if (comment && comment.attachments.length > 0) {
     context.font = '26px "Noto Sans SC", "PingFang SC", sans-serif'
-    context.fillStyle = 'rgba(102, 219, 186, 0.82)'
+    context.fillStyle = palette.cyan
     context.textAlign = 'right'
     context.fillText(`附 ${comment.attachments.length} 张图片`, 990, 276)
     context.textAlign = 'left'
   }
-  context.strokeStyle = 'rgba(224, 177, 79, 0.28)'
+  context.strokeStyle = palette.accentSoft
   context.lineWidth = 1
   context.beginPath()
   context.moveTo(34, 76)
   context.lineTo(990, 76)
   context.stroke()
-  context.strokeStyle = 'rgba(139, 166, 171, 0.2)'
+  context.strokeStyle = palette.divider
   context.beginPath()
   context.moveTo(34, 288)
   context.lineTo(990, 288)
@@ -628,7 +677,7 @@ function progressKey(item: ProgressItem): string {
     : `description_change:${item.descriptionChange.id}`
 }
 
-function createEmptyTexture(): THREE.CanvasTexture {
+function createEmptyTexture(theme: ThemeMode): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
   canvas.width = 1024
   canvas.height = 160
@@ -636,7 +685,7 @@ function createEmptyTexture(): THREE.CanvasTexture {
   if (!context) throw new Error('Canvas 2D context is unavailable')
   context.clearRect(0, 0, canvas.width, canvas.height)
   context.font = '600 52px "Noto Sans SC", "PingFang SC", sans-serif'
-  context.fillStyle = 'rgba(232, 185, 85, 0.86)'
+  context.fillStyle = CARD_PALETTES[theme].empty
   context.textAlign = 'center'
   context.textBaseline = 'middle'
   context.fillText('该节点还没有发布进展', canvas.width / 2, canvas.height / 2)

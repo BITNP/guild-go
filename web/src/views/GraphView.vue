@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { Focus, Loader2, MousePointer2, Network } from '@lucide/vue'
+import { Focus, Loader2, Network } from '@lucide/vue'
 import AppShell from '@/components/AppShell.vue'
 import DeleteNodeDialog from '@/components/DeleteNodeDialog.vue'
 import GraphNodePanel from '@/components/graph/GraphNodePanel.vue'
@@ -11,6 +11,7 @@ import OrderDialog from '@/components/OrderDialog.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useGraphProgress } from '@/composables/useGraphProgress'
 import { useNodeStore } from '@/composables/useNodeStore'
+import { useTheme } from '@/composables/useTheme'
 import { VIRTUAL_ROOT_ID } from '@/graph/layout'
 import type { GraphNeighborhood, GraphNode } from '@/graph/types'
 import {
@@ -39,6 +40,7 @@ const {
   removeSubtree,
 } = useNodeStore()
 const { isManager, isAdmin } = useAuth()
+const { mode: themeMode } = useTheme()
 const {
   items: progress,
   loading: progressLoading,
@@ -394,13 +396,18 @@ watch(() => active.value?.node.id ?? null, (id) => {
 
 <template>
   <AppShell immersive>
-    <div class="graph-view" @wheel.capture="onWheel">
+    <div
+      class="graph-view"
+      :data-theme="themeMode"
+      @wheel.capture="onWheel"
+    >
       <GraphStage
         ref="stage"
         :nodes="nodes"
         :focus="active"
         :progress="progress"
         :progress-loading="progressLoading"
+        :theme="themeMode"
         :can-comment="
           !!(
             active &&
@@ -502,15 +509,6 @@ watch(() => active.value?.node.id ?? null, (id) => {
           <Focus :size="14" /> 复位视野
         </button>
       </div>
-
-      <aside class="graph-help">
-        <div class="graph-help-row">
-          <span class="graph-inline"><MousePointer2 :size="12" /> 点击节点聚焦</span>
-          <span v-if="!active">拖拽平移 · 滚轮缩放 · 点击空白淡出</span>
-          <span v-else>滚轮翻阅进展 · 点击进展展开 · 点击底部表情回应</span>
-        </div>
-        <p class="graph-help-note">同层同环，子节点沿父节点扇区向外展开；聚焦时从外圈回望公会核心。</p>
-      </aside>
 
       <div v-if="dataError" class="graph-error-overlay">
         <div class="graph-error-card">
@@ -861,6 +859,99 @@ watch(() => active.value?.node.id ?? null, (id) => {
   color: #f2c66f;
   font-size: 12px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+}
+
+:global([data-theme='light'] .graph-view) {
+  background: #eef3f5;
+}
+
+:global([data-theme='light'] .graph-header) {
+  color: #526572;
+}
+
+:global([data-theme='light'] .graph-title-mark) {
+  border-color: rgba(163, 104, 17, 0.62);
+  background:
+    linear-gradient(135deg, rgba(192, 133, 40, 0.15), transparent 62%),
+    rgba(255, 255, 255, 0.88);
+  box-shadow:
+    inset 0 0 18px rgba(173, 113, 22, 0.06),
+    0 0 24px rgba(173, 113, 22, 0.08);
+  color: #9d6411;
+}
+
+:global([data-theme='light'] .graph-heading) {
+  color: #1c2932;
+}
+
+:global([data-theme='light'] .graph-kicker) {
+  color: rgba(125, 77, 8, 0.7);
+}
+
+:global([data-theme='light'] .graph-status) {
+  color: #637784;
+}
+
+:global([data-theme='light'] .graph-dot) {
+  background: #a96c12;
+  box-shadow: 0 0 8px rgba(169, 108, 18, 0.45);
+}
+
+:global([data-theme='light'] .graph-button) {
+  border-color: rgba(159, 103, 18, 0.32);
+  background: rgba(255, 255, 255, 0.8);
+  color: #8c5b12;
+  box-shadow:
+    inset 0 0 16px rgba(225, 173, 70, 0.04),
+    0 8px 24px rgba(40, 52, 61, 0.1);
+}
+
+:global([data-theme='light'] .graph-button:hover) {
+  border-color: rgba(142, 89, 10, 0.62);
+  background: rgba(255, 250, 239, 0.96);
+  color: #734707;
+}
+
+:global([data-theme='light'] .graph-help) {
+  border-color: rgba(85, 109, 121, 0.2);
+  border-left-color: rgba(157, 100, 17, 0.58);
+  background: rgba(255, 255, 255, 0.78);
+  color: #5d707b;
+  box-shadow: 0 12px 36px rgba(50, 65, 74, 0.12);
+}
+
+:global([data-theme='light'] .graph-help-note) {
+  color: rgba(121, 78, 17, 0.7);
+}
+
+:global([data-theme='light'] .network-loading-card) {
+  border-color: rgba(158, 102, 18, 0.28);
+  background: rgba(255, 255, 255, 0.9);
+  color: #81520d;
+  box-shadow:
+    0 20px 50px rgba(48, 63, 72, 0.16),
+    inset 0 0 24px rgba(181, 126, 37, 0.03);
+}
+
+:global([data-theme='light'] .graph-network-loading) {
+  background: radial-gradient(
+    circle at 50% 46%,
+    rgba(238, 244, 246, 0.3),
+    rgba(232, 238, 241, 0.12) 36%,
+    transparent 62%
+  );
+}
+
+:global([data-theme='light'] .graph-error-card),
+:global([data-theme='light'] .graph-toast) {
+  border-color: rgba(157, 100, 18, 0.28);
+  background: rgba(255, 255, 255, 0.95);
+  color: #85570f;
+  box-shadow: 0 20px 50px rgba(47, 61, 70, 0.16);
+}
+
+:global([data-theme='light'] .graph-error-action) {
+  border-color: rgba(157, 100, 18, 0.3);
 }
 
 @media (prefers-reduced-motion: reduce) {

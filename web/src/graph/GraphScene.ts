@@ -5,6 +5,7 @@ import {
 } from 'three/addons/renderers/CSS3DRenderer.js'
 import type { ProgressItem } from '@/lib/api'
 import type { GraphNeighborhood, GraphNode } from '@/graph/types'
+import type { ThemeMode } from '@/composables/useTheme'
 import {
   layoutGraph,
   VIRTUAL_ROOT_ID,
@@ -99,6 +100,37 @@ const HOVER_PARTICLE_STRIDE = 5
 const GRAVITY_ROLL_STRENGTH = 0.034
 const GRAVITY_PITCH_STRENGTH = 0.027
 
+const SCENE_PALETTES = {
+  dark: {
+    background: 0x070a0d,
+    fog: 0x070a0d,
+    ground: 0x070b0e,
+    minor: 0x55808c,
+    accent: 0xe5ad46,
+    plate: 0x102027,
+    virtualPlate: 0x3b2b12,
+    crystal: 0xe8f4ec,
+    virtualCrystal: 0xffe5a6,
+    edge: 0xd4a34f,
+    dust: 0xd8ad60,
+    dustOpacity: 0.28,
+  },
+  light: {
+    background: 0xeef3f5,
+    fog: 0xeef3f5,
+    ground: 0xe5ebef,
+    minor: 0x7897a1,
+    accent: 0xb67d1c,
+    plate: 0xd7e2e7,
+    virtualPlate: 0xf0d8aa,
+    crystal: 0xffffff,
+    virtualCrystal: 0xfff7df,
+    edge: 0xb78935,
+    dust: 0x8f7442,
+    dustOpacity: 0.15,
+  },
+} as const
+
 export class GraphScene {
   private readonly container: HTMLElement
   private readonly callbacks: SceneCallbacks
@@ -125,6 +157,9 @@ export class GraphScene {
   )
   private readonly glowTexture = createNodeGlowTexture()
   private readonly commentLayer = new CommentLayer()
+  private theme: ThemeMode
+  private groundPlane!: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>
+  private groundGrid!: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>
   private composerObject: CSS3DObject | null = null
   private composerElement: HTMLElement | null = null
   private readonly raycaster = new THREE.Raycaster()
@@ -136,7 +171,10 @@ export class GraphScene {
   private readonly desiredTarget = new THREE.Vector3()
   private readonly dragRight = new THREE.Vector3()
   private readonly dragForward = new THREE.Vector3()
-  private readonly dust: THREE.Points
+  private readonly dust: THREE.Points<
+    THREE.BufferGeometry,
+    THREE.PointsMaterial
+  >
   private readonly resizeObserver: ResizeObserver
   private layout: GraphLayout = layoutGraph([])
   private focus: GraphNeighborhood | null = null
@@ -182,9 +220,18 @@ export class GraphScene {
   private lastFrame = performance.now()
   private disposed = false
 
-  constructor(container: HTMLElement, callbacks: SceneCallbacks) {
+  private get palette() {
+    return SCENE_PALETTES[this.theme]
+  }
+
+  constructor(
+    container: HTMLElement,
+    callbacks: SceneCallbacks,
+    theme: ThemeMode = 'dark',
+  ) {
     this.container = container
     this.callbacks = callbacks
+    this.theme = theme
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: false,
@@ -206,11 +253,12 @@ export class GraphScene {
     this.cssRenderer.domElement.style.pointerEvents = 'none'
     container.appendChild(this.cssRenderer.domElement)
 
-    this.scene.background = new THREE.Color(0x070a0d)
-    this.scene.fog = new THREE.FogExp2(0x070a0d, 0.0024)
+    this.scene.background = new THREE.Color(this.palette.background)
+    this.scene.fog = new THREE.FogExp2(this.palette.fog, 0.0024)
     this.world.add(this.createGround())
     this.scene.add(this.world)
     this.scene.add(this.commentLayer.group)
+    this.commentLayer.setTheme(this.theme)
     this.dust = createDust()
     this.scene.add(this.dust)
     this.scene.add(new THREE.HemisphereLight(0xffe2a7, 0x071018, 2.2))
@@ -240,6 +288,63 @@ export class GraphScene {
     }
     this.rebuildViews()
     if (!this.hasInteracted && !this.focus) this.fitView()
+  }
+
+  setTheme(theme: ThemeMode) {
+    this.theme = theme
+    this.scene.background = new THREE.Color(this.palette.background)
+    if (this.scene.fog instanceof THREE.FogExp2) {
+      this.scene.fog.color.setHex(this.palette.fog)
+    }
+    this.groundPlane.material.color.setHex(this.palette.ground)
+    this.groundGrid.material.uniforms.minorColor?.value.setHex(
+      this.palette.minor,
+    )
+    this.groundGrid.material.uniforms.accentColor?.value.setHex(
+      this.palette.accent,
+    )
+    this.dust.material.color.setHex(this.palette.dust)
+    this.dust.material.opacity = this.palette.dustOpacity
+    this.renderer.toneMappingExposure = theme === 'light' ? 0.96 : 1.1
+
+    for (const edge of this.edgeViews.values()) {
+      edge.line.material.color.setHex(this.palette.edge)
+    }
+    for (const [id, view] of this.nodeViews) {
+      const virtual = id === VIRTUAL_ROOT_ID
+      const completed = view.completed && !virtual
+      view.accent = virtual
+        ? this.palette.accent
+        : completed
+          ? theme === 'light' ? 0x167c59 : 0x58d7ad
+          : this.palette.accent
+      view.plate.material.color.setHex(
+        virtual ? this.palette.virtualPlate : this.palette.plate,
+      )
+      view.plate.material.emissive.setHex(view.accent)
+      view.cap.material.color.setHex(view.accent)
+      view.cap.material.emissive.setHex(view.accent)
+      view.crystal.material.color.setHex(
+        virtual ? this.palette.virtualCrystal : this.palette.crystal,
+      )
+      view.crystal.material.emissive.setHex(view.accent)
+      view.innerRing.material.color.setHex(view.accent)
+      view.outerRing.material.color.setHex(view.accent)
+      view.glow.material.color.setHex(view.accent)
+      view.particles.material.color.setHex(view.accent)
+      if (view.label && !virtual) {
+        const previousMap = view.label.material.map
+        view.label.material.map = createLabelTexture(
+          view.title,
+          completed,
+          false,
+          theme,
+        )
+        view.label.material.needsUpdate = true
+        previousMap?.dispose()
+      }
+    }
+    this.commentLayer.setTheme(theme)
   }
 
   setProgress(items: ProgressItem[], loading = false) {
@@ -523,12 +628,16 @@ export class GraphScene {
   private createNode(node: GraphNode): NodeVisual {
     const virtual = node.id === VIRTUAL_ROOT_ID
     const radius = virtual ? 1.35 : 0.72
-    const accent = virtual ? 0xf3ba46 : node.completedAt ? 0x58d7ad : 0xe0a83d
+    const accent = virtual
+      ? this.palette.accent
+      : node.completedAt
+        ? this.theme === 'light' ? 0x167c59 : 0x58d7ad
+        : this.palette.accent
     const basePlateEmissive = virtual ? 0.32 : 0.12
     const baseCapEmissive = virtual ? 0.55 : 0.32
     const baseCrystalEmissive = virtual ? 1.9 : 1.1
     const plateMaterial = new THREE.MeshStandardMaterial({
-      color: virtual ? 0x3b2b12 : 0x102027,
+      color: virtual ? this.palette.virtualPlate : this.palette.plate,
       emissive: accent,
       emissiveIntensity: basePlateEmissive,
       roughness: 0.32,
@@ -546,7 +655,7 @@ export class GraphScene {
       opacity: 0,
     })
     const crystalMaterial = new THREE.MeshStandardMaterial({
-      color: virtual ? 0xffe5a6 : 0xe8f4ec,
+      color: virtual ? this.palette.virtualCrystal : this.palette.crystal,
       emissive: accent,
       emissiveIntensity: baseCrystalEmissive,
       roughness: 0.1,
@@ -635,7 +744,12 @@ export class GraphScene {
     const label = virtual
       ? null
       : new THREE.Sprite(new THREE.SpriteMaterial({
-          map: createLabelTexture(node.title, node.completedAt != null, false),
+          map: createLabelTexture(
+            node.title,
+            node.completedAt != null,
+            false,
+            this.theme,
+          ),
           transparent: true,
           opacity: 0,
           depthWrite: false,
@@ -686,7 +800,11 @@ export class GraphScene {
   private updateNodeAppearance(view: NodeVisual, node: GraphNode) {
     const virtual = node.id === VIRTUAL_ROOT_ID
     const completed = node.completedAt != null
-    const accent = virtual ? 0xf3ba46 : completed ? 0x58d7ad : 0xe0a83d
+    const accent = virtual
+      ? this.palette.accent
+      : completed
+        ? this.theme === 'light' ? 0x167c59 : 0x58d7ad
+        : this.palette.accent
     view.accent = accent
     view.title = node.title
     view.completed = completed
@@ -701,7 +819,12 @@ export class GraphScene {
     if (!view.label || virtual) return
 
     const previousMap = view.label.material.map
-    view.label.material.map = createLabelTexture(node.title, completed, false)
+    view.label.material.map = createLabelTexture(
+      node.title,
+      completed,
+      false,
+      this.theme,
+    )
     view.label.material.needsUpdate = true
     previousMap?.dispose()
   }
@@ -764,7 +887,7 @@ export class GraphScene {
       const child = this.layout.positions.get(edge.childId)
       if (!parent || !child) continue
       const material = new THREE.LineBasicMaterial({
-        color: 0xd4a34f,
+        color: this.palette.edge,
         transparent: true,
         opacity: 0,
         depthWrite: false,
@@ -820,7 +943,7 @@ export class GraphScene {
     const ground = new THREE.Group()
     const plane = new THREE.Mesh(
       new THREE.PlaneGeometry(1000, 1000),
-      new THREE.MeshBasicMaterial({ color: 0x070b0e }),
+      new THREE.MeshBasicMaterial({ color: this.palette.ground }),
     )
     plane.rotation.x = -Math.PI / 2
     plane.position.y = -0.13
@@ -831,8 +954,8 @@ export class GraphScene {
         depthWrite: false,
         side: THREE.DoubleSide,
         uniforms: {
-          minorColor: { value: new THREE.Color(0x55808c) },
-          accentColor: { value: new THREE.Color(0xe5ad46) },
+          minorColor: { value: new THREE.Color(this.palette.minor) },
+          accentColor: { value: new THREE.Color(this.palette.accent) },
           ringSpacing: { value: 3.6 },
           fadeStart: { value: 44 },
           fadeEnd: { value: 160 },
@@ -905,6 +1028,8 @@ export class GraphScene {
     )
     grid.rotation.x = -Math.PI / 2
     grid.position.y = -0.1
+    this.groundPlane = plane
+    this.groundGrid = grid
     ground.add(plane, grid)
     return ground
   }

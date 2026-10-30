@@ -109,7 +109,7 @@ onMounted(load)
                   :value-style="{
                     color:
                       stat.label === '已逾期' && stat.value
-                        ? '#966200'
+                        ? 'var(--guild-warning)'
                         : undefined,
                   }" /></NGi></NGrid
           ></NCard>

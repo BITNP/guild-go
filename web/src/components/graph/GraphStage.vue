@@ -4,6 +4,7 @@ import type { Comment, ProgressItem } from '@/lib/api'
 import type { GraphNeighborhood, GraphNode } from '@/graph/types'
 import { GraphScene } from '@/graph/GraphScene'
 import GraphCommentComposer from '@/components/graph/GraphCommentComposer.vue'
+import type { ThemeMode } from '@/composables/useTheme'
 
 const props = defineProps<{
   nodes: GraphNode[]
@@ -11,6 +12,7 @@ const props = defineProps<{
   progress: ProgressItem[]
   progressLoading: boolean
   canComment: boolean
+  theme: ThemeMode
 }>()
 
 const emit = defineEmits<{
@@ -36,7 +38,7 @@ onMounted(() => {
       onReaction: (commentId, emoji) => emit('reaction', commentId, emoji),
       onProgressOpen: (key) => emit('progressOpen', key),
       onProgressNeedOlder: () => emit('progressEdge'),
-    })
+    }, props.theme)
     scene.setNodes(props.nodes)
     scene.setFocus(props.focus)
     scene.setProgress(props.progress, props.progressLoading)
@@ -48,6 +50,7 @@ onMounted(() => {
 
 watch(() => props.nodes, (nodes) => scene?.setNodes(nodes))
 watch(() => props.focus, (focus) => scene?.setFocus(focus))
+watch(() => props.theme, (theme) => scene?.setTheme(theme))
 watch(
   [() => props.progress, () => props.progressLoading],
   ([progress, loading]) => scene?.setProgress(progress, loading),
@@ -208,5 +211,35 @@ defineExpose({ fitView, scrollProgress })
   background: rgba(11, 16, 18, 0.94);
   color: #f3c66f;
   font-size: 14px;
+}
+
+:global([data-theme='light'] .graph-stage) {
+  background: #eef3f5;
+}
+
+:global([data-theme='light'] .graph-horizon) {
+  background:
+    radial-gradient(circle at 72% 24%, rgba(188, 126, 24, 0.12), transparent 30%),
+    radial-gradient(circle at 46% 48%, rgba(44, 132, 137, 0.09), transparent 40%);
+  mix-blend-mode: multiply;
+}
+
+:global([data-theme='light'] .graph-vignette) {
+  display: none;
+}
+
+:global([data-theme='light'] .graph-corner) {
+  border-color: rgba(151, 100, 20, 0.46);
+}
+
+:global([data-theme='light'] .graph-scanline) {
+  background: linear-gradient(90deg, transparent, rgba(148, 94, 14, 0.4), transparent);
+  box-shadow: 0 0 18px rgba(148, 94, 14, 0.2);
+}
+
+:global([data-theme='light'] .graph-stage-error-card) {
+  border-color: rgba(157, 100, 18, 0.32);
+  background: rgba(255, 255, 255, 0.94);
+  color: #8c5a0d;
 }
 </style>
