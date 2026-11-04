@@ -16,11 +16,20 @@ import {
   NTag,
   NText,
 } from 'naive-ui'
-import { ChevronDown, LogOut, Menu, PanelRight, UserRound } from '@lucide/vue'
+import {
+  ChevronDown,
+  LogOut,
+  Menu,
+  Moon,
+  PanelRight,
+  Sun,
+  UserRound,
+} from '@lucide/vue'
 import NodeTree from '@/components/NodeTree.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useNodeStore } from '@/composables/useNodeStore'
+import { useTheme } from '@/composables/useTheme'
 const props = withDefaults(
   defineProps<{ railTitle?: string; immersive?: boolean }>(),
   { railTitle: '节点信息', immersive: false },
@@ -30,6 +39,7 @@ const slots: Slots = useSlots(),
   router = useRouter()
 const { user, logout } = useAuth(),
   { load } = useNodeStore()
+const { isDark, toggleTheme } = useTheme()
 const treeOpen = ref(false),
   railOpen = ref(false),
   accountOpen = ref(false),
@@ -150,6 +160,17 @@ onMounted(() => {
       </div>
       <NSpace align="center" :wrap="false" :size="6"
         ><NButton
+          quaternary
+          class="theme-toggle"
+          :aria-label="isDark ? '切换到浅色主题' : '切换到深色主题'"
+          :aria-pressed="isDark"
+          :title="isDark ? '切换到浅色主题' : '切换到深色主题'"
+          @click="toggleTheme"
+        >
+          <Sun v-if="isDark" :size="17" />
+          <Moon v-else :size="17" />
+        </NButton
+        ><NButton
           v-if="hasRail"
           quaternary
           class="rail-toggle"
@@ -240,7 +261,7 @@ onMounted(() => {
   height: 100dvh;
   display: grid;
   grid-template-rows: 52px minmax(0, 1fr);
-  background: #f3f5f8;
+  background: var(--guild-app-bg);
 }
 .application-header {
   display: flex;
@@ -248,6 +269,8 @@ onMounted(() => {
   justify-content: space-between;
   padding: 0 16px;
   gap: 12px;
+  background: var(--guild-header-bg);
+  backdrop-filter: blur(14px);
 }
 .header-navigation,
 .brand {
@@ -338,7 +361,7 @@ onMounted(() => {
   top: -100px;
   left: 16px;
   z-index: 3000;
-  background: white;
+  background: var(--guild-surface);
   padding: 8px;
   color: var(--guild-primary);
 }

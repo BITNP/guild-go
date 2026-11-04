@@ -697,6 +697,79 @@ onBeforeUnmount(() => {
   line-height: 1.3;
 }
 
+:global([data-theme='light'] .graph-comment-composer) {
+  border-color: rgba(160, 105, 20, 0.28);
+  border-left-color: rgba(147, 90, 8, 0.62);
+  background:
+    linear-gradient(135deg, rgba(193, 128, 29, 0.08), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(246, 249, 250, 0.98));
+  box-shadow:
+    0 26px 70px rgba(48, 63, 72, 0.2),
+    0 0 32px rgba(180, 118, 20, 0.05),
+    inset 0 0 38px rgba(55, 137, 135, 0.02);
+  color: #2a3942;
+}
+
+:global([data-theme='light'] .composer-input) {
+  border-color: rgba(79, 108, 120, 0.28);
+  background:
+    linear-gradient(90deg, rgba(58, 143, 142, 0.04), transparent 34%),
+    rgba(255, 255, 255, 0.84);
+  color: #17242c;
+  caret-color: #9a620e;
+}
+
+:global([data-theme='light'] .composer-input::placeholder) {
+  color: rgba(73, 94, 106, 0.58);
+}
+
+:global([data-theme='light'] .composer-input:focus) {
+  border-color: rgba(158, 101, 16, 0.58);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow:
+    0 0 0 2px rgba(178, 116, 22, 0.07),
+    inset 0 0 24px rgba(58, 143, 142, 0.03);
+}
+
+:global([data-theme='light'] .image-slot) {
+  border-color: rgba(80, 108, 120, 0.26);
+  background: #eef3f5;
+}
+
+:global([data-theme='light'] .image-overlay) {
+  background: rgba(238, 244, 246, 0.86);
+  color: #455b66;
+}
+
+:global([data-theme='light'] .image-remove) {
+  border-color: rgba(121, 91, 47, 0.28);
+  background: rgba(255, 255, 255, 0.9);
+  color: #506570;
+}
+
+:global([data-theme='light'] .composer-actions) {
+  border-top-color: rgba(80, 108, 120, 0.18);
+}
+
+:global([data-theme='light'] .attach-button) {
+  border-color: rgba(78, 109, 121, 0.28);
+  background: rgba(255, 255, 255, 0.72);
+  color: #536a75;
+}
+
+:global([data-theme='light'] .send-button) {
+  border-color: rgba(157, 101, 18, 0.48);
+  background:
+    linear-gradient(135deg, rgba(189, 124, 27, 0.14), transparent),
+    rgba(255, 249, 236, 0.88);
+  color: #7f4f0a;
+  box-shadow: 0 0 18px rgba(176, 112, 18, 0.05);
+}
+
+:global([data-theme='light'] .composer-error) {
+  color: #a33f36;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .graph-comment-composer {
     backdrop-filter: none;

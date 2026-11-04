@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import type { ThemeMode } from '@/composables/useTheme'
 
 const LABEL_CANVAS_WIDTH = 768
 const LABEL_CANVAS_HEIGHT = 192
@@ -9,6 +10,7 @@ export function createLabelTexture(
   title: string,
   completed: boolean,
   virtual: boolean,
+  theme: ThemeMode = 'dark',
 ): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
   canvas.width = LABEL_CANVAS_WIDTH
@@ -18,25 +20,52 @@ export function createLabelTexture(
 
   context.clearRect(0, 0, canvas.width, canvas.height)
   roundedRect(context, 8, 8, 752, 176, 16)
-  context.fillStyle = virtual
-    ? 'rgba(17, 15, 10, 0.9)'
-    : 'rgba(7, 13, 16, 0.84)'
+  const light = theme === 'light'
+  context.fillStyle = light
+    ? virtual
+      ? 'rgba(255, 248, 226, 0.95)'
+      : 'rgba(255, 255, 255, 0.92)'
+    : virtual
+      ? 'rgba(17, 15, 10, 0.9)'
+      : 'rgba(7, 13, 16, 0.84)'
   context.fill()
   context.strokeStyle = virtual
-    ? 'rgba(246, 191, 74, 0.82)'
+    ? light
+      ? 'rgba(174, 112, 18, 0.72)'
+      : 'rgba(246, 191, 74, 0.82)'
     : completed
-      ? 'rgba(92, 223, 182, 0.5)'
-      : 'rgba(239, 181, 67, 0.42)'
+      ? light
+        ? 'rgba(21, 115, 71, 0.52)'
+        : 'rgba(92, 223, 182, 0.5)'
+      : light
+        ? 'rgba(174, 118, 26, 0.42)'
+        : 'rgba(239, 181, 67, 0.42)'
   context.lineWidth = 2
   context.stroke()
 
-  context.fillStyle = virtual ? '#f4bd4e' : completed ? '#68dfb7' : '#e8b34a'
+  context.fillStyle = light
+    ? virtual
+      ? '#a8680e'
+      : completed
+        ? '#157347'
+        : '#a56c16'
+    : virtual
+      ? '#f4bd4e'
+      : completed
+        ? '#68dfb7'
+        : '#e8b34a'
   context.fillRect(26, 30, 4, 132)
 
   context.textBaseline = 'middle'
   context.textAlign = 'left'
   context.font = '800 42px Inter, "Noto Sans SC", "PingFang SC", sans-serif'
-  context.fillStyle = virtual ? '#f4bd4e' : 'rgba(178, 199, 206, 0.82)'
+  context.fillStyle = light
+    ? virtual
+      ? '#a8680e'
+      : 'rgba(76, 94, 108, 0.82)'
+    : virtual
+      ? '#f4bd4e'
+      : 'rgba(178, 199, 206, 0.82)'
   context.fillText(
     virtual ? 'GUILD CORE' : completed ? 'SYNCED' : 'ACTIVE',
     54,
@@ -44,7 +73,7 @@ export function createLabelTexture(
   )
 
   context.font = '700 64px Inter, "Noto Sans SC", "PingFang SC", sans-serif'
-  context.fillStyle = '#f4f1e8'
+  context.fillStyle = light ? '#17202b' : '#f4f1e8'
   const lines = wrapText(context, title || '未命名节点', 664, 1)
   context.fillText(lines[0] ?? '未命名节点', 54, 110)
 

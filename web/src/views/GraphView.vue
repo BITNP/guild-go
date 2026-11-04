@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { Focus, Loader2, MousePointer2, Network } from '@lucide/vue'
+import { Focus, Loader2, Network } from '@lucide/vue'
 import AppShell from '@/components/AppShell.vue'
+import DeleteNodeDialog from '@/components/DeleteNodeDialog.vue'
 import GraphNodePanel from '@/components/graph/GraphNodePanel.vue'
 import GraphProgressDetail from '@/components/graph/GraphProgressDetail.vue'
 import GraphStage from '@/components/graph/GraphStage.vue'
+import NodeFormDialog from '@/components/NodeFormDialog.vue'
+import OrderDialog from '@/components/OrderDialog.vue'
+import { useAuth } from '@/composables/useAuth'
 import { useGraphProgress } from '@/composables/useGraphProgress'
 import { useNodeStore } from '@/composables/useNodeStore'
-import type { GraphNeighborhood } from '@/graph/types'
+import { useTheme } from '@/composables/useTheme'
+import { VIRTUAL_ROOT_ID } from '@/graph/layout'
+import type { GraphNeighborhood, GraphNode } from '@/graph/types'
 import {
   fetchNode,
   toggleReaction,
+  type ChildNode,
   type Comment,
   type NodeDetail,
   type ProgressItem,
@@ -30,7 +37,10 @@ const {
   error: dataError,
   load,
   reload,
+  removeSubtree,
 } = useNodeStore()
+const { isManager, isAdmin } = useAuth()
+const { mode: themeMode } = useTheme()
 const {
   items: progress,
   loading: progressLoading,
@@ -50,6 +60,13 @@ const detailError = ref<string | null>(null)
 const reactionError = ref<string | null>(null)
 const reacting = ref(new Set<number>())
 const expandedProgressKey = ref<string | null>(null)
+const editOpen = ref(false)
+const createOpen = ref(false)
+const createParentId = ref<number | null>(null)
+const createParentTitle = ref('')
+const deleteOpen = ref(false)
+const deleteTarget = ref<NodeDetail | null>(null)
+const orderOpen = ref(false)
 let detailGeneration = 0
 const expandedProgress = computed(() => {
   const key = expandedProgressKey.value
@@ -71,9 +88,96 @@ function progressKey(item: ProgressItem): string {
     : `description_change:${item.descriptionChange.id}`
 }
 
+const rootNodes = computed(() =>
+  nodes.value
+    .filter((node) => node.parentId == null)
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.id - right.id),
+)
+const canManageRoots = computed(() => isManager.value || isAdmin.value)
+
+function virtualRootNode(): GraphNode {
+  return {
+    id: VIRTUAL_ROOT_ID,
+    parentId: null,
+    title: '开拓者公会',
+    sortOrder: -1,
+    completedAt: null,
+    childCount: rootNodes.value.length,
+    commentCount: rootNodes.value.reduce(
+      (total, node) => total + node.commentCount,
+      0,
+    ),
+  }
+}
+
+function virtualRootDetail(): NodeDetail | null {
+  if (active.value?.node.id !== VIRTUAL_ROOT_ID) return null
+  return {
+    id: VIRTUAL_ROOT_ID,
+    parentId: null,
+    title: '开拓者公会',
+    description: '',
+    dueAt: null,
+    completedAt: null,
+    tags: [],
+    sortOrder: -1,
+    createdBySubject: '',
+    createdBy: {
+      subject: '',
+      userName: '',
+      avatar: null,
+      positions: [],
+    },
+    createdAt: '',
+    updatedAt: '',
+    breadcrumb: [],
+    directLeaders: [],
+    directMembers: [],
+    inheritedLeaderCount: 0,
+    inheritedMemberCount: 0,
+    effectiveMemberCount: 0,
+    subtreeNodeCount: nodes.value.length,
+    subtreeCommentCount: nodes.value.reduce(
+      (total, node) => total + node.commentCount,
+      0,
+    ),
+    subtreeAttachmentCount: 0,
+    permissions: {
+      canEdit: false,
+      canDelete: false,
+      canComment: false,
+      canManageMembers: false,
+      canAddChild: canManageRoots.value,
+      canReorderChildren: canManageRoots.value && rootNodes.value.length > 1,
+    },
+    children: rootNodes.value.map((node): ChildNode => ({
+      ...node,
+      latestComment: null,
+    })),
+  }
+}
+
 // The whole tree is already in the node store, so the focused neighborhood is a
 // pure lookup. childrenOf keeps the same (sortOrder, id) order as the server.
 function selectNode(id: number) {
+  if (id === VIRTUAL_ROOT_ID) {
+    const changed = active.value?.node.id !== VIRTUAL_ROOT_ID
+    if (changed) {
+      detail.value = null
+      detailError.value = null
+      detailLoading.value = false
+      reactionError.value = null
+      expandedProgressKey.value = null
+      clearProgress()
+    }
+    active.value = {
+      node: virtualRootNode(),
+      parent: null,
+      children: rootNodes.value,
+    }
+    detail.value = virtualRootDetail()
+    return
+  }
   const node = byId.value.get(id)
   if (!node) return
   const changed = active.value?.node.id !== id
@@ -86,7 +190,9 @@ function selectNode(id: number) {
     expandedProgressKey.value = null
     clearProgress()
   }
-  const parent = node.parentId == null ? null : byId.value.get(node.parentId) ?? null
+  const parent = node.parentId == null
+    ? virtualRootNode()
+    : byId.value.get(node.parentId) ?? null
   active.value = { node, parent, children: childrenOf(id) }
 }
 
@@ -134,7 +240,7 @@ async function reactToComment(commentId: number, emoji: string) {
 
 async function loadDetail() {
   const id = active.value?.node.id
-  if (id == null) return
+  if (id == null || id === VIRTUAL_ROOT_ID) return
   const current = ++detailGeneration
   detailLoading.value = true
   detailError.value = null
@@ -174,6 +280,76 @@ function onDetailUpdated(node: NodeDetail) {
   void reload()
 }
 
+function openCreateRoot() {
+  createParentId.value = null
+  createParentTitle.value = ''
+  createOpen.value = true
+}
+
+function openCreateChild() {
+  if (!detail.value) return
+  createParentId.value = detail.value.id
+  createParentTitle.value = detail.value.title
+  createOpen.value = true
+}
+
+function openDelete() {
+  if (!detail.value?.permissions.canDelete) return
+  deleteTarget.value = detail.value
+  deleteOpen.value = true
+}
+
+async function onNodeSaved(node: NodeDetail) {
+  editOpen.value = false
+  if (active.value?.node.id === node.id) {
+    detail.value = node
+    active.value = {
+      ...active.value,
+      node: {
+        ...active.value.node,
+        title: node.title,
+        parentId: node.parentId,
+        completedAt: node.completedAt,
+      },
+    }
+    await reload()
+    if (active.value?.node.id === node.id) {
+      await loadProgress(node.id)
+    }
+  }
+}
+
+async function onNodeCreated(node: NodeDetail) {
+  createOpen.value = false
+  await reload()
+  selectNode(node.id)
+}
+
+async function onNodeDeleted() {
+  const deletedId = deleteTarget.value?.id
+  const parentId = deleteTarget.value?.parentId ?? null
+  deleteOpen.value = false
+  deleteTarget.value = null
+  if (deletedId != null) removeSubtree(deletedId)
+  active.value = null
+  detail.value = null
+  detailGeneration++
+  clearProgress()
+  expandedProgressKey.value = null
+  await reload()
+  selectNode(parentId ?? VIRTUAL_ROOT_ID)
+}
+
+async function onNodesOrdered() {
+  orderOpen.value = false
+  await reload()
+  if (active.value?.node.id === VIRTUAL_ROOT_ID) {
+    selectNode(VIRTUAL_ROOT_ID)
+  } else {
+    await loadDetail()
+  }
+}
+
 function onWheel(event: WheelEvent) {
   if (!active.value) return
   if (
@@ -194,6 +370,11 @@ onMounted(() => {
 })
 
 watch(() => active.value?.node.id ?? null, (id) => {
+  editOpen.value = false
+  createOpen.value = false
+  deleteOpen.value = false
+  orderOpen.value = false
+  deleteTarget.value = null
   detailGeneration++
   detail.value = null
   detailError.value = null
@@ -203,19 +384,30 @@ watch(() => active.value?.node.id ?? null, (id) => {
     clearProgress()
     return
   }
+  if (id === VIRTUAL_ROOT_ID) {
+    detailLoading.value = false
+    detail.value = virtualRootDetail()
+    clearProgress()
+    return
+  }
   void loadDetail()
 })
 </script>
 
 <template>
   <AppShell immersive>
-    <div class="graph-view" @wheel.capture="onWheel">
+    <div
+      class="graph-view"
+      :data-theme="themeMode"
+      @wheel.capture="onWheel"
+    >
       <GraphStage
         ref="stage"
         :nodes="nodes"
         :focus="active"
         :progress="progress"
         :progress-loading="progressLoading"
+        :theme="themeMode"
         :can-comment="
           !!(
             active &&
@@ -266,13 +458,20 @@ watch(() => active.value?.node.id ?? null, (id) => {
           v-if="active"
           :selected="active.node"
           :detail="detail?.id === active.node.id ? detail : null"
+          :parent-id="active.parent?.id ?? null"
           :parent-title="active.parent?.title ?? null"
           :loading="detailLoading"
           :error="detailError"
+          :is-virtual-root="active.node.id === VIRTUAL_ROOT_ID"
           @close="clearSelection"
           @navigate="selectNode"
           @retry="loadDetail"
           @updated="onDetailUpdated"
+          @edit="editOpen = true"
+          @remove="openDelete"
+          @create-child="openCreateChild"
+          @create-root="openCreateRoot"
+          @reorder="orderOpen = true"
         />
       </Transition>
 
@@ -311,15 +510,6 @@ watch(() => active.value?.node.id ?? null, (id) => {
         </button>
       </div>
 
-      <aside class="graph-help">
-        <div class="graph-help-row">
-          <span class="graph-inline"><MousePointer2 :size="12" /> 点击节点聚焦</span>
-          <span v-if="!active">拖拽平移 · 滚轮缩放 · 点击空白淡出</span>
-          <span v-else>滚轮翻阅进展 · 点击进展展开 · 点击底部表情回应</span>
-        </div>
-        <p class="graph-help-note">同层同环，子节点沿父节点扇区向外展开；聚焦时从外圈回望公会核心。</p>
-      </aside>
-
       <div v-if="dataError" class="graph-error-overlay">
         <div class="graph-error-card">
           <p>{{ dataError }}</p>
@@ -335,6 +525,37 @@ watch(() => active.value?.node.id ?? null, (id) => {
         {{ progressError || reactionError }}
       </p>
     </div>
+
+    <NodeFormDialog
+      v-if="detail"
+      v-model:open="editOpen"
+      mode="edit"
+      :node="detail"
+      @saved="onNodeSaved"
+    />
+    <NodeFormDialog
+      v-model:open="createOpen"
+      mode="create"
+      :parent-id="createParentId"
+      :parent-title="createParentTitle"
+      @saved="onNodeCreated"
+    />
+    <DeleteNodeDialog
+      v-if="deleteTarget"
+      v-model:open="deleteOpen"
+      :node="deleteTarget"
+      @close="deleteOpen = false"
+      @deleted="onNodeDeleted"
+    />
+    <OrderDialog
+      v-if="detail"
+      :open="orderOpen"
+      :parent-id="active?.node.id === VIRTUAL_ROOT_ID ? null : detail.id"
+      :parent-title="active?.node.id === VIRTUAL_ROOT_ID ? '开拓者公会' : detail.title"
+      :children="detail.children"
+      @close="orderOpen = false"
+      @saved="onNodesOrdered"
+    />
   </AppShell>
 </template>
 
@@ -638,6 +859,99 @@ watch(() => active.value?.node.id ?? null, (id) => {
   color: #f2c66f;
   font-size: 12px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+}
+
+:global([data-theme='light'] .graph-view) {
+  background: #eef3f5;
+}
+
+:global([data-theme='light'] .graph-header) {
+  color: #526572;
+}
+
+:global([data-theme='light'] .graph-title-mark) {
+  border-color: rgba(163, 104, 17, 0.62);
+  background:
+    linear-gradient(135deg, rgba(192, 133, 40, 0.15), transparent 62%),
+    rgba(255, 255, 255, 0.88);
+  box-shadow:
+    inset 0 0 18px rgba(173, 113, 22, 0.06),
+    0 0 24px rgba(173, 113, 22, 0.08);
+  color: #9d6411;
+}
+
+:global([data-theme='light'] .graph-heading) {
+  color: #1c2932;
+}
+
+:global([data-theme='light'] .graph-kicker) {
+  color: rgba(125, 77, 8, 0.7);
+}
+
+:global([data-theme='light'] .graph-status) {
+  color: #637784;
+}
+
+:global([data-theme='light'] .graph-dot) {
+  background: #a96c12;
+  box-shadow: 0 0 8px rgba(169, 108, 18, 0.45);
+}
+
+:global([data-theme='light'] .graph-button) {
+  border-color: rgba(159, 103, 18, 0.32);
+  background: rgba(255, 255, 255, 0.8);
+  color: #8c5b12;
+  box-shadow:
+    inset 0 0 16px rgba(225, 173, 70, 0.04),
+    0 8px 24px rgba(40, 52, 61, 0.1);
+}
+
+:global([data-theme='light'] .graph-button:hover) {
+  border-color: rgba(142, 89, 10, 0.62);
+  background: rgba(255, 250, 239, 0.96);
+  color: #734707;
+}
+
+:global([data-theme='light'] .graph-help) {
+  border-color: rgba(85, 109, 121, 0.2);
+  border-left-color: rgba(157, 100, 17, 0.58);
+  background: rgba(255, 255, 255, 0.78);
+  color: #5d707b;
+  box-shadow: 0 12px 36px rgba(50, 65, 74, 0.12);
+}
+
+:global([data-theme='light'] .graph-help-note) {
+  color: rgba(121, 78, 17, 0.7);
+}
+
+:global([data-theme='light'] .network-loading-card) {
+  border-color: rgba(158, 102, 18, 0.28);
+  background: rgba(255, 255, 255, 0.9);
+  color: #81520d;
+  box-shadow:
+    0 20px 50px rgba(48, 63, 72, 0.16),
+    inset 0 0 24px rgba(181, 126, 37, 0.03);
+}
+
+:global([data-theme='light'] .graph-network-loading) {
+  background: radial-gradient(
+    circle at 50% 46%,
+    rgba(238, 244, 246, 0.3),
+    rgba(232, 238, 241, 0.12) 36%,
+    transparent 62%
+  );
+}
+
+:global([data-theme='light'] .graph-error-card),
+:global([data-theme='light'] .graph-toast) {
+  border-color: rgba(157, 100, 18, 0.28);
+  background: rgba(255, 255, 255, 0.95);
+  color: #85570f;
+  box-shadow: 0 20px 50px rgba(47, 61, 70, 0.16);
+}
+
+:global([data-theme='light'] .graph-error-action) {
+  border-color: rgba(157, 100, 18, 0.3);
 }
 
 @media (prefers-reduced-motion: reduce) {

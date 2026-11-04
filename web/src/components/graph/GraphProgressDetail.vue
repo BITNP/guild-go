@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { FileText, MessageSquare, X } from '@lucide/vue'
+import ImageGallery from '@/components/ImageGallery.vue'
+import PreviewImage from '@/components/PreviewImage.vue'
 import type { ProgressItem } from '@/lib/api'
 import {
   formatDateTime,
@@ -90,15 +92,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       <div class="progress-detail-body">
         <p>{{ body }}</p>
 
-        <div v-if="comment?.attachments.length" class="progress-detail-images">
-          <img
+        <ImageGallery
+          v-if="comment?.attachments.length"
+          class="progress-detail-gallery"
+        >
+          <div class="progress-detail-images">
+            <PreviewImage
             v-for="(image, index) in comment.attachments"
             :key="image.id"
             :src="image.url"
             :alt="`进展图片 ${index + 1}`"
-            loading="lazy"
-          />
-        </div>
+            :width="132"
+            :height="100"
+            lazy
+            class="progress-detail-image"
+            />
+          </div>
+        </ImageGallery>
 
         <details v-if="change" class="progress-before">
           <summary>查看修改前内容</summary>
@@ -253,19 +263,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   white-space: pre-wrap;
 }
 
+.progress-detail-gallery {
+  display: block;
+  margin-top: 16px;
+}
+
 .progress-detail-images {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
   gap: 8px;
-  margin-top: 16px;
 }
 
-.progress-detail-images img {
-  width: 100%;
-  max-height: 190px;
+.progress-detail-image {
+  width: 132px;
+  height: 100px;
   border: 1px solid rgba(139, 166, 171, 0.26);
   border-radius: 3px;
-  object-fit: cover;
+  overflow: hidden;
 }
 
 .progress-before {
@@ -345,6 +359,82 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 .progress-detail-enter-from .progress-detail,
 .progress-detail-leave-to .progress-detail {
   transform: perspective(1400px) translateY(16px) scale(0.97);
+}
+
+:global([data-theme='light'] .progress-detail-backdrop) {
+  background: rgba(220, 228, 232, 0.42);
+}
+
+:global([data-theme='light'] .progress-detail) {
+  border-color: rgba(158, 103, 18, 0.3);
+  border-left-color: rgba(151, 94, 12, 0.62);
+  background:
+    linear-gradient(135deg, rgba(193, 128, 29, 0.07), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(245, 248, 249, 0.99));
+  box-shadow:
+    0 30px 90px rgba(45, 60, 69, 0.24),
+    inset 0 0 44px rgba(55, 137, 135, 0.02);
+  color: #273740;
+}
+
+:global([data-theme='light'] .progress-detail-header),
+:global([data-theme='light'] .progress-detail-meta) {
+  border-color: rgba(81, 105, 116, 0.16);
+}
+
+:global([data-theme='light'] .progress-detail-header strong) {
+  color: #17242c;
+}
+
+:global([data-theme='light'] .progress-detail-mark) {
+  border-color: rgba(153, 99, 16, 0.36);
+  color: #8b5a10;
+}
+
+:global([data-theme='light'] .progress-detail-kicker) {
+  color: #207a63;
+}
+
+:global([data-theme='light'] .progress-detail-meta) {
+  color: #667b85;
+}
+
+:global([data-theme='light'] .progress-detail-close) {
+  border-color: rgba(78, 105, 117, 0.24);
+  background: rgba(255, 255, 255, 0.78);
+  color: #546b75;
+}
+
+:global([data-theme='light'] .progress-detail-body > p) {
+  color: #24343d;
+}
+
+:global([data-theme='light'] .progress-before) {
+  border-top-color: rgba(80, 105, 116, 0.15);
+}
+
+:global([data-theme='light'] .progress-before summary) {
+  color: #8b590e;
+}
+
+:global([data-theme='light'] .progress-before p) {
+  color: #5b707a;
+}
+
+:global([data-theme='light'] .progress-detail-reactions) {
+  border-top-color: rgba(80, 105, 116, 0.16);
+  color: #687d87;
+}
+
+:global([data-theme='light'] .progress-detail-reactions button) {
+  border-color: rgba(82, 108, 120, 0.24);
+  background: rgba(255, 255, 255, 0.76);
+  color: #283942;
+}
+
+:global([data-theme='light'] .progress-detail-reactions button.active) {
+  border-color: rgba(156, 100, 16, 0.52);
+  background: rgba(190, 126, 29, 0.1);
 }
 
 @media (max-width: 800px) {

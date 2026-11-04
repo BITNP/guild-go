@@ -93,7 +93,7 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
   margin-top: 4px;
 }
 .completed-icon {
-  color: #157347;
+  color: var(--guild-success);
 }
 .entry-heading {
   display: flex;
