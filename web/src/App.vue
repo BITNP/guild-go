@@ -74,7 +74,8 @@ const themeOverrides = computed(() =>
 :global(*) {
   box-sizing: border-box;
 }
-:global(a:focus-visible) {
+:global(a:focus-visible),
+:global(:where(button, summary, [role='button']):focus-visible) {
   outline: 2px solid var(--guild-primary);
   outline-offset: 3px;
 }

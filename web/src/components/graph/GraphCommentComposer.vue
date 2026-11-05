@@ -325,63 +325,6 @@ onBeforeUnmount(() => {
   border-width: 0 1px 1px 0;
 }
 
-.composer-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(139, 166, 171, 0.17);
-}
-
-.composer-signal {
-  display: grid;
-  width: 31px;
-  height: 31px;
-  flex: none;
-  place-items: center;
-  border: 1px solid rgba(233, 181, 76, 0.48);
-  background: rgba(224, 170, 56, 0.1);
-  color: #f1c66c;
-  box-shadow: inset 0 0 14px rgba(233, 181, 76, 0.08);
-}
-
-.composer-heading {
-  display: grid;
-  min-width: 0;
-  flex: 1 1 auto;
-  gap: 2px;
-}
-
-.composer-heading span,
-.composer-label {
-  color: rgba(226, 181, 88, 0.75);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.17em;
-}
-
-.composer-heading strong {
-  overflow: hidden;
-  color: #f2eee4;
-  font-size: 13px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.composer-link-state {
-  flex: none;
-  color: #68d9bc;
-  font-size: 9px;
-  letter-spacing: 0.1em;
-}
-
-.composer-label {
-  display: block;
-  margin: 13px 0 7px;
-}
-
 .composer-input {
   display: block;
   width: 100%;
@@ -455,7 +398,7 @@ onBeforeUnmount(() => {
   border: 0;
   background: rgba(3, 10, 13, 0.76);
   color: #d7e4e2;
-  font-size: 9px;
+  font-size: 12px;
   text-align: center;
 }
 
@@ -499,7 +442,7 @@ onBeforeUnmount(() => {
   gap: 6px;
   border-radius: 2px;
   padding: 0 11px;
-  font-size: 11px;
+  font-size: 13px;
   cursor: pointer;
   transition:
     border-color 150ms ease,
@@ -548,17 +491,10 @@ onBeforeUnmount(() => {
   opacity: 0.48;
 }
 
-.composer-hint {
-  margin: 9px 0 0;
-  color: rgba(130, 155, 159, 0.72);
-  font-size: 9px;
-  line-height: 1.5;
-}
-
 .composer-error {
   margin: 8px 0 0;
   color: #f2a18c;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.5;
 }
 
@@ -589,10 +525,6 @@ onBeforeUnmount(() => {
     width: calc(100vw - 374px);
     min-width: 264px;
     padding: 14px 14px 12px 18px;
-  }
-
-  .composer-header strong {
-    max-width: 150px;
   }
 }
 
@@ -662,7 +594,7 @@ onBeforeUnmount(() => {
 
 .image-overlay {
   gap: 0;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .image-overlay svg {

@@ -203,9 +203,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 .progress-detail-kicker {
   color: rgba(120, 222, 198, 0.8);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .progress-detail-header strong {
@@ -242,7 +241,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   padding: 10px 20px;
   border-bottom: 1px solid rgba(139, 166, 171, 0.12);
   color: #8fa4a7;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .progress-detail-body {
@@ -308,7 +307,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   padding: 12px 18px;
   border-top: 1px solid rgba(139, 166, 171, 0.18);
   color: #7f9699;
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .progress-detail-reactions button {
@@ -338,7 +337,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 .progress-detail-reactions small {
   color: #9bb1b2;
-  font-size: 9px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .progress-detail-enter-active,

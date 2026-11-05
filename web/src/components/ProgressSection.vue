@@ -8,7 +8,6 @@ import {
   NList,
   NSpace,
   NSpin,
-  NText,
 } from 'naive-ui'
 import CommentComposer from '@/components/CommentComposer.vue'
 import CommentItem from '@/components/CommentItem.vue'
@@ -135,9 +134,7 @@ watch(() => [props.nodeId, props.updatedAt], load, { immediate: true })
           ? `${items.length}${hasMore ? '+' : ''}`
           : undefined
       "
-    >
-      <NText depth="3" class="comment-sort">最新在前</NText>
-    </SectionHeading>
+    />
     <CommentComposer
       v-if="canComment"
       :key="nodeId"
@@ -197,9 +194,6 @@ watch(() => [props.nodeId, props.updatedAt], load, { immediate: true })
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-.comment-sort {
-  font-size: var(--guild-meta-size);
 }
 .comments-alert {
   margin-bottom: 16px;

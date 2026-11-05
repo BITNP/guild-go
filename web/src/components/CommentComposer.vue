@@ -191,8 +191,7 @@ onBeforeUnmount(() => {
         class="file-input"
         @change="selectFiles"
       /><NText :id="hintId" depth="3" class="composer-hint"
-        >最多 4 张图片，每张不超过 5 MB；支持 JPEG、PNG、WebP、GIF。Ctrl / ⌘ +
-        Enter 发布</NText
+        >最多 4 张图片，每张不超过 5 MB · Ctrl / ⌘ + Enter 发布</NText
       ><NAlert v-if="error" type="error" role="alert" class="composer-error">{{
         error
       }}</NAlert></NForm

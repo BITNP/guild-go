@@ -62,5 +62,3 @@ export const darkThemeOverrides: GlobalThemeOverrides = {
     boxShadow3: '0 16px 48px rgba(0, 0, 0, 0.46)',
   },
 }
-
-export const theme = lightThemeOverrides

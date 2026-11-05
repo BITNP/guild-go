@@ -76,7 +76,7 @@ onMounted(async () => {
                 :disabled="state === 'active'"
                 @click="login(returnTo)"
                 >使用网协通行证登录</NButton
-              ><NText depth="3">将跳转至网协通行证完成登录。</NText></NSpace
+              ></NSpace
             >
           </section></NGi
         ></NGrid

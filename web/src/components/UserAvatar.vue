@@ -16,6 +16,7 @@ const initial = computed(() => props.name.slice(0, 1))
     :src="src || undefined"
     object-fit="cover"
     color="#1f5fbf"
+    :style="{ fontSize: `${Math.max(12, Math.round(size * 0.42))}px` }"
     :img-props="{ alt: '' }"
   >
     <template v-if="!src" #default>{{ initial }}</template>
