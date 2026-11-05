@@ -33,7 +33,7 @@ async function onLogout() {
           >如需修改资料，请前往网协通行证，修改后重新登录。</NText
         ><NAlert v-if="error" type="error">{{ error }}</NAlert
         ><NSpace justify="space-between" align="center"
-          ><NText depth="3">退出公会后，网协通行证仍会保持登录。</NText
+          ><NText depth="3">退出后，网协通行证仍保持登录。</NText
           ><NButton type="error" secondary :loading="leaving" @click="onLogout"
             >退出登录</NButton
           ></NSpace

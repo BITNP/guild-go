@@ -16,11 +16,9 @@ import {
   CalendarClock,
   ChevronRight,
   ExternalLink,
-  Network,
   Pencil,
   Plus,
   Trash2,
-  UserRound,
   X,
 } from '@lucide/vue'
 import MembersDialog from '@/components/MembersDialog.vue'
@@ -199,14 +197,10 @@ async function toggleCompletion() {
     aria-label="节点控制面板"
   >
     <header class="panel-header">
-      <div class="panel-kicker">
-        <Network :size="13" />
-        <span>NODE CONTROL</span>
-      </div>
       <button
         type="button"
         class="panel-close"
-        aria-label="关闭节点控制面板"
+        aria-label="关闭节点面板"
         @click="emit('close')"
       >
         <X :size="17" />
@@ -271,7 +265,7 @@ async function toggleCompletion() {
         aria-live="polite"
       >
         <span class="panel-loading-mark" />
-        正在连接到开拓者网络……
+        正在加载节点…
       </div>
 
       <div v-else-if="error && !detail" class="panel-error" role="alert">
@@ -282,7 +276,7 @@ async function toggleCompletion() {
       <template v-else-if="detail">
         <section class="panel-section" aria-labelledby="panel-structure-title">
           <h3 id="panel-structure-title">
-            {{ isVirtualRoot ? '始祖节点' : '层级关系' }}
+            {{ isVirtualRoot ? '全部根节点' : '层级关系' }}
           </h3>
           <div v-if="!isVirtualRoot" class="panel-relation">
             <span class="relation-label">父节点</span>
@@ -336,7 +330,9 @@ async function toggleCompletion() {
               >
                 <span class="child-orb" aria-hidden="true" />
                 <span class="child-title">{{ child.title }}</span>
-                <span class="child-count">{{ child.childCount }}</span>
+                <span v-if="child.childCount" class="child-count"
+                  >{{ child.childCount }} 个子节点</span
+                >
                 <ChevronRight :size="13" />
               </button>
             </div>
@@ -373,7 +369,7 @@ async function toggleCompletion() {
               @click="startMetaEdit"
             >
               <Pencil :size="12" />
-              编辑到期时间
+              修改预期完成
             </button>
           </div>
 
@@ -413,7 +409,7 @@ async function toggleCompletion() {
 
           <dl v-else class="panel-meta-grid">
             <div>
-              <dt><CalendarClock :size="13" />到期时间</dt>
+              <dt><CalendarClock :size="13" />预期完成</dt>
               <dd>{{ formatDateTime(detail.dueAt) }}</dd>
             </div>
             <div>
@@ -447,7 +443,7 @@ async function toggleCompletion() {
           aria-labelledby="panel-people-title"
         >
           <div class="people-heading">
-            <h3 id="panel-people-title">负责人 / 参与者</h3>
+            <h3 id="panel-people-title">参与人员</h3>
             <button
               v-if="detail.permissions.canManageMembers"
               type="button"
@@ -455,7 +451,7 @@ async function toggleCompletion() {
               @click="membersOpen = true"
             >
               <Pencil :size="12" />
-              编辑成员
+              管理成员
             </button>
           </div>
 
@@ -470,13 +466,13 @@ async function toggleCompletion() {
           </div>
 
           <div class="people-group">
-            <h4>直接参与者</h4>
+            <h4>直接成员</h4>
             <ul v-if="detail.directMembers.length" class="people-list">
               <li v-for="person in detail.directMembers" :key="person.subject">
                 <UserIdentity :user="person" :size="24" />
               </li>
             </ul>
-            <p v-else class="panel-empty-copy">暂无直接参与者</p>
+            <p v-else class="panel-empty-copy">暂无直接成员</p>
           </div>
 
           <p
@@ -490,23 +486,14 @@ async function toggleCompletion() {
       </template>
     </div>
 
-    <footer class="panel-footer">
+    <footer v-if="!isVirtualRoot" class="panel-footer">
       <RouterLink
-        v-if="!isVirtualRoot"
         :to="{ name: 'node', params: { id: selected.id } }"
         class="panel-page-link"
       >
-        <span>打开完整节点页面</span>
-        <ExternalLink :size="15" />
+        <span>打开节点页面</span>
+        <ExternalLink :size="15" aria-hidden="true" />
       </RouterLink>
-      <p>
-        <UserRound :size="12" />
-        {{
-          isVirtualRoot
-            ? '始祖节点汇集所有根节点，并从这里扩展新的分支'
-            : '节点详情与成员变更由普通页面同步管理'
-        }}
-      </p>
     </footer>
 
     <MembersDialog
@@ -610,16 +597,6 @@ async function toggleCompletion() {
   background: rgba(8, 14, 17, 0.58);
 }
 
-.panel-kicker {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: rgba(230, 181, 79, 0.72);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-}
-
 .panel-close {
   position: absolute;
   top: 16px;
@@ -641,12 +618,11 @@ async function toggleCompletion() {
 }
 
 .panel-header h2 {
-  margin: 18px 40px 0 0;
+  margin: 0 40px 0 0;
   color: #f4f0e6;
-  font-size: clamp(22px, 1.85vw, 31px);
+  font-size: clamp(22px, 1.7vw, 28px);
   font-weight: 650;
   line-height: 1.35;
-  letter-spacing: 0.015em;
   overflow-wrap: anywhere;
 }
 
@@ -736,10 +712,8 @@ async function toggleCompletion() {
 .people-heading h3 {
   margin: 0 0 13px;
   color: #e7c47b;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 
 .panel-section-heading {
@@ -863,12 +837,7 @@ async function toggleCompletion() {
   color: #70858a;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-}
-
-.child-count::after {
-  margin-left: 2px;
-  content: '子项';
-  font-size: 11px;
+  white-space: nowrap;
 }
 
 .panel-description {
@@ -1101,23 +1070,12 @@ async function toggleCompletion() {
   color: #f0ca79;
   font-size: 14px;
   font-weight: 600;
-  letter-spacing: 0.04em;
   text-decoration: none;
 }
 
 .panel-page-link:hover {
   border-color: rgba(246, 198, 92, 0.86);
   color: #fff0c7;
-}
-
-.panel-footer p {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  margin: 8px 0 0;
-  color: #61767b;
-  font-size: 12px;
 }
 
 :global([data-theme='light'] .node-control-panel) {
@@ -1135,10 +1093,6 @@ async function toggleCompletion() {
 :global([data-theme='light'] .panel-header) {
   border-bottom-color: rgba(81, 105, 116, 0.15);
   background: rgba(255, 255, 255, 0.62);
-}
-
-:global([data-theme='light'] .panel-kicker) {
-  color: rgba(139, 86, 8, 0.78);
 }
 
 :global([data-theme='light'] .panel-header h2) {
@@ -1257,10 +1211,6 @@ async function toggleCompletion() {
     linear-gradient(90deg, rgba(190, 127, 29, 0.1), transparent),
     rgba(255, 252, 246, 0.86);
   color: #81510b;
-}
-
-:global([data-theme='light'] .panel-footer p) {
-  color: #71858e;
 }
 
 @keyframes panel-spin {

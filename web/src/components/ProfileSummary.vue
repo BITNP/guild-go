@@ -38,7 +38,11 @@ defineProps<{ profile: Profile; showPermissions: boolean }>()
       aria-label="账号权限"
     >
       <h3>账号权限</h3>
-      <NDescriptions :column="2" label-placement="top" bordered
+      <NDescriptions
+        :column="1"
+        label-placement="left"
+        label-align="left"
+        :label-style="{ width: '120px', color: 'var(--guild-muted)' }"
         ><NDescriptionsItem label="系统管理员">{{
           profile.permissions.systemAdmin ? '是' : '否'
         }}</NDescriptionsItem

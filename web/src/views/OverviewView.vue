@@ -98,7 +98,7 @@ onMounted(load)
           <NButton text @click="refresh">重试</NButton></NAlert
         ><template v-if="overview && !error"
           ><NCard v-if="!nodesError" size="small"
-            ><NGrid cols="2 s:4" responsive="screen" :x-gap="16" :y-gap="16"
+            ><NGrid :cols="4" :x-gap="16"
               ><NGi
                 v-for="stat in statistics"
                 :key="stat.label"
@@ -208,15 +208,22 @@ onMounted(load)
 .recent-node:hover {
   color: var(--guild-primary);
 }
-@media (min-width: 640px) {
-  .statistic-cell + .statistic-cell {
-    padding-left: 16px;
-    border-left: 1px solid var(--guild-border);
-  }
+.statistic-cell + .statistic-cell {
+  padding-left: 16px;
+  border-left: 1px solid var(--guild-border);
 }
 @media (max-width: 639px) {
   .overview-page {
     padding: 16px;
+  }
+  .statistic-cell + .statistic-cell {
+    padding-left: 10px;
+  }
+  .statistic-cell :deep(.n-statistic .n-statistic__label) {
+    font-size: 12px;
+  }
+  .statistic-cell :deep(.n-statistic-value__content) {
+    font-size: 22px;
   }
 }
 </style>

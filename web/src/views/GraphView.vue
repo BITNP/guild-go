@@ -434,7 +434,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
             <span class="network-loading-sigil" aria-hidden="true">
               <span />
             </span>
-            <p>正在连接到开拓者网络……</p>
+            <p>正在加载节点…</p>
           </div>
         </div>
       </Transition>
@@ -478,24 +478,22 @@ watch(() => active.value?.node.id ?? null, (id) => {
       <header class="graph-header">
         <div class="graph-title">
           <span class="graph-title-mark"><Network :size="16" /></span>
-          <div>
-            <h1 class="graph-heading">关系图谱</h1>
-            <p class="graph-kicker">GUILD NARRATIVE FIELD · 01</p>
-          </div>
+          <h1 class="graph-heading">关系图谱</h1>
         </div>
         <div class="graph-status">
           <span>{{ nodes.length }} 个节点</span>
-          <span class="graph-dot" />
-          <span v-if="loading" class="graph-inline">
-            <Loader2 :size="10" class="graph-spin" /> 正在展开档案
-          </span>
-          <span v-else-if="active && selectionLoading" class="graph-inline">
-            <Loader2 :size="10" class="graph-spin" /> 正在连接开拓者网络
-          </span>
-          <span v-else-if="active">
-            {{ progress.length }}{{ progressHaveMore ? '+' : '' }} 条进展
-          </span>
-          <span v-else>图谱已完整展开</span>
+          <template v-if="loading || active">
+            <span class="graph-dot" />
+            <span v-if="loading" class="graph-inline">
+              <Loader2 :size="12" class="graph-spin" /> 正在加载
+            </span>
+            <span v-else-if="selectionLoading" class="graph-inline">
+              <Loader2 :size="12" class="graph-spin" /> 正在加载进展
+            </span>
+            <span v-else>
+              {{ progress.length }}{{ progressHaveMore ? '+' : '' }} 条进展
+            </span>
+          </template>
         </div>
       </header>
 
@@ -503,10 +501,9 @@ watch(() => active.value?.node.id ?? null, (id) => {
         <button
           type="button"
           class="graph-button"
-          title="让全部已加载节点回到视野"
           @click="stage?.fitView()"
         >
-          <Focus :size="14" /> 复位视野
+          <Focus :size="14" aria-hidden="true" /> 显示全部节点
         </button>
       </div>
 
@@ -570,8 +567,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
 }
 
 .graph-header,
-.graph-toolbar,
-.graph-help {
+.graph-toolbar {
   position: absolute;
   z-index: 10;
   pointer-events: none;
@@ -608,26 +604,17 @@ watch(() => active.value?.node.id ?? null, (id) => {
 
 .graph-heading {
   margin: 0;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: 0.2em;
   color: #f1ede2;
-}
-
-.graph-kicker {
-  margin: 2px 0 0;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  color: rgba(232, 182, 86, 0.72);
 }
 
 .graph-status {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 12px;
-  font-size: 10px;
+  margin-top: 10px;
+  font-size: 12px;
   color: #9cafb6;
 }
 
@@ -665,7 +652,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
 
 .graph-button {
   display: inline-flex;
-  height: 32px;
+  height: 34px;
   align-items: center;
   gap: 6px;
   padding: 0 12px;
@@ -673,7 +660,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
   border-radius: 3px;
   background: rgba(8, 14, 17, 0.78);
   color: #e6c37b;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1;
   box-shadow:
     inset 0 0 16px rgba(225, 173, 70, 0.04),
@@ -687,34 +674,6 @@ watch(() => active.value?.node.id ?? null, (id) => {
   border-color: rgba(242, 190, 83, 0.8);
   background: rgba(25, 27, 20, 0.9);
   color: #fff3d1;
-}
-
-.graph-help {
-  bottom: 26px;
-  left: 28px;
-  max-width: min(460px, calc(100% - 128px));
-  padding: 9px 13px;
-  border: 1px solid rgba(142, 164, 168, 0.22);
-  border-left-color: rgba(230, 178, 73, 0.64);
-  border-radius: 2px;
-  background: rgba(7, 13, 16, 0.76);
-  color: #9eb0b4;
-  font-size: 10px;
-  line-height: 20px;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(12px);
-}
-
-.graph-help-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 12px;
-}
-
-.graph-help-note {
-  margin: 2px 0 0;
-  color: rgba(224, 184, 101, 0.68);
 }
 
 .graph-network-loading {
@@ -742,7 +701,6 @@ watch(() => active.value?.node.id ?? null, (id) => {
   background: rgba(6, 13, 16, 0.9);
   color: #e9ce91;
   font-size: 13px;
-  letter-spacing: 0.05em;
   box-shadow:
     0 20px 50px rgba(0, 0, 0, 0.38),
     inset 0 0 24px rgba(229, 174, 58, 0.04);
@@ -852,12 +810,12 @@ watch(() => active.value?.node.id ?? null, (id) => {
   z-index: 40;
   transform: translateX(-50%);
   margin: 0;
-  padding: 6px 12px;
+  padding: 8px 14px;
   border: 1px solid rgba(240, 182, 82, 0.3);
   border-radius: 2px;
   background: rgba(8, 14, 17, 0.94);
   color: #f2c66f;
-  font-size: 12px;
+  font-size: 13px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
 }
 
@@ -884,10 +842,6 @@ watch(() => active.value?.node.id ?? null, (id) => {
   color: #1c2932;
 }
 
-:global([data-theme='light'] .graph-kicker) {
-  color: rgba(125, 77, 8, 0.7);
-}
-
 :global([data-theme='light'] .graph-status) {
   color: #637784;
 }
@@ -910,18 +864,6 @@ watch(() => active.value?.node.id ?? null, (id) => {
   border-color: rgba(142, 89, 10, 0.62);
   background: rgba(255, 250, 239, 0.96);
   color: #734707;
-}
-
-:global([data-theme='light'] .graph-help) {
-  border-color: rgba(85, 109, 121, 0.2);
-  border-left-color: rgba(157, 100, 17, 0.58);
-  background: rgba(255, 255, 255, 0.78);
-  color: #5d707b;
-  box-shadow: 0 12px 36px rgba(50, 65, 74, 0.12);
-}
-
-:global([data-theme='light'] .graph-help-note) {
-  color: rgba(121, 78, 17, 0.7);
 }
 
 :global([data-theme='light'] .network-loading-card) {
@@ -980,17 +922,6 @@ watch(() => active.value?.node.id ?? null, (id) => {
   .graph-toolbar {
     top: 20px;
     right: 20px;
-  }
-
-  .graph-help {
-    right: 20px;
-    bottom: 20px;
-    left: 20px;
-    max-width: none;
-  }
-
-  .graph-help-note {
-    display: none;
   }
 }
 </style>

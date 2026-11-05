@@ -44,7 +44,8 @@ onMounted(() => {
     scene.setProgress(props.progress, props.progressLoading)
     syncComposer()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '当前浏览器无法初始化 3D 画布'
+    console.error(err)
+    error.value = '当前浏览器无法显示 3D 图谱。请开启浏览器的硬件加速后刷新页面。'
   }
 })
 
@@ -105,7 +106,7 @@ defineExpose({ fitView, scrollProgress })
     </div>
     <div class="graph-scanline" aria-hidden="true" />
     <div v-if="error" class="graph-stage-error">
-      <p class="graph-stage-error-card">无法创建关系图谱：{{ error }}</p>
+      <p class="graph-stage-error-card" role="alert">{{ error }}</p>
     </div>
   </div>
 </template>

@@ -51,7 +51,7 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
             个子节点</span
           >
         </div>
-        <NSpace v-if="leaders" :size="12" class="entry-leaders">
+        <NSpace v-if="leaders?.length" :size="12" class="entry-leaders">
           <NText depth="3">负责人</NText>
           <UserIdentity
             v-for="leader in leaders"
@@ -59,8 +59,10 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
             :user="leader"
             :size="20"
           />
-          <NText v-if="!leaders.length" depth="3">暂无负责人</NText>
         </NSpace>
+        <NText v-else-if="leaders" depth="3" class="entry-leaders no-leader"
+          >暂无负责人</NText
+        >
         <CommentPreview
           v-if="node.latestComment"
           :comment="node.latestComment"
@@ -72,6 +74,7 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
 </template>
 <style scoped>
 .node-entry {
+  position: relative;
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);
   gap: 10px;
@@ -109,7 +112,16 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
   line-height: 24px;
   font-weight: 600;
 }
-.node-link:hover {
+.node-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.node-entry :deep(.user-link) {
+  position: relative;
+  z-index: 1;
+}
+.node-entry:hover .node-link {
   color: var(--guild-primary);
 }
 .entry-metadata {
@@ -133,5 +145,8 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
 }
 .entry-leaders {
   font-size: 12px;
+}
+.no-leader {
+  display: block;
 }
 </style>

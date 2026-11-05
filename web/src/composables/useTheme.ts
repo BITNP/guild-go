@@ -24,7 +24,7 @@ function applyTheme(next: ThemeMode) {
   document.documentElement.dataset.theme = next
   document.documentElement.style.colorScheme = next
   const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-  if (meta) meta.content = next === 'dark' ? '#10161d' : '#1f5fbf'
+  if (meta) meta.content = next === 'dark' ? '#131b23' : '#ffffff'
 }
 
 applyTheme(mode.value)
