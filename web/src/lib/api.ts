@@ -306,6 +306,13 @@ export function updateNode(id: number, input: NodeUpdateInput): Promise<NodeDeta
   })
 }
 
+export function moveNode(id: number, parentId: number | null): Promise<NodeDetail> {
+  return apiFetch<NodeDetail>(`/api/nodes/${id}/move`, {
+    method: 'PUT',
+    body: JSON.stringify({ parentId }),
+  })
+}
+
 export function deleteNode(id: number): Promise<void> {
   return apiFetch<void>(`/api/nodes/${id}`, { method: 'DELETE' })
 }

@@ -5,17 +5,28 @@ package access
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Checker evaluates effective membership and leadership in the node tree.
 type Checker struct {
-	pool *pgxpool.Pool
+	pool queryer
+}
+
+type queryer interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
 // New creates a tree access checker.
 func New(pool *pgxpool.Pool) *Checker {
 	return &Checker{pool: pool}
+}
+
+// InTx evaluates permissions against the same transaction as a tree change.
+func InTx(tx pgx.Tx) *Checker {
+	return &Checker{pool: tx}
 }
 
 // Counts summarizes a subtree.

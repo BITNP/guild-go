@@ -16,6 +16,7 @@ import {
   CalendarClock,
   ChevronRight,
   ExternalLink,
+  FolderInput,
   Pencil,
   Plus,
   Trash2,
@@ -44,6 +45,7 @@ const emit = defineEmits<{
   retry: []
   updated: [node: NodeDetail]
   edit: []
+  move: []
   createChild: []
   createRoot: []
   remove: []
@@ -245,6 +247,15 @@ async function toggleCompletion() {
         >
           <Pencil :size="12" />
           编辑节点
+        </button>
+        <button
+          v-if="detail.permissions.canEdit"
+          type="button"
+          class="panel-edit-button"
+          @click="emit('move')"
+        >
+          <FolderInput :size="12" />
+          移动节点
         </button>
         <button
           v-if="detail.permissions.canDelete"

@@ -123,6 +123,11 @@ type OrderRequest struct {
 	IDs      []int64 `json:"ids"`
 }
 
+// MoveRequest relocates a node and its subtree; nil means the root level.
+type MoveRequest struct {
+	ParentID *int64 `json:"parentId"`
+}
+
 // MembersRequest replaces the direct leaders and members.
 type MembersRequest struct {
 	Leaders []string `json:"leaders"`

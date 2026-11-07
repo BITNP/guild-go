@@ -8,6 +8,7 @@ import GraphProgressDetail from '@/components/graph/GraphProgressDetail.vue'
 import GraphStage from '@/components/graph/GraphStage.vue'
 import NodeFormDialog from '@/components/NodeFormDialog.vue'
 import OrderDialog from '@/components/OrderDialog.vue'
+import MoveNodeDialog from '@/components/MoveNodeDialog.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useGraphProgress } from '@/composables/useGraphProgress'
 import { useNodeStore } from '@/composables/useNodeStore'
@@ -67,6 +68,7 @@ const createParentTitle = ref('')
 const deleteOpen = ref(false)
 const deleteTarget = ref<NodeDetail | null>(null)
 const orderOpen = ref(false)
+const moveOpen = ref(false)
 let detailGeneration = 0
 const expandedProgress = computed(() => {
   const key = expandedProgressKey.value
@@ -325,6 +327,16 @@ async function onNodeCreated(node: NodeDetail) {
   selectNode(node.id)
 }
 
+async function onNodeMoved(node: NodeDetail) {
+  moveOpen.value = false
+  await reload()
+  if (active.value?.node.id === node.id) {
+    selectNode(node.id)
+    detail.value = node
+    await loadProgress(node.id)
+  }
+}
+
 async function onNodeDeleted() {
   const deletedId = deleteTarget.value?.id
   const parentId = deleteTarget.value?.parentId ?? null
@@ -375,6 +387,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
   deleteOpen.value = false
   orderOpen.value = false
   deleteTarget.value = null
+  moveOpen.value = false
   detailGeneration++
   detail.value = null
   detailError.value = null
@@ -468,6 +481,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
           @retry="loadDetail"
           @updated="onDetailUpdated"
           @edit="editOpen = true"
+          @move="moveOpen = true"
           @remove="openDelete"
           @create-child="openCreateChild"
           @create-root="openCreateRoot"
@@ -543,6 +557,13 @@ watch(() => active.value?.node.id ?? null, (id) => {
       :node="deleteTarget"
       @close="deleteOpen = false"
       @deleted="onNodeDeleted"
+    />
+    <MoveNodeDialog
+      v-if="detail && detail.id !== VIRTUAL_ROOT_ID"
+      :open="moveOpen"
+      :node="detail"
+      @close="moveOpen = false"
+      @saved="onNodeMoved"
     />
     <OrderDialog
       v-if="detail"

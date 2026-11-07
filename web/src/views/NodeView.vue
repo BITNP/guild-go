@@ -22,6 +22,7 @@ import ProgressSection from '@/components/ProgressSection.vue'
 import SectionHeading from '@/components/SectionHeading.vue'
 import NodeFormDialog from '@/components/NodeFormDialog.vue'
 import MembersDialog from '@/components/MembersDialog.vue'
+import MoveNodeDialog from '@/components/MoveNodeDialog.vue'
 import OrderDialog from '@/components/OrderDialog.vue'
 import DeleteNodeDialog from '@/components/DeleteNodeDialog.vue'
 import { useNodeStore } from '@/composables/useNodeStore'
@@ -39,6 +40,7 @@ const detail = ref<NodeDetail | null>(null),
 const editOpen = ref(false),
   createOpen = ref(false),
   membersOpen = ref(false),
+  moveOpen = ref(false),
   orderOpen = ref(false),
   deleteOpen = ref(false)
 async function load(silent = false) {
@@ -92,6 +94,7 @@ function onSaved(node: NodeDetail) {
   if (node.id === nodeId.value) detail.value = node
   editOpen.value = false
   membersOpen.value = false
+  moveOpen.value = false
   void reloadNodes()
 }
 async function onCreated(node: NodeDetail) {
@@ -120,6 +123,7 @@ watch(
     editOpen.value = false
     createOpen.value = false
     membersOpen.value = false
+    moveOpen.value = false
     orderOpen.value = false
     deleteOpen.value = false
     void load()
@@ -216,6 +220,11 @@ watch(
                       @click="membersOpen = true"
                       >管理成员</NButton
                     ><NButton
+                      v-if="detail.permissions.canEdit"
+                      size="small"
+                      @click="moveOpen = true"
+                      >移动节点</NButton
+                    ><NButton
                       v-if="detail.permissions.canDelete"
                       size="small"
                       type="error"
@@ -290,6 +299,12 @@ watch(
       :open="membersOpen"
       :node="detail"
       @close="membersOpen = false"
+      @saved="onSaved"
+    />
+    <MoveNodeDialog
+      :open="moveOpen"
+      :node="detail"
+      @close="moveOpen = false"
       @saved="onSaved"
     />
     <OrderDialog

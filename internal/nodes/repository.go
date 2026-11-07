@@ -339,6 +339,62 @@ func (r *Repository) Update(ctx context.Context, id int64, req UpdateRequest, su
 	return scan.value(), nil
 }
 
+func sameParent(a, b *int64) bool {
+	return a == nil && b == nil || a != nil && b != nil && *a == *b
+}
+
+// Move changes only the subtree root's parent and appends it to the new siblings.
+func (r *Repository) Move(ctx context.Context, id int64, parentID *int64, authorize func(pgx.Tx) error) error {
+	return database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
+		// Serialize tree writes so concurrent moves cannot create a cycle between
+		// validation and update, and destination ordering stays consistent.
+		if _, err := tx.Exec(ctx, `LOCK TABLE nodes IN SHARE ROW EXCLUSIVE MODE`); err != nil {
+			return err
+		}
+		var previous pgtype.Int8
+		if err := tx.QueryRow(ctx, `SELECT parent_id FROM nodes WHERE id=$1`, id).Scan(&previous); err != nil {
+			if err == pgx.ErrNoRows {
+				return apperr.NotFound("节点不存在")
+			}
+			return err
+		}
+		if err := authorize(tx); err != nil {
+			return err
+		}
+		if sameParent(int64Ptr(previous), parentID) {
+			return nil
+		}
+		if parentID != nil {
+			var exists, cycle bool
+			if err := tx.QueryRow(ctx, `
+				WITH RECURSIVE ancestors AS (
+					SELECT id, parent_id FROM nodes WHERE id=$1
+					UNION ALL
+					SELECT n.id, n.parent_id FROM nodes n JOIN ancestors a ON n.id=a.parent_id
+				)
+				SELECT EXISTS (SELECT 1 FROM ancestors), EXISTS (SELECT 1 FROM ancestors WHERE id=$2)`,
+				*parentID, id).Scan(&exists, &cycle); err != nil {
+				return err
+			}
+			if !exists {
+				return apperr.NotFound("目标父节点不存在")
+			}
+			if cycle {
+				return apperr.BadRequest("不能将节点移动到自身或其下级节点")
+			}
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE nodes SET parent_id=$2,
+				sort_order=COALESCE((SELECT max(sort_order)+1 FROM nodes WHERE parent_id IS NOT DISTINCT FROM $2), 0),
+				updated_at=clock_timestamp()
+			WHERE id=$1`, id, parentID); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `UPDATE nodes SET updated_at=clock_timestamp() WHERE id=$1 OR id=$2`, int64Ptr(previous), parentID)
+		return err
+	})
+}
+
 // Delete removes a node; PostgreSQL cascades to the whole subtree.
 func (r *Repository) Delete(ctx context.Context, id int64) error {
 	tag, err := r.pool.Exec(ctx, `DELETE FROM nodes WHERE id=$1`, id)

@@ -1,8 +1,10 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"net/http"
 
+	"git.bitnp.net/BITNP/guild-go/internal/apperr"
 	"git.bitnp.net/BITNP/guild-go/internal/nodes"
 )
 
@@ -89,6 +91,37 @@ func (s *Server) updateNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result, err := s.nodes.Update(r.Context(), session, id, request)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) moveNode(w http.ResponseWriter, r *http.Request) {
+	session, ok := currentSession(r)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
+		return
+	}
+	id, err := parseID(r, "id")
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	var payload struct {
+		ParentID json.RawMessage `json:"parentId"`
+	}
+	if err := decodeJSON(w, r, &payload); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	var request nodes.MoveRequest
+	if len(payload.ParentID) == 0 || json.Unmarshal(payload.ParentID, &request.ParentID) != nil {
+		writeError(w, r, apperr.BadRequest("必须指定 parentId，移动为根节点时传 null"))
+		return
+	}
+	result, err := s.nodes.Move(r.Context(), session, id, request)
 	if err != nil {
 		writeError(w, r, err)
 		return
