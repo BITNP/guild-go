@@ -120,9 +120,24 @@ function optionsFor(excluded: string[]): Array<SelectOption | SelectGroupOption>
       !rootParticipants.value.has(option.value),
   )
   return [
-    { type: 'group' as const, label: '父节点参与者', children: parent },
-    { type: 'group' as const, label: '根节点参与者', children: root },
-    { type: 'group' as const, label: '其他用户', children: others },
+    {
+      type: 'group' as const,
+      key: 'parent-participants',
+      label: '父节点参与者',
+      children: parent,
+    },
+    {
+      type: 'group' as const,
+      key: 'root-participants',
+      label: '根节点参与者',
+      children: root,
+    },
+    {
+      type: 'group' as const,
+      key: 'other-users',
+      label: '其他用户',
+      children: others,
+    },
   ].filter((group) => group.children.length)
 }
 const leaderOptions = computed(() => optionsFor(members.value))
