@@ -220,7 +220,7 @@ func (s *Service) Create(ctx context.Context, session auth.Session, req CreateRe
 			}
 		}
 	}
-	leaders, members, err := s.normalizeMembers(ctx, req.ParentID, req.LeaderSubjects, req.MemberSubjects, session.Subject)
+	leaders, members, err := s.normalizeMembers(ctx, req.LeaderSubjects, req.MemberSubjects, session.Subject)
 	if err != nil {
 		return Detail{}, err
 	}
@@ -299,14 +299,13 @@ func (s *Service) Reorder(ctx context.Context, session auth.Session, parentID *i
 
 // ReplaceMembers replaces direct leaders and members.
 func (s *Service) ReplaceMembers(ctx context.Context, session auth.Session, id int64, req MembersRequest) (Detail, error) {
-	node, err := s.repo.Get(ctx, id)
-	if err != nil {
+	if _, err := s.repo.Get(ctx, id); err != nil {
 		return Detail{}, err
 	}
 	if err := s.requireStructural(ctx, session, id, "只有节点负责人可以管理成员"); err != nil {
 		return Detail{}, err
 	}
-	leaders, members, err := s.normalizeMembers(ctx, node.ParentID, req.Leaders, req.Members, "")
+	leaders, members, err := s.normalizeMembers(ctx, req.Leaders, req.Members, "")
 	if err != nil {
 		return Detail{}, err
 	}
@@ -394,7 +393,7 @@ func (s *Service) requireStructural(ctx context.Context, session auth.Session, n
 	return nil
 }
 
-func (s *Service) normalizeMembers(ctx context.Context, parentID *int64, leaderInput, memberInput []string, fallbackLeader string) ([]string, []string, error) {
+func (s *Service) normalizeMembers(ctx context.Context, leaderInput, memberInput []string, fallbackLeader string) ([]string, []string, error) {
 	leaders := normalizeSubjects(leaderInput)
 	members := normalizeSubjects(memberInput)
 	if len(leaders) == 0 && fallbackLeader != "" {
@@ -404,17 +403,6 @@ func (s *Service) normalizeMembers(ctx context.Context, parentID *int64, leaderI
 		return nil, nil, apperr.BadRequest("节点至少需要一个直接负责人")
 	}
 	leaderSet := stringSet(leaders)
-	if len(members) == 0 && parentID != nil {
-		parentMembers, err := s.repo.Members(ctx, *parentID)
-		if err != nil {
-			return nil, nil, err
-		}
-		for _, member := range parentMembers {
-			if _, isLeader := leaderSet[member.Subject]; member.Role == "member" && !isLeader {
-				members = append(members, member.Subject)
-			}
-		}
-	}
 	for _, member := range members {
 		if _, ok := leaderSet[member]; ok {
 			return nil, nil, apperr.BadRequest("负责人和成员不能重叠")

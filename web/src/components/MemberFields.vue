@@ -173,9 +173,7 @@ const memberOptions = computed(() => optionsFor(leaders.value))
         clearable
         :loading="loading"
         :disabled="disabled || loading"
-        :placeholder="
-          parentId == null ? '搜索并选择成员' : '留空使用父节点的直接成员'
-        " /></NFormItemGi
+        placeholder="搜索并选择成员，可留空" /></NFormItemGi
   ></NGrid>
 </template>
 <style scoped>

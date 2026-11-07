@@ -10,7 +10,7 @@ import (
 	"git.bitnp.net/BITNP/guild-go/internal/nodes"
 )
 
-func TestDirectMemberDefaults(t *testing.T) {
+func TestDirectMembersMayBeEmpty(t *testing.T) {
 	f := setup(t)
 	ctx := context.Background()
 	root, err := f.nodes.Create(ctx, f.admin, nodes.CreateRequest{
@@ -26,55 +26,84 @@ func TestDirectMemberDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	child, err := f.nodes.Create(ctx, f.admin, nodes.CreateRequest{ParentID: &parent.ID, Title: "Default members"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertDirectMembers(t, child, "dave")
-	if len(child.DirectLeaders) != 1 || child.DirectLeaders[0].Subject != "admin" {
-		t.Fatalf("default leader: %+v", child.DirectLeaders)
-	}
-	explicit, err := f.nodes.Create(ctx, f.admin, nodes.CreateRequest{
-		ParentID: &parent.ID, Title: "Explicit members", MemberSubjects: []string{"bob"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertDirectMembers(t, explicit, "bob")
+	for _, tc := range []struct {
+		name    string
+		members []string
+		want    []string
+	}{
+		{name: "omitted"},
+		{name: "empty", members: []string{}},
+		{name: "blank subjects", members: []string{"", "  "}},
+		{name: "explicit", members: []string{"bob"}, want: []string{"bob"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			child, err := f.nodes.Create(ctx, f.admin, nodes.CreateRequest{
+				ParentID: &parent.ID, Title: tc.name, MemberSubjects: tc.members,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertDirectMembers(t, child, tc.want...)
+			if len(child.DirectLeaders) != 1 || child.DirectLeaders[0].Subject != "admin" {
+				t.Fatalf("default leader: %+v", child.DirectLeaders)
+			}
 
-	// Choosing a parent member as leader must not also add them as a member.
-	child, err = f.nodes.ReplaceMembers(ctx, f.admin, child.ID, nodes.MembersRequest{Leaders: []string{"dave"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertDirectMembers(t, child, "admin")
-	if _, err := f.nodes.ReplaceMembers(ctx, f.admin, child.ID, nodes.MembersRequest{
-		Leaders: []string{"dave"}, Members: []string{"dave"},
-	}); apperr.From(err).Status != 400 {
-		t.Fatalf("explicit overlapping roles must still fail: %v", err)
-	}
-	if _, err := f.nodes.ReplaceMembers(ctx, f.bob, child.ID, nodes.MembersRequest{Leaders: []string{"bob"}}); apperr.From(err).Status != 403 {
-		t.Fatalf("non-leader must not replace members: %v", err)
+			// Seed an existing member, then verify replacement can clear the list.
+			if _, err := f.nodes.ReplaceMembers(ctx, f.admin, child.ID, nodes.MembersRequest{
+				Leaders: []string{"admin"}, Members: []string{"dave"},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			child, err = f.nodes.ReplaceMembers(ctx, f.admin, child.ID, nodes.MembersRequest{
+				Leaders: []string{"admin"}, Members: tc.members,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertDirectMembers(t, child, tc.want...)
+			child, err = f.nodes.Get(ctx, f.admin, child.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertDirectMembers(t, child, tc.want...)
+
+			// Saving again must not repopulate an empty list from the parent.
+			child, err = f.nodes.ReplaceMembers(ctx, f.admin, child.ID, nodes.MembersRequest{
+				Leaders: []string{"admin"}, Members: tc.members,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertDirectMembers(t, child, tc.want...)
+			viewer, err := f.nodes.Get(ctx, f.dave, child.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if viewer.Permissions.CanComment {
+				t.Fatal("parent member must not gain comment access to child")
+			}
+			viewer, err = f.nodes.Get(ctx, f.alice, child.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !viewer.Permissions.CanComment {
+				t.Fatal("ancestor leader must retain comment access")
+			}
+		})
 	}
 
 	if _, err := f.nodes.ReplaceMembers(ctx, f.admin, parent.ID, nodes.MembersRequest{
-		Leaders: []string{"carol"}, Members: []string{"bob"},
-	}); err != nil {
-		t.Fatal(err)
+		Leaders: []string{"dave"}, Members: []string{"dave"},
+	}); apperr.From(err).Status != 400 {
+		t.Fatalf("overlapping roles must still fail: %v", err)
 	}
-	child, err = f.nodes.Get(ctx, f.admin, child.ID)
-	if err != nil {
-		t.Fatal(err)
+	if _, err := f.nodes.ReplaceMembers(ctx, f.admin, parent.ID, nodes.MembersRequest{}); apperr.From(err).Status != 400 {
+		t.Fatalf("empty leaders must still fail: %v", err)
 	}
-	assertDirectMembers(t, child, "admin")
-	child, err = f.nodes.ReplaceMembers(ctx, f.admin, child.ID, nodes.MembersRequest{Leaders: []string{"dave"}, Members: []string{}})
-	if err != nil {
-		t.Fatal(err)
+	if _, err := f.nodes.ReplaceMembers(ctx, f.bob, parent.ID, nodes.MembersRequest{Leaders: []string{"bob"}}); apperr.From(err).Status != 403 {
+		t.Fatalf("non-leader must not replace members: %v", err)
 	}
-	assertDirectMembers(t, child, "bob")
 
-	// Roots have no parent to copy; an empty immediate parent does not fall back
-	// to a more distant ancestor's members.
 	emptyRoot, err := f.nodes.Create(ctx, f.admin, nodes.CreateRequest{Title: "Empty root"})
 	if err != nil {
 		t.Fatal(err)
@@ -85,18 +114,6 @@ func TestDirectMemberDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertDirectMembers(t, root)
-	emptyParent, err := f.nodes.Create(ctx, f.admin, nodes.CreateRequest{
-		ParentID: &parent.ID, Title: "All parent members are leaders", LeaderSubjects: []string{"bob"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertDirectMembers(t, emptyParent)
-	leaf, err := f.nodes.Create(ctx, f.admin, nodes.CreateRequest{ParentID: &emptyParent.ID, Title: "No grandparent fallback"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertDirectMembers(t, leaf)
 }
 
 func assertDirectMembers(t *testing.T, node nodes.Detail, want ...string) {
