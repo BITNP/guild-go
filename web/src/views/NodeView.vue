@@ -398,5 +398,8 @@ watch(
   .node-actions {
     margin-top: 4px;
   }
+  .node-metadata {
+    padding-left: 0;
+  }
 }
 </style>

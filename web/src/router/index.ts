@@ -1,4 +1,5 @@
 import { createDiscreteApi } from 'naive-ui'
+import { computed } from 'vue'
 import {
   createRouter,
   createWebHistory,
@@ -7,11 +8,15 @@ import {
   type RouteLocationNormalized,
 } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { useTheme } from '@/composables/useTheme'
 import { safeReturnTo } from '@/lib/utils'
-import { theme } from '@/lib/theme'
+import { darkThemeOverrides, lightThemeOverrides } from '@/lib/theme'
 
+const { isDark } = useTheme()
 const { loadingBar } = createDiscreteApi(['loadingBar'], {
-  configProviderProps: { themeOverrides: theme },
+  configProviderProps: computed(() => ({
+    themeOverrides: isDark.value ? darkThemeOverrides : lightThemeOverrides,
+  })),
 })
 let pendingRoute: RouteLocationNormalized | null = null
 

@@ -67,7 +67,7 @@ export function createLabelTexture(
       ? '#f4bd4e'
       : 'rgba(178, 199, 206, 0.82)'
   context.fillText(
-    virtual ? 'GUILD CORE' : completed ? 'SYNCED' : 'ACTIVE',
+    virtual ? '全部根节点' : completed ? '已完成' : '未完成',
     54,
     42,
   )

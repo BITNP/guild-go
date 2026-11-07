@@ -55,10 +55,6 @@ const menuOptions = [
     key: 'graph',
     label: () => h(RouterLink, { to: { name: 'graph' } }, () => '关系图谱'),
   },
-  {
-    key: 'account',
-    label: () => h(RouterLink, { to: { name: 'account' } }, () => '我的账号'),
-  },
 ]
 const accountOptions = computed(() => [
   {
@@ -150,7 +146,7 @@ onMounted(() => {
           ><Menu :size="18" /></NButton
         ><RouterLink class="brand" :to="{ name: 'home' }"
           ><NAvatar :size="28" color="#1f5fbf" class="brand-mark">公</NAvatar
-          ><strong>公会</strong></RouterLink
+          ><strong class="brand-name">公会</strong></RouterLink
         ><NMenu
           class="main-menu"
           mode="horizontal"
@@ -282,6 +278,7 @@ onMounted(() => {
   color: inherit;
   text-decoration: none;
   white-space: nowrap;
+  border-radius: 6px;
 }
 .brand-mark {
   color: white;
@@ -393,13 +390,29 @@ onMounted(() => {
   }
 }
 @media (max-width: 639px) {
-  .main-menu,
+  .brand-name,
   .account-name,
   .account-chevron {
     display: none;
   }
   .application-header {
     padding: 0 8px;
+    gap: 4px;
+  }
+  .header-navigation {
+    gap: 4px;
+    min-width: 0;
+  }
+  .main-menu :deep(.n-menu-item-content) {
+    padding: 0 10px;
+  }
+  .main-menu {
+    flex: none;
+  }
+}
+@media (max-width: 399px) {
+  .brand {
+    display: none;
   }
 }
 </style>
