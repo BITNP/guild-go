@@ -121,6 +121,10 @@ doc/API.md              API 契约
 
 没有 pnpm workspace，也没有把前端作为独立发布物；前端源码在 `web/`，Vite 输出到 `internal/web/dist`，Go 二进制嵌入后单进程提供。
 
+前端通过 `unplugin-auto-import` 自动导入 Vue、Vue Router、Naive UI、Lucide
+以及 `@/api`、`@/composables`、`@/lib` 的运行时导出；本地组件由
+`unplugin-vue-components` 自动注册。类型仍使用显式 `import type`，便于追踪边界。
+
 ## 权限模型
 
 只存直接成员关系，继承关系实时计算：
@@ -198,9 +202,25 @@ service account 需要 `realm-management`（本部署中为 `master-realm`）的
 ## 测试
 
 ```bash
-go test ./...
-cd web && pnpm build
+make check
 ```
+
+`make check` 会运行 Go 测试，以及前端的类型检查、ESLint 和 Prettier 检查。
+也可以分开执行：
+
+```bash
+go test ./...
+cd web && pnpm check
+```
+
+统一格式：
+
+```bash
+make fmt
+```
+
+前端使用 `@so1ve/eslint-config` 与 `@so1ve/prettier-config`；`make fmt` 会运行
+`gofmt`、Prettier 和 ESLint 自动修复。
 
 向本地开发库补充可重复执行的图谱测试节点：
 

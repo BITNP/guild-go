@@ -1,158 +1,152 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import {
-  NAlert,
-  NButton,
-  NEmpty,
-  NForm,
-  NGrid,
-  NGi,
-  NH3,
-  NList,
-  NListItem,
-  NSpace,
-  NSpin,
-  NTabPane,
-  NTabs,
-  NText,
-} from 'naive-ui'
-import AppModal from '@/components/AppModal.vue'
-import MemberFields from '@/components/MemberFields.vue'
-import UserIdentity from '@/components/UserIdentity.vue'
-import {
-  fetchNodeMembers,
-  saveNodeMembers,
-  type EffectiveMembers,
-  type NodeDetail,
-} from '@/lib/api'
-import { errorMessage } from '@/lib/utils'
-const props = defineProps<{ open: boolean; node: NodeDetail }>(),
-  emit = defineEmits<{ close: []; saved: [node: NodeDetail] }>()
-const tab = ref('direct'),
-  leaders = ref<string[]>([]),
-  members = ref<string[]>([]),
-  effective = ref<EffectiveMembers | null>(null),
-  loading = ref(false),
-  loadingChoices = ref(false),
-  saving = ref(false),
-  error = ref<string | null>(null)
+import type { EffectiveMembers, NodeDetail } from "@/api";
+
+const emit = defineEmits<{ close: []; saved: [node: NodeDetail] }>();
+const props = defineProps<{ open: boolean; node: NodeDetail }>();
+const tab = ref("direct");
+const leaders = ref<string[]>([]);
+const members = ref<string[]>([]);
+const effective = ref<EffectiveMembers | null>(null);
+const loading = ref(false);
+const loadingChoices = ref(false);
+const saving = ref(false);
+const error = ref<string | null>(null);
+
 async function load() {
-  loading.value = true
-  error.value = null
+  loading.value = true;
+  error.value = null;
   try {
-    effective.value = await fetchNodeMembers(props.node.id)
+    effective.value = await fetchNodeMembers(props.node.id);
   } catch (err) {
-    error.value = errorMessage(err, '无法加载继承成员')
+    error.value = errorMessage(err, "无法加载继承成员");
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
+
 watch(
   () => props.open,
   (open) => {
-    if (!open) return
-    tab.value = 'direct'
-    effective.value = null
-    leaders.value = props.node.directLeaders.map((user) => user.subject)
-    members.value = props.node.directMembers.map((user) => user.subject)
-    void load()
+    if (!open) {
+      return;
+    }
+    tab.value = "direct";
+    effective.value = null;
+    leaders.value = props.node.directLeaders.map((user) => user.subject);
+    members.value = props.node.directMembers.map((user) => user.subject);
+    void load();
   },
   { immediate: true },
-)
+);
+
 async function save() {
-  if (saving.value || loading.value || loadingChoices.value) return
-  error.value = null
-  if (!leaders.value.length) {
-    error.value = '节点至少需要一个直接负责人'
-    return
+  if (saving.value || loading.value || loadingChoices.value) {
+    return;
   }
-  saving.value = true
+  error.value = null;
+  if (leaders.value.length === 0) {
+    error.value = "节点至少需要一个直接负责人";
+
+    return;
+  }
+  saving.value = true;
   try {
     emit(
-      'saved',
+      "saved",
       await saveNodeMembers(props.node.id, leaders.value, members.value),
-    )
-    emit('close')
+    );
+    emit("close");
   } catch (err) {
-    error.value = errorMessage(err)
+    error.value = errorMessage(err);
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 </script>
+
 <template>
-  <AppModal
-    :open="open"
-    title="管理成员"
-    :busy="saving"
-    wide
-    @close="emit('close')"
-    ><NSpace vertical :size="20"
-      ><NAlert v-if="error" type="error" role="alert"
-        >{{ error }} <NButton text @click="load">重新加载</NButton></NAlert
-      ><NSpin :show="loading"
-        ><NTabs v-model:value="tab" type="line"
-          ><NTabPane name="direct" tab="直接成员"
-            ><NForm
-              label-placement="top"
+  <AppModal :busy="saving" :open title="管理成员" wide @close="emit('close')">
+    <NSpace :size="20" vertical>
+      <NAlert v-if="error" role="alert" type="error">
+        {{ error }}
+        <NButton text @click="load">重新加载</NButton>
+      </NAlert>
+      <NSpin :show="loading">
+        <NTabs v-model:value="tab" type="line">
+          <NTabPane name="direct" tab="直接成员">
+            <NForm
               :disabled="saving || loading"
+              label-placement="top"
               @submit.prevent="save"
-              ><MemberFields
+            >
+              <MemberFields
                 v-model:leaders="leaders"
-                v-model:members="members"
                 v-model:loading="loadingChoices"
-                :open="open"
+                v-model:members="members"
+                :disabled="saving || loading"
+                :open
                 :parent-id="node.parentId"
                 :root-id="node.breadcrumb[0]?.id ?? node.id"
-                :disabled="saving || loading"
-              /><NText depth="3" class="member-hint"
-                >负责人可管理此节点及下级节点。成员可在此节点及上级节点发布进展。</NText
-              ></NForm
-            ></NTabPane
-          ><NTabPane name="inherited" tab="全部成员（含继承）"
-            ><NGrid cols="1 s:2" responsive="screen" :x-gap="16" :y-gap="16"
-              ><NGi
+              />
+              <NText class="member-hint" depth="3">
+                负责人可管理此节点及下级节点。成员可在此节点及上级节点发布进展。
+              </NText>
+            </NForm>
+          </NTabPane>
+          <NTabPane name="inherited" tab="全部成员（含继承）">
+            <NGrid cols="1 s:2" responsive="screen" :x-gap="16" :y-gap="16">
+              <NGi
                 v-for="group in ['leaders', 'members'] as const"
                 :key="group"
-                ><NH3 class="member-group-title">{{
-                  group === 'leaders' ? '全部负责人' : '全部成员'
-                }}</NH3
-                ><NList
-                  ><NListItem
+              >
+                <NH3 class="member-group-title">
+                  {{ group === "leaders" ? "全部负责人" : "全部成员" }}
+                </NH3>
+                <NList>
+                  <NListItem
                     v-for="entry in effective?.[group] ?? []"
                     :key="entry.user.subject"
-                    ><NSpace vertical :size="4"
-                      ><UserIdentity :user="entry.user" /><NText
-                        depth="3"
-                        class="member-source"
-                        >{{
+                  >
+                    <NSpace :size="4" vertical>
+                      <UserIdentity :user="entry.user" />
+                      <NText class="member-source" depth="3">
+                        {{
                           entry.direct
-                            ? group === 'leaders'
-                              ? '直接负责人'
-                              : '直接成员'
-                            : `继承自 ${entry.sources.map((source) => source.title).join('、')}`
-                        }}</NText
-                      ></NSpace
-                    ></NListItem
-                  ></NList
-                ><NEmpty
-                  v-if="effective && !effective[group].length"
+                            ? group === "leaders"
+                              ? "直接负责人"
+                              : "直接成员"
+                            : `继承自 ${entry.sources.map((source) => source.title).join("、")}`
+                        }}
+                      </NText>
+                    </NSpace>
+                  </NListItem>
+                </NList>
+                <NEmpty
+                  v-if="effective && effective[group].length === 0"
                   description="暂无成员"
-                  size="small" /></NGi></NGrid></NTabPane></NTabs></NSpin
-      ><NSpace justify="end" class="member-actions"
-        ><NButton :disabled="saving" @click="emit('close')">关闭</NButton
-        ><NButton
+                  size="small"
+                />
+              </NGi>
+            </NGrid>
+          </NTabPane>
+        </NTabs>
+      </NSpin>
+      <NSpace class="member-actions" justify="end">
+        <NButton :disabled="saving" @click="emit('close')">关闭</NButton>
+        <NButton
           v-if="tab === 'direct'"
-          type="primary"
-          :loading="saving"
           :disabled="loading || loadingChoices"
+          :loading="saving"
+          type="primary"
           @click="save"
-          >保存成员</NButton
-        ></NSpace
-      ></NSpace
-    ></AppModal
-  >
+        >
+          保存成员
+        </NButton>
+      </NSpace>
+    </NSpace>
+  </AppModal>
 </template>
+
 <style scoped>
 .member-group-title {
   margin: 4px 0 12px;

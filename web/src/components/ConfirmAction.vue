@@ -1,48 +1,47 @@
 <script setup lang="ts">
-import { NAlert, NModal } from 'naive-ui'
+const emit = defineEmits<{ confirm: []; close: [] }>();
 withDefaults(
   defineProps<{
-    open: boolean
-    title: string
-    confirmText: string
-    busy: boolean
-    error: string | null
+    open: boolean;
+    title: string;
+    confirmText: string;
+    busy: boolean;
+    error: string | null;
   }>(),
   {},
-)
-const emit = defineEmits<{ confirm: []; close: [] }>()
+);
 </script>
+
 <template>
   <NModal
-    :show="open"
-    preset="dialog"
-    type="warning"
-    :title="title"
     :aria-label="title"
     :closable="!busy"
-    :mask-closable="!busy"
     :close-on-esc="!busy"
-    :positive-text="confirmText"
+    :mask-closable="!busy"
+    :negative-button-props="{ disabled: busy }"
     negative-text="取消"
     :positive-button-props="{ type: 'error', loading: busy, disabled: busy }"
-    :negative-button-props="{ disabled: busy }"
+    :positive-text="confirmText"
+    preset="dialog"
+    :show="open"
+    :title
+    type="warning"
+    @negative-click="emit('close')"
     @positive-click="
       () => {
-        emit('confirm')
-        return false
+        emit('confirm');
+        return false;
       }
     "
-    @negative-click="emit('close')"
     @update:show="(value) => !value && emit('close')"
-    ><slot /><NAlert
-      v-if="error"
-      type="error"
-      role="alert"
-      class="confirm-error"
-      >{{ error }}</NAlert
-    ></NModal
   >
+    <slot />
+    <NAlert v-if="error" class="confirm-error" role="alert" type="error">
+      {{ error }}
+    </NAlert>
+  </NModal>
 </template>
+
 <style scoped>
 .confirm-error {
   margin-top: 16px;

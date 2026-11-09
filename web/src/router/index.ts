@@ -1,113 +1,115 @@
-import { createDiscreteApi } from 'naive-ui'
-import { computed } from 'vue'
-import {
-  createRouter,
-  createWebHistory,
-  isNavigationFailure,
-  NavigationFailureType,
-  type RouteLocationNormalized,
-} from 'vue-router'
-import { useAuth } from '@/composables/useAuth'
-import { useTheme } from '@/composables/useTheme'
-import { safeReturnTo } from '@/lib/utils'
-import { darkThemeOverrides, lightThemeOverrides } from '@/lib/theme'
+import type { RouteLocationNormalized } from "vue-router";
 
-const { isDark } = useTheme()
-const { loadingBar } = createDiscreteApi(['loadingBar'], {
+const { isDark } = useTheme();
+const { loadingBar } = createDiscreteApi(["loadingBar"], {
   configProviderProps: computed(() => ({
     themeOverrides: isDark.value ? darkThemeOverrides : lightThemeOverrides,
   })),
-})
-let pendingRoute: RouteLocationNormalized | null = null
+});
+let pendingRoute: RouteLocationNormalized | null = null;
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
-      path: '/login',
-      name: 'login',
-      component: () => import('@/views/LoginView.vue'),
-      meta: { public: true, title: '登录' },
+      path: "/login",
+      name: "login",
+      component: () => import("@/views/LoginView.vue"),
+      meta: { public: true, title: "登录" },
     },
     {
-      path: '/',
-      name: 'home',
-      component: () => import('@/views/OverviewView.vue'),
-      meta: { title: '总览' },
+      path: "/",
+      name: "home",
+      component: () => import("@/views/OverviewView.vue"),
+      meta: { title: "总览" },
     },
     {
-      path: '/nodes/:id',
-      name: 'node',
-      component: () => import('@/views/NodeView.vue'),
-      meta: { title: '节点' },
+      path: "/nodes/:id",
+      name: "node",
+      component: () => import("@/views/NodeView.vue"),
+      meta: { title: "节点" },
     },
     {
-      path: '/graph',
-      name: 'graph',
-      component: () => import('@/views/GraphView.vue'),
-      meta: { title: '关系图谱' },
+      path: "/graph",
+      name: "graph",
+      component: () => import("@/views/GraphView.vue"),
+      meta: { title: "关系图谱" },
     },
     {
-      path: '/users/:subject',
-      name: 'user',
-      component: () => import('@/views/UserView.vue'),
-      meta: { title: '用户' },
+      path: "/users/:subject",
+      name: "user",
+      component: () => import("@/views/UserView.vue"),
+      meta: { title: "用户" },
     },
     {
-      path: '/account',
-      name: 'account',
-      component: () => import('@/views/AccountView.vue'),
-      meta: { title: '我的账号' },
+      path: "/account",
+      name: "account",
+      component: () => import("@/views/AccountView.vue"),
+      meta: { title: "我的账号" },
     },
     {
-      path: '/:pathMatch(.*)*',
-      redirect: '/',
+      path: "/:pathMatch(.*)*",
+      redirect: "/",
     },
   ],
   scrollBehavior: () => ({ top: 0 }),
-})
+});
 
 router.beforeEach(async (to) => {
-  if (!pendingRoute) loadingBar.start()
-  pendingRoute = to
-  const auth = useAuth()
+  if (!pendingRoute) {
+    loadingBar.start();
+  }
+  pendingRoute = to;
+  const auth = useAuth();
   try {
-    const active = await auth.refresh()
+    const active = await auth.refresh();
     if (to.meta.public) {
-      if (active && to.name === 'login') return { name: 'home' }
-      return true
+      if (active && to.name === "login") {
+        return { name: "home" };
+      }
+
+      return true;
     }
     if (!active) {
       return {
-        name: 'login',
+        name: "login",
         query: { redirect: safeReturnTo(to.fullPath) },
-      }
+      };
     }
-    return true
+
+    return true;
   } catch {
-    if (to.meta.public) return true
-    return { name: 'login', query: { error: 'unavailable', redirect: safeReturnTo(to.fullPath) } }
+    if (to.meta.public) {
+      return true;
+    }
+
+    return {
+      name: "login",
+      query: { error: "unavailable", redirect: safeReturnTo(to.fullPath) },
+    };
   }
-})
+});
 
 router.afterEach((to, _, failure) => {
   if (
     pendingRoute === to ||
     isNavigationFailure(failure, NavigationFailureType.duplicated)
   ) {
-    pendingRoute = null
-    loadingBar.finish()
+    pendingRoute = null;
+    loadingBar.finish();
   }
-  if (failure) return
-  const title = typeof to.meta.title === 'string' ? to.meta.title : ''
-  document.title = title ? `${title} · 公会` : '公会'
-})
+  if (failure) {
+    return;
+  }
+  const title = typeof to.meta.title === "string" ? to.meta.title : "";
+  document.title = title ? `${title} · 公会` : "公会";
+});
 
 router.onError((_, to) => {
   if (pendingRoute === to) {
-    pendingRoute = null
-    loadingBar.error()
+    pendingRoute = null;
+    loadingBar.error();
   }
-})
+});
 
-export default router
+export default router;

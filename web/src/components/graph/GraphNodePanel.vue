@@ -1,192 +1,70 @@
 <script setup lang="ts">
-import {
-  computed,
-  onBeforeUnmount,
-  onMounted,
-  ref,
-  watch,
-} from 'vue'
-import { RouterLink } from 'vue-router'
-import {
-  NAlert,
-  NDatePicker,
-} from 'naive-ui'
-import {
-  ArrowUpDown,
-  CalendarClock,
-  ChevronRight,
-  ExternalLink,
-  FolderInput,
-  Pencil,
-  Plus,
-  Trash2,
-  X,
-} from '@lucide/vue'
-import MembersDialog from '@/components/MembersDialog.vue'
-import NodeStatusTag from '@/components/NodeStatusTag.vue'
-import UserIdentity from '@/components/UserIdentity.vue'
-import type { GraphNode } from '@/graph/types'
-import { updateNode, type NodeDetail } from '@/lib/api'
-import { errorMessage, formatDateTime, timeAgo } from '@/lib/utils'
-
-const props = defineProps<{
-  selected: GraphNode
-  detail: NodeDetail | null
-  parentId: number | null
-  parentTitle: string | null
-  loading: boolean
-  error: string | null
-  isVirtualRoot: boolean
-}>()
+import type { NodeDetail } from "@/api";
+import type { GraphNode } from "@/graph/types";
 
 const emit = defineEmits<{
-  close: []
-  navigate: [id: number]
-  retry: []
-  updated: [node: NodeDetail]
-  edit: []
-  move: []
-  createChild: []
-  createRoot: []
-  remove: []
-  reorder: []
-}>()
+  close: [];
+  navigate: [id: number];
+  retry: [];
+  updated: [node: NodeDetail];
+  edit: [];
+  move: [];
+  createChild: [];
+  createRoot: [];
+  remove: [];
+  reorder: [];
+}>();
 
-const membersOpen = ref(false)
-const editingMeta = ref(false)
-const quickDue = ref<number | null>(null)
-const savingMeta = ref(false)
-const metaError = ref<string | null>(null)
-const savingStatus = ref(false)
-const statusError = ref<string | null>(null)
-const panel = ref<HTMLElement | null>(null)
-const title = computed(() => props.detail?.title ?? props.selected.title)
-let pointerTargetX = 0
-let pointerTargetY = 0
-let pointerX = 0
-let pointerY = 0
-let tiltFrame = 0
-let lastTiltFrame = performance.now()
-let reduceMotion = false
+const props = defineProps<{
+  selected: GraphNode;
+  detail: NodeDetail | null;
+  parentId: number | null;
+  parentTitle: string | null;
+  loading: boolean;
+  error: string | null;
+  isVirtualRoot: boolean;
+}>();
 
-function updatePointerTilt(event: PointerEvent) {
-  pointerTargetX = (event.clientX / Math.max(window.innerWidth, 1)) * 2 - 1
-  pointerTargetY = (event.clientY / Math.max(window.innerHeight, 1)) * 2 - 1
-}
+const membersOpen = ref(false);
+const panel = ref<HTMLElement | null>(null);
+const title = computed(() => props.detail?.title ?? props.selected.title);
+const {
+  editingDue,
+  dueValue,
+  savingDue,
+  dueError,
+  savingCompletion,
+  completionError,
+  startDueEdit,
+  cancelDueEdit,
+  saveDue,
+  toggleCompletion,
+  resetEditing,
+} = useNodeInlineEditing(
+  () => props.detail,
+  (node) => emit("updated", node),
+);
 
-function animateTilt(now: number) {
-  const delta = Math.min(0.05, (now - lastTiltFrame) / 1000)
-  lastTiltFrame = now
-  const damping = 1 - Math.exp(-delta * 5)
-  pointerX += (pointerTargetX - pointerX) * damping
-  pointerY += (pointerTargetY - pointerY) * damping
-  panel.value?.style.setProperty('--panel-tilt-x', `${pointerY * 0.8}deg`)
-  panel.value?.style.setProperty('--panel-tilt-y', `${-pointerX * 1.15}deg`)
-  tiltFrame = requestAnimationFrame(animateTilt)
-}
-
-onMounted(() => {
-  reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  window.addEventListener('pointermove', updatePointerTilt, { passive: true })
-  if (!reduceMotion) {
-    lastTiltFrame = performance.now()
-    tiltFrame = requestAnimationFrame(animateTilt)
-  }
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('pointermove', updatePointerTilt)
-  cancelAnimationFrame(tiltFrame)
-})
+usePanelTilt(panel);
 
 watch(
   () => props.selected.id,
   () => {
-    membersOpen.value = false
-    editingMeta.value = false
-    metaError.value = null
-    statusError.value = null
+    membersOpen.value = false;
+    resetEditing();
   },
-)
+);
 
 function onMembersSaved(node: NodeDetail) {
-  membersOpen.value = false
-  emit('updated', node)
+  membersOpen.value = false;
+  emit("updated", node);
 }
 
 function createNode() {
   if (props.isVirtualRoot) {
-    emit('createRoot')
+    emit("createRoot");
   } else {
-    emit('createChild')
-  }
-}
-
-function startMetaEdit() {
-  if (!props.detail || savingStatus.value) return
-  quickDue.value = props.detail.dueAt
-    ? new Date(props.detail.dueAt).getTime()
-    : null
-  metaError.value = null
-  editingMeta.value = true
-}
-
-function cancelMetaEdit() {
-  if (savingMeta.value) return
-  editingMeta.value = false
-  metaError.value = null
-}
-
-async function saveMetaEdit() {
-  const node = props.detail
-  if (!node || savingMeta.value) return
-  savingMeta.value = true
-  metaError.value = null
-  try {
-    const updated = await updateNode(node.id, {
-      title: node.title,
-      description: node.description,
-      dueAt: quickDue.value === null
-        ? null
-        : new Date(quickDue.value).toISOString(),
-      tags: node.tags,
-      completed: !!node.completedAt,
-    })
-    editingMeta.value = false
-    emit('updated', updated)
-  } catch (err) {
-    metaError.value = errorMessage(err, '保存到期时间失败')
-  } finally {
-    savingMeta.value = false
-  }
-}
-
-async function toggleCompletion() {
-  const node = props.detail
-  if (
-    !node ||
-    !node.permissions.canEdit ||
-    savingStatus.value ||
-    editingMeta.value ||
-    savingMeta.value
-  ) {
-    return
-  }
-  savingStatus.value = true
-  statusError.value = null
-  try {
-    const updated = await updateNode(node.id, {
-      title: node.title,
-      description: node.description,
-      dueAt: node.dueAt,
-      tags: node.tags,
-      completed: !node.completedAt,
-    })
-    emit('updated', updated)
-  } catch (err) {
-    statusError.value = errorMessage(err, '更新完成状态失败')
-  } finally {
-    savingStatus.value = false
+    emit("createChild");
   }
 }
 </script>
@@ -194,15 +72,15 @@ async function toggleCompletion() {
 <template>
   <aside
     ref="panel"
+    aria-label="节点控制面板"
     class="node-control-panel"
     data-graph-node-panel
-    aria-label="节点控制面板"
   >
     <header class="panel-header">
       <button
-        type="button"
-        class="panel-close"
         aria-label="关闭节点面板"
+        class="panel-close"
+        type="button"
         @click="emit('close')"
       >
         <X :size="17" />
@@ -210,28 +88,28 @@ async function toggleCompletion() {
       <h2>{{ title }}</h2>
       <div v-if="detail && !isVirtualRoot" class="panel-status-row">
         <NodeStatusTag
-          :due-at="detail.dueAt"
           :completed-at="detail.completedAt"
+          :due-at="detail.dueAt"
         />
         <button
           v-if="detail.permissions.canEdit"
-          type="button"
-          class="status-toggle"
-          :disabled="savingStatus || editingMeta || savingMeta"
           :aria-pressed="!!detail.completedAt"
+          class="status-toggle"
+          :disabled="savingCompletion || editingDue || savingDue"
+          type="button"
           @click="toggleCompletion"
         >
           {{
-            savingStatus
-              ? '正在更新…'
+            savingCompletion
+              ? "正在更新…"
               : detail.completedAt
-                ? '标记为未完成'
-                : '标记为已完成'
+                ? "标记为未完成"
+                : "标记为已完成"
           }}
         </button>
       </div>
-      <p v-if="statusError" class="status-error" role="alert">
-        {{ statusError }}
+      <p v-if="completionError" class="status-error" role="alert">
+        {{ completionError }}
       </p>
       <div v-if="detail?.tags.length" class="panel-tag-list">
         <span v-for="tag in detail.tags" :key="tag" class="panel-tag">
@@ -241,8 +119,8 @@ async function toggleCompletion() {
       <div v-if="detail && !isVirtualRoot" class="panel-node-actions">
         <button
           v-if="detail.permissions.canEdit"
-          type="button"
           class="panel-edit-button"
+          type="button"
           @click="emit('edit')"
         >
           <Pencil :size="12" />
@@ -250,8 +128,8 @@ async function toggleCompletion() {
         </button>
         <button
           v-if="detail.permissions.canEdit"
-          type="button"
           class="panel-edit-button"
+          type="button"
           @click="emit('move')"
         >
           <FolderInput :size="12" />
@@ -259,8 +137,8 @@ async function toggleCompletion() {
         </button>
         <button
           v-if="detail.permissions.canDelete"
-          type="button"
           class="panel-delete-button"
+          type="button"
           @click="emit('remove')"
         >
           <Trash2 :size="12" />
@@ -272,8 +150,8 @@ async function toggleCompletion() {
     <div class="panel-scroll">
       <div
         v-if="!detail && (loading || !error)"
-        class="panel-loading"
         aria-live="polite"
+        class="panel-loading"
       >
         <span class="panel-loading-mark" />
         正在加载节点…
@@ -285,16 +163,16 @@ async function toggleCompletion() {
       </div>
 
       <template v-else-if="detail">
-        <section class="panel-section" aria-labelledby="panel-structure-title">
+        <section aria-labelledby="panel-structure-title" class="panel-section">
           <h3 id="panel-structure-title">
-            {{ isVirtualRoot ? '全部根节点' : '层级关系' }}
+            {{ isVirtualRoot ? "全部根节点" : "层级关系" }}
           </h3>
           <div v-if="!isVirtualRoot" class="panel-relation">
             <span class="relation-label">父节点</span>
             <button
               v-if="parentId != null"
-              type="button"
               class="relation-link"
+              type="button"
               @click="emit('navigate', parentId)"
             >
               <span>{{ parentTitle ?? `节点 #${parentId}` }}</span>
@@ -305,7 +183,7 @@ async function toggleCompletion() {
 
           <div class="panel-children">
             <div class="children-heading">
-              <span>{{ isVirtualRoot ? '根节点' : '子节点' }}</span>
+              <span>{{ isVirtualRoot ? "根节点" : "子节点" }}</span>
               <span>{{ detail.children.length }}</span>
             </div>
             <div class="children-actions">
@@ -314,49 +192,49 @@ async function toggleCompletion() {
                   detail.permissions.canReorderChildren &&
                   detail.children.length > 1
                 "
-                type="button"
                 class="panel-edit-button"
+                type="button"
                 @click="emit('reorder')"
               >
                 <ArrowUpDown :size="12" />
-                {{ isVirtualRoot ? '调整根节点顺序' : '调整子节点顺序' }}
+                {{ isVirtualRoot ? "调整根节点顺序" : "调整子节点顺序" }}
               </button>
               <button
                 v-if="detail.permissions.canAddChild"
-                type="button"
                 class="panel-edit-button is-primary"
+                type="button"
                 @click="createNode"
               >
                 <Plus :size="12" />
-                {{ isVirtualRoot ? '新建根节点' : '新建子节点' }}
+                {{ isVirtualRoot ? "新建根节点" : "新建子节点" }}
               </button>
             </div>
-            <div v-if="detail.children.length" class="children-list">
+            <div v-if="detail.children.length > 0" class="children-list">
               <button
                 v-for="child in detail.children"
                 :key="child.id"
-                type="button"
                 class="child-link"
+                type="button"
                 @click="emit('navigate', child.id)"
               >
-                <span class="child-orb" aria-hidden="true" />
+                <span aria-hidden="true" class="child-orb" />
                 <span class="child-title">{{ child.title }}</span>
-                <span v-if="child.childCount" class="child-count"
-                  >{{ child.childCount }} 个子节点</span
-                >
+                <span v-if="child.childCount" class="child-count">
+                  {{ child.childCount }} 个子节点
+                </span>
                 <ChevronRight :size="13" />
               </button>
             </div>
             <p v-else class="relation-empty">
-              {{ isVirtualRoot ? '暂无根节点' : '暂无子节点' }}
+              {{ isVirtualRoot ? "暂无根节点" : "暂无子节点" }}
             </p>
           </div>
         </section>
 
         <section
           v-if="!isVirtualRoot"
-          class="panel-section"
           aria-labelledby="panel-description-title"
+          class="panel-section"
         >
           <h3 id="panel-description-title">节点描述</h3>
           <p v-if="detail.description" class="panel-description">
@@ -367,60 +245,63 @@ async function toggleCompletion() {
 
         <section
           v-if="!isVirtualRoot"
-          class="panel-section"
           aria-labelledby="panel-meta-title"
+          class="panel-section"
         >
           <div class="panel-section-heading">
             <h3 id="panel-meta-title">节点信息</h3>
             <button
-              v-if="detail.permissions.canEdit && !editingMeta"
-              type="button"
+              v-if="detail.permissions.canEdit && !editingDue"
               class="panel-edit-button"
-              :disabled="savingStatus"
-              @click="startMetaEdit"
+              :disabled="savingCompletion"
+              type="button"
+              @click="startDueEdit"
             >
               <Pencil :size="12" />
               修改预期完成
             </button>
           </div>
 
-          <div v-if="editingMeta" class="meta-editor">
+          <div v-if="editingDue" class="meta-editor">
             <label class="meta-editor-field">
               <span>预期完成时间</span>
               <NDatePicker
-                v-model:value="quickDue"
-                type="datetime"
+                v-model:value="dueValue"
+                clearable
+                :disabled="savingDue"
                 format="yyyy-MM-dd HH:mm"
                 :time-picker-props="{ format: 'HH:mm' }"
-                clearable
-                :disabled="savingMeta"
+                type="datetime"
               />
             </label>
-            <NAlert v-if="metaError" type="error" role="alert">
-              {{ metaError }}
+            <NAlert v-if="dueError" role="alert" type="error">
+              {{ dueError }}
             </NAlert>
             <div class="meta-editor-actions">
               <button
+                :disabled="savingDue"
                 type="button"
-                :disabled="savingMeta"
-                @click="cancelMetaEdit"
+                @click="cancelDueEdit"
               >
                 取消
               </button>
               <button
-                type="button"
                 class="is-primary"
-                :disabled="savingMeta"
-                @click="saveMetaEdit"
+                :disabled="savingDue"
+                type="button"
+                @click="saveDue"
               >
-                {{ savingMeta ? '保存中…' : '保存修改' }}
+                {{ savingDue ? "保存中…" : "保存修改" }}
               </button>
             </div>
           </div>
 
           <dl v-else class="panel-meta-grid">
             <div>
-              <dt><CalendarClock :size="13" />预期完成</dt>
+              <dt>
+                <CalendarClock :size="13" />
+                预期完成
+              </dt>
               <dd>{{ formatDateTime(detail.dueAt) }}</dd>
             </div>
             <div>
@@ -450,15 +331,15 @@ async function toggleCompletion() {
 
         <section
           v-if="!isVirtualRoot"
-          class="panel-section panel-people"
           aria-labelledby="panel-people-title"
+          class="panel-section panel-people"
         >
           <div class="people-heading">
             <h3 id="panel-people-title">参与人员</h3>
             <button
               v-if="detail.permissions.canManageMembers"
-              type="button"
               class="panel-edit-button"
+              type="button"
               @click="membersOpen = true"
             >
               <Pencil :size="12" />
@@ -468,9 +349,9 @@ async function toggleCompletion() {
 
           <div class="people-group">
             <h4>直接负责人</h4>
-            <ul v-if="detail.directLeaders.length" class="people-list">
+            <ul v-if="detail.directLeaders.length > 0" class="people-list">
               <li v-for="person in detail.directLeaders" :key="person.subject">
-                <UserIdentity :user="person" :size="24" />
+                <UserIdentity :size="24" :user="person" />
               </li>
             </ul>
             <p v-else class="panel-empty-copy">暂无直接负责人</p>
@@ -478,9 +359,9 @@ async function toggleCompletion() {
 
           <div class="people-group">
             <h4>直接成员</h4>
-            <ul v-if="detail.directMembers.length" class="people-list">
+            <ul v-if="detail.directMembers.length > 0" class="people-list">
               <li v-for="person in detail.directMembers" :key="person.subject">
-                <UserIdentity :user="person" :size="24" />
+                <UserIdentity :size="24" :user="person" />
               </li>
             </ul>
             <p v-else class="panel-empty-copy">暂无直接成员</p>
@@ -499,18 +380,18 @@ async function toggleCompletion() {
 
     <footer v-if="!isVirtualRoot" class="panel-footer">
       <RouterLink
-        :to="{ name: 'node', params: { id: selected.id } }"
         class="panel-page-link"
+        :to="{ name: 'node', params: { id: selected.id } }"
       >
         <span>打开节点页面</span>
-        <ExternalLink :size="15" aria-hidden="true" />
+        <ExternalLink aria-hidden="true" :size="15" />
       </RouterLink>
     </footer>
 
     <MembersDialog
       v-if="detail && !isVirtualRoot"
-      :open="membersOpen"
       :node="detail"
+      :open="membersOpen"
       @close="membersOpen = false"
       @saved="onMembersSaved"
     />
@@ -544,9 +425,7 @@ async function toggleCompletion() {
   color: #d9e1e1;
   pointer-events: auto;
   backdrop-filter: blur(22px);
-  transform:
-    perspective(1500px)
-    rotateX(var(--panel-tilt-x))
+  transform: perspective(1500px) rotateX(var(--panel-tilt-x))
     rotateY(calc(var(--panel-base-rotate-y) + var(--panel-tilt-y)));
   transform-origin: 100% 50%;
   transform-style: preserve-3d;
@@ -568,9 +447,7 @@ async function toggleCompletion() {
 .node-panel-enter-from,
 .node-panel-leave-to {
   opacity: 0;
-  transform:
-    perspective(1500px)
-    rotateX(var(--panel-tilt-x))
+  transform: perspective(1500px) rotateX(var(--panel-tilt-x))
     rotateY(calc(var(--panel-base-rotate-y) + var(--panel-tilt-y)))
     translate3d(calc(100% + 32px), 0, -20px);
 }
@@ -578,9 +455,7 @@ async function toggleCompletion() {
 .node-panel-enter-to,
 .node-panel-leave-from {
   opacity: 1;
-  transform:
-    perspective(1500px)
-    rotateX(var(--panel-tilt-x))
+  transform: perspective(1500px) rotateX(var(--panel-tilt-x))
     rotateY(calc(var(--panel-base-rotate-y) + var(--panel-tilt-y)))
     translate3d(0, 0, 0);
 }
@@ -597,7 +472,7 @@ async function toggleCompletion() {
     rgba(244, 192, 82, 0.78),
     transparent
   );
-  content: '';
+  content: "";
 }
 
 .panel-header {
@@ -1089,134 +964,138 @@ async function toggleCompletion() {
   color: #fff0c7;
 }
 
-:global([data-theme='light'] .node-control-panel) {
+:global([data-theme="light"] .node-control-panel) {
   border-color: rgba(157, 105, 25, 0.28);
   border-right-color: rgba(151, 94, 12, 0.5);
   background:
     linear-gradient(155deg, rgba(255, 249, 235, 0.92), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(246, 249, 250, 0.98));
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.97),
+      rgba(246, 249, 250, 0.98)
+    );
   box-shadow:
     -24px 0 70px rgba(51, 66, 75, 0.16),
     inset 0 0 50px rgba(167, 107, 17, 0.02);
   color: #263640;
 }
 
-:global([data-theme='light'] .panel-header) {
+:global([data-theme="light"] .panel-header) {
   border-bottom-color: rgba(81, 105, 116, 0.15);
   background: rgba(255, 255, 255, 0.62);
 }
 
-:global([data-theme='light'] .panel-header h2) {
+:global([data-theme="light"] .panel-header h2) {
   color: #17242d;
 }
 
-:global([data-theme='light'] .panel-close) {
+:global([data-theme="light"] .panel-close) {
   border-color: rgba(84, 107, 117, 0.22);
   background: rgba(255, 255, 255, 0.76);
   color: #5c7079;
 }
 
-:global([data-theme='light'] .status-toggle),
-:global([data-theme='light'] .panel-edit-button) {
+:global([data-theme="light"] .status-toggle),
+:global([data-theme="light"] .panel-edit-button) {
   border-color: rgba(155, 101, 17, 0.3);
   background: rgba(184, 119, 21, 0.06);
   color: #80510d;
 }
 
-:global([data-theme='light'] .panel-tag) {
+:global([data-theme="light"] .panel-tag) {
   border-color: rgba(87, 119, 132, 0.26);
   color: #607783;
 }
 
-:global([data-theme='light'] .panel-section) {
+:global([data-theme="light"] .panel-section) {
   border-bottom-color: rgba(82, 105, 116, 0.13);
 }
 
-:global([data-theme='light'] .panel-section h3),
-:global([data-theme='light'] .people-heading h3) {
+:global([data-theme="light"] .panel-section h3),
+:global([data-theme="light"] .people-heading h3) {
   color: #8e590d;
 }
 
-:global([data-theme='light'] .relation-label),
-:global([data-theme='light'] .children-heading),
-:global([data-theme='light'] .people-group h4),
-:global([data-theme='light'] .panel-meta-grid dt) {
+:global([data-theme="light"] .relation-label),
+:global([data-theme="light"] .children-heading),
+:global([data-theme="light"] .people-group h4),
+:global([data-theme="light"] .panel-meta-grid dt) {
   color: #607580;
 }
 
-:global([data-theme='light'] .relation-link),
-:global([data-theme='light'] .child-link) {
+:global([data-theme="light"] .relation-link),
+:global([data-theme="light"] .child-link) {
   color: #344650;
 }
 
-:global([data-theme='light'] .relation-link) {
+:global([data-theme="light"] .relation-link) {
   border-color: rgba(157, 104, 21, 0.22);
   background: rgba(183, 120, 24, 0.05);
 }
 
-:global([data-theme='light'] .relation-link:hover),
-:global([data-theme='light'] .child-link:hover) {
+:global([data-theme="light"] .relation-link:hover),
+:global([data-theme="light"] .child-link:hover) {
   border-color: rgba(157, 100, 17, 0.48);
   background: rgba(183, 120, 24, 0.08);
   color: #714707;
 }
 
-:global([data-theme='light'] .relation-empty),
-:global([data-theme='light'] .panel-empty-copy) {
+:global([data-theme="light"] .relation-empty),
+:global([data-theme="light"] .panel-empty-copy) {
   color: #758993;
 }
 
-:global([data-theme='light'] .children-heading span:last-child) {
+:global([data-theme="light"] .children-heading span:last-child) {
   color: #936013;
 }
 
-:global([data-theme='light'] .child-count) {
+:global([data-theme="light"] .child-count) {
   color: #758993;
 }
 
-:global([data-theme='light'] .panel-description),
-:global([data-theme='light'] .panel-meta-grid dd),
-:global([data-theme='light'] .people-list) {
+:global([data-theme="light"] .panel-description),
+:global([data-theme="light"] .panel-meta-grid dd),
+:global([data-theme="light"] .people-list) {
   color: #344650;
 }
 
-:global([data-theme='light'] .inherited-count) {
+:global([data-theme="light"] .inherited-count) {
   color: #70848e;
 }
 
-:global([data-theme='light'] .meta-editor-field),
-:global([data-theme='light'] .panel-loading),
-:global([data-theme='light'] .panel-error) {
+:global([data-theme="light"] .meta-editor-field),
+:global([data-theme="light"] .panel-loading),
+:global([data-theme="light"] .panel-error) {
   color: #627781;
 }
 
-:global([data-theme='light'] .meta-editor-actions button) {
+:global([data-theme="light"] .meta-editor-actions button) {
   border-color: rgba(81, 106, 118, 0.25);
   background: rgba(255, 255, 255, 0.78);
   color: #4f6570;
 }
 
-:global([data-theme='light'] .meta-editor-actions button.is-primary) {
+:global([data-theme="light"] .meta-editor-actions button.is-primary) {
   border-color: rgba(156, 101, 17, 0.46);
   background: rgba(187, 123, 24, 0.09);
   color: #7d4e0a;
 }
 
-:global([data-theme='light'] .panel-error p) {
+:global([data-theme="light"] .panel-error p) {
   color: #8d590d;
 }
 
-:global([data-theme='light'] .panel-error button) {
+:global([data-theme="light"] .panel-error button) {
   border-color: rgba(156, 101, 17, 0.34);
   color: #7f500b;
 }
 
-:global([data-theme='light'] .panel-footer) {
+:global([data-theme="light"] .panel-footer) {
   border-top-color: rgba(157, 105, 22, 0.2);
   background: rgba(255, 255, 255, 0.9);
 }
 
-:global([data-theme='light'] .panel-page-link) {
+:global([data-theme="light"] .panel-page-link) {
   border-color: rgba(157, 102, 18, 0.38);
   background:
     linear-gradient(90deg, rgba(190, 127, 29, 0.1), transparent),

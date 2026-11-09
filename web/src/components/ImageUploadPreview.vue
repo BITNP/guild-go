@@ -1,65 +1,69 @@
 <script setup lang="ts">
-import { NButton, NSpin, NTooltip } from 'naive-ui'
-import PreviewImage from '@/components/PreviewImage.vue'
-import { RotateCcw, X } from '@lucide/vue'
+const emit = defineEmits<{ remove: []; retry: [] }>();
 defineProps<{
-  src: string
-  name: string
-  uploading: boolean
-  error: string | null
-  disabled: boolean
-}>()
-const emit = defineEmits<{ remove: []; retry: [] }>()
+  src: string;
+  name: string;
+  uploading: boolean;
+  error: string | null;
+  disabled: boolean;
+}>();
 </script>
+
 <template>
   <div class="upload-image">
     <PreviewImage
-      :src="src"
       :alt="name"
-      :width="80"
-      :height="80"
-      :disabled="uploading || !!error"
       class="upload-thumbnail"
+      :disabled="uploading || !!error"
+      :height="80"
+      :src
+      :width="80"
     />
     <div
       v-if="uploading"
+      :aria-label="`正在上传：${name}`"
       class="image-mask"
       role="progressbar"
-      :aria-label="`正在上传：${name}`"
     >
       <NSpin :size="24" stroke="white" />
     </div>
     <div v-else-if="error" class="image-mask failed">
-      <NTooltip
-        ><template #trigger
-          ><NButton
-            text
-            class="retry-image"
-            :disabled="disabled"
+      <NTooltip>
+        <template #trigger>
+          <NButton
             :aria-label="`重试上传：${name}`"
+            class="retry-image"
+            :disabled
+            text
             @click="emit('retry')"
-            ><span class="retry-content"
-              ><span>上传失败</span
-              ><span class="retry-label"
-                ><RotateCcw :size="12" />重试</span
-              ></span
-            ></NButton
-          ></template
-        >{{ error }}</NTooltip
-      ><span class="screen-reader" role="alert">{{ name }}：{{ error }}</span>
+          >
+            <span class="retry-content">
+              <span>上传失败</span>
+              <span class="retry-label">
+                <RotateCcw :size="12" />
+                重试
+              </span>
+            </span>
+          </NButton>
+        </template>
+        {{ error }}
+      </NTooltip>
+      <span class="screen-reader" role="alert">{{ name }}：{{ error }}</span>
     </div>
     <NButton
       v-if="!uploading"
-      circle
-      size="tiny"
-      class="remove-image"
-      :disabled="disabled"
       :aria-label="`移除图片：${name}`"
+      circle
+      class="remove-image"
+      :disabled
+      size="tiny"
       @click="emit('remove')"
-      ><X :size="12"
-    /></NButton>
+    >
+      <X :size="12" />
+    </NButton>
   </div>
 </template>
+
 <style scoped>
 .upload-image {
   position: relative;

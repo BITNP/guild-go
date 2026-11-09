@@ -1,69 +1,69 @@
 <script setup lang="ts">
-import {
-  NCard,
-  NDescriptions,
-  NDescriptionsItem,
-  NSpace,
-  NTag,
-  NText,
-} from 'naive-ui'
-import UserIdentity from '@/components/UserIdentity.vue'
-import type { Profile } from '@/lib/api'
-import { departmentLabel } from '@/lib/utils'
-defineProps<{ profile: Profile; showPermissions: boolean }>()
+import type { Profile } from "@/api";
+
+defineProps<{ profile: Profile; showPermissions: boolean }>();
 </script>
+
 <template>
   <NCard>
     <header class="profile-header">
-      <UserIdentity :user="profile" :size="56" :show-name="false" />
+      <UserIdentity :show-name="false" :size="56" :user="profile" />
       <div class="profile-identity">
         <h2>{{ profile.userName }}</h2>
         <p v-if="profile.email" class="profile-email">{{ profile.email }}</p>
-        <NSpace
-          ><NTag
+        <NSpace>
+          <NTag
             v-for="position in profile.positions"
             :key="position.code"
-            type="info"
             :bordered="false"
-            >{{ position.label }}</NTag
-          ><NText v-if="!profile.positions.length" depth="3"
-            >暂无职务信息</NText
-          ></NSpace
-        >
+            type="info"
+          >
+            {{ position.label }}
+          </NTag>
+          <NText v-if="profile.positions.length === 0" depth="3">
+            暂无职务信息
+          </NText>
+        </NSpace>
       </div>
     </header>
     <section
       v-if="showPermissions && profile.permissions"
-      class="profile-permissions"
       aria-label="账号权限"
+      class="profile-permissions"
     >
       <h3>账号权限</h3>
       <NDescriptions
         :column="1"
-        label-placement="left"
         label-align="left"
+        label-placement="left"
         :label-style="{ width: '120px', color: 'var(--guild-muted)' }"
-        ><NDescriptionsItem label="系统管理员">{{
-          profile.permissions.systemAdmin ? '是' : '否'
-        }}</NDescriptionsItem
-        ><NDescriptionsItem label="可创建根节点">{{
-          profile.permissions.manager ? '是' : '否'
-        }}</NDescriptionsItem
-        ><NDescriptionsItem label="部门访问">{{
-          profile.permissions.accessDepartments
-            .map(departmentLabel)
-            .join('、') || '—'
-        }}</NDescriptionsItem
-        ><NDescriptionsItem label="部门管理">{{
-          profile.permissions.managedDepartments
-            .map(departmentLabel)
-            .join('、') || '—'
-        }}</NDescriptionsItem></NDescriptions
       >
+        <NDescriptionsItem label="系统管理员">
+          {{ profile.permissions.systemAdmin ? "是" : "否" }}
+        </NDescriptionsItem>
+        <NDescriptionsItem label="可创建根节点">
+          {{ profile.permissions.manager ? "是" : "否" }}
+        </NDescriptionsItem>
+        <NDescriptionsItem label="部门访问">
+          {{
+            profile.permissions.accessDepartments
+              .map(departmentLabel)
+              .join("、") || "—"
+          }}
+        </NDescriptionsItem>
+        <NDescriptionsItem label="部门管理">
+          {{
+            profile.permissions.managedDepartments
+              .map(departmentLabel)
+              .join("、") || "—"
+          }}
+        </NDescriptionsItem>
+      </NDescriptions>
     </section>
     <div v-if="$slots.default" class="profile-footer"><slot /></div>
   </NCard>
 </template>
+
 <style scoped>
 .profile-email {
   overflow-wrap: anywhere;

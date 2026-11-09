@@ -1,209 +1,132 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, useId } from 'vue'
-import {
-  ImagePlus,
-  Loader2,
-  RotateCcw,
-  Send,
-  X,
-} from '@lucide/vue'
-import {
-  COMMENT_IMAGE_ACCEPT,
-  COMMENT_IMAGE_LIMIT,
-  filesFromClipboard,
-  filesFromDataTransfer,
-  hasFileDrag,
-  useCommentImageDrafts,
-} from '@/composables/useCommentImageDrafts'
-import { createComment, type Comment } from '@/lib/api'
-import { errorMessage } from '@/lib/utils'
+import type { Comment } from "@/api";
+
+const emit = defineEmits<{ created: [comment: Comment] }>();
 
 const props = defineProps<{
-  nodeId: number
-}>()
+  nodeId: number;
+}>();
 
-const emit = defineEmits<{ created: [comment: Comment] }>()
-const body = ref('')
-const submitting = ref(false)
-const error = ref<string | null>(null)
-const fileInput = ref<HTMLInputElement | null>(null)
-const textarea = ref<HTMLTextAreaElement | null>(null)
-const dragging = ref(false)
-const bodyId = useId()
-const { images, pending, addFiles, retry, remove, clear, dispose } =
-  useCommentImageDrafts(() => props.nodeId)
-const canSubmit = computed(() =>
-  !submitting.value &&
-  !pending.value &&
-  (body.value.trim().length > 0 || images.value.length > 0),
-)
-let dragDepth = 0
+const fileInput = ref<HTMLInputElement | null>(null);
+const textarea = ref<HTMLTextAreaElement | null>(null);
+const bodyId = useId();
+const {
+  body,
+  submitting,
+  error,
+  dragging,
+  canSubmit,
+  images,
+  pending,
+  retry,
+  remove,
+  selectFiles,
+  pasteImages,
+  dragEnter,
+  dragOver,
+  dragLeave,
+  dropFiles,
+  submit,
+  dispose,
+} = useCommentComposer(() => props.nodeId, {
+  emptyMessage: "写下一步进展或添加一张图片",
+  submitError: "进展发送失败，请重试",
+});
 
-function acceptFiles(files: File[]) {
-  error.value = null
-  error.value = addFiles(files)
-}
-
-function selectFiles(event: Event) {
-  const input = event.target as HTMLInputElement
-  const selected = [...(input.files ?? [])]
-  input.value = ''
-  acceptFiles(selected)
-}
-
-function pasteImages(event: ClipboardEvent) {
-  const files = filesFromClipboard(event.clipboardData)
-  if (!files.length) return
-  event.preventDefault()
-  acceptFiles(files)
-}
-
-function dragEnter(event: DragEvent) {
-  if (submitting.value || !hasFileDrag(event.dataTransfer)) return
-  event.preventDefault()
-  event.stopPropagation()
-  dragDepth += 1
-  dragging.value = true
-}
-
-function dragOver(event: DragEvent) {
-  if (submitting.value || !hasFileDrag(event.dataTransfer)) return
-  event.preventDefault()
-  event.stopPropagation()
-  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
-  dragging.value = true
-}
-
-function dragLeave(event: DragEvent) {
-  if (!dragging.value) return
-  event.preventDefault()
-  event.stopPropagation()
-  dragDepth = Math.max(0, dragDepth - 1)
-  if (dragDepth === 0) dragging.value = false
-}
-
-function dropFiles(event: DragEvent) {
-  const files = filesFromDataTransfer(event.dataTransfer)
-  if (!files.length) return
-  event.preventDefault()
-  event.stopPropagation()
-  dragDepth = 0
-  dragging.value = false
-  if (!submitting.value) acceptFiles(files)
-}
-
-async function submit() {
-  if (!canSubmit.value) {
-    if (!body.value.trim() && !images.value.length) {
-      error.value = '写下一步进展或添加一张图片'
-    }
-    return
-  }
-  error.value = null
-  submitting.value = true
-  try {
-    const attachmentIds = images.value.flatMap((image) =>
-      image.status.state === 'uploaded' ? [image.status.id] : [],
-    )
-    const comment = await createComment(props.nodeId, body.value, attachmentIds)
-    body.value = ''
-    clear(false)
-    emit('created', comment)
-  } catch (err) {
-    error.value = errorMessage(err, '进展发送失败，请重试')
-  } finally {
-    submitting.value = false
+async function publish() {
+  const comment = await submit();
+  if (comment) {
+    emit("created", comment);
   }
 }
 
 function shortcut(event: KeyboardEvent) {
   if (
-    event.key !== 'Enter' ||
+    event.key !== "Enter" ||
     event.shiftKey ||
     event.isComposing ||
     event.keyCode === 229
   ) {
-    return
+    return;
   }
-  event.preventDefault()
-  void submit()
+  event.preventDefault();
+  void publish();
 }
 
 function focusComposer(event: PointerEvent) {
-  event.stopPropagation()
-  const target = event.target
-  if (target instanceof HTMLTextAreaElement) return
-  if (
-    target instanceof Element &&
-    target.closest('button, input')
-  ) {
-    return
+  event.stopPropagation();
+  const target = event.target;
+  if (target instanceof HTMLTextAreaElement) {
+    return;
   }
-  event.preventDefault()
-  textarea.value?.focus({ preventScroll: true })
+  if (target instanceof Element && target.closest("button, input")) {
+    return;
+  }
+  event.preventDefault();
+  textarea.value?.focus({ preventScroll: true });
 }
 
-onBeforeUnmount(() => dispose(!submitting.value))
+onBeforeUnmount(dispose);
 </script>
 
 <template>
   <section
+    aria-label="输入进展"
     class="graph-comment-composer"
     data-graph-comment-composer
-    aria-label="输入进展"
-    @pointerdown.capture="focusComposer"
-    @pointermove.stop
-    @pointerup.stop
     @click.stop
     @dblclick.stop
     @dragenter="dragEnter"
-    @dragover="dragOver"
     @dragleave="dragLeave"
+    @dragover="dragOver"
     @drop="dropFiles"
+    @pointerdown.capture="focusComposer"
+    @pointermove.stop
+    @pointerup.stop
   >
     <textarea
+      v-model="body"
       ref="textarea"
       :id="bodyId"
-      v-model="body"
-      class="composer-input"
-      :class="{ 'has-images': images.length > 0 }"
-      rows="2"
-      maxlength="5000"
-      :disabled="submitting"
       :aria-invalid="!!error"
       aria-label="请输入进展"
+      class="composer-input"
+      :class="{ 'has-images': images.length > 0 }"
+      :disabled="submitting"
+      maxlength="5000"
       placeholder="输入进展，可粘贴或拖拽图片"
+      rows="2"
       @keydown="shortcut"
       @paste="pasteImages"
     />
 
-    <div v-if="images.length" class="composer-images" aria-live="polite">
+    <div v-if="images.length > 0" aria-live="polite" class="composer-images">
       <div v-for="image in images" :key="image.src" class="image-slot">
-        <img :src="image.src" :alt="image.file.name" />
+        <img :alt="image.file.name" :src="image.src" />
         <div
           v-if="image.status.state === 'uploading'"
+          :aria-label="`正在上传：${image.file.name}`"
           class="image-overlay"
           role="progressbar"
-          :aria-label="`正在上传：${image.file.name}`"
         >
-          <Loader2 :size="18" class="spin" />
+          <Loader2 class="spin" :size="18" />
         </div>
         <button
           v-else-if="image.status.state === 'failed'"
-          type="button"
-          class="image-overlay image-retry"
           :aria-label="`重试上传：${image.file.name}`"
+          class="image-overlay image-retry"
           :title="image.status.message"
+          type="button"
           @click="retry(image)"
         >
           <RotateCcw :size="16" />
         </button>
         <button
           v-if="image.status.state !== 'uploading'"
-          type="button"
-          class="image-remove"
           :aria-label="`移除图片：${image.file.name}`"
+          class="image-remove"
           :disabled="submitting"
+          type="button"
           @click="remove(image)"
         >
           <X :size="12" />
@@ -213,37 +136,41 @@ onBeforeUnmount(() => dispose(!submitting.value))
 
     <div class="composer-actions">
       <button
-        type="button"
+        aria-label="添加图片，也可粘贴或拖拽图片"
         class="attach-button"
         :disabled="submitting || images.length >= COMMENT_IMAGE_LIMIT"
-        aria-label="添加图片，也可粘贴或拖拽图片"
         title="添加图片，也可粘贴或拖拽"
+        type="button"
         @click="fileInput?.click()"
       >
         <ImagePlus :size="15" />
       </button>
       <button
-        type="button"
+        :aria-label="
+          submitting ? '正在发送进展' : pending ? '正在上传图片' : '发送进展'
+        "
         class="send-button"
-        :disabled="submitting || pending || (!body.trim() && !images.length)"
-        :aria-label="submitting ? '正在发送进展' : pending ? '正在上传图片' : '发送进展'"
-        :title="submitting ? '正在发送进展' : pending ? '正在上传图片' : '发送进展'"
-        @click="submit"
+        :disabled="!canSubmit"
+        :title="
+          submitting ? '正在发送进展' : pending ? '正在上传图片' : '发送进展'
+        "
+        type="button"
+        @click="publish"
       >
-        <Loader2 v-if="submitting" :size="15" class="spin" />
+        <Loader2 v-if="submitting" class="spin" :size="15" />
         <Send v-else :size="15" />
       </button>
     </div>
 
     <input
       ref="fileInput"
-      type="file"
       :accept="COMMENT_IMAGE_ACCEPT"
-      multiple
       class="file-input"
+      multiple
+      type="file"
       @change="selectFiles"
     />
-    <div v-if="dragging" class="drop-hint" aria-hidden="true">
+    <div v-if="dragging" aria-hidden="true" class="drop-hint">
       <ImagePlus :size="20" />
       <span>松开以添加图片</span>
     </div>
@@ -275,10 +202,7 @@ onBeforeUnmount(() => dispose(!submitting.value))
   color: #dce5e4;
   pointer-events: auto;
   backdrop-filter: blur(22px) saturate(120%);
-  transform:
-    perspective(1100px)
-    rotateX(1.1deg)
-    rotateY(1.4deg);
+  transform: perspective(1100px) rotateX(1.1deg) rotateY(1.4deg);
   transform-origin: 0 100%;
 }
 
@@ -289,7 +213,7 @@ onBeforeUnmount(() => dispose(!submitting.value))
   height: 28px;
   border-color: rgba(239, 188, 80, 0.7);
   border-style: solid;
-  content: '';
+  content: "";
   pointer-events: none;
 }
 
@@ -626,12 +550,16 @@ onBeforeUnmount(() => dispose(!submitting.value))
   line-height: 1.3;
 }
 
-:global([data-theme='light'] .graph-comment-composer) {
+:global([data-theme="light"] .graph-comment-composer) {
   border-color: rgba(160, 105, 20, 0.28);
   border-left-color: rgba(147, 90, 8, 0.62);
   background:
     linear-gradient(135deg, rgba(193, 128, 29, 0.08), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(246, 249, 250, 0.98));
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.97),
+      rgba(246, 249, 250, 0.98)
+    );
   box-shadow:
     0 26px 70px rgba(48, 63, 72, 0.2),
     0 0 32px rgba(180, 118, 20, 0.05),
@@ -639,7 +567,7 @@ onBeforeUnmount(() => dispose(!submitting.value))
   color: #2a3942;
 }
 
-:global([data-theme='light'] .composer-input) {
+:global([data-theme="light"] .composer-input) {
   border-color: rgba(79, 108, 120, 0.28);
   background:
     linear-gradient(90deg, rgba(58, 143, 142, 0.04), transparent 34%),
@@ -648,11 +576,11 @@ onBeforeUnmount(() => dispose(!submitting.value))
   caret-color: #9a620e;
 }
 
-:global([data-theme='light'] .composer-input::placeholder) {
+:global([data-theme="light"] .composer-input::placeholder) {
   color: rgba(73, 94, 106, 0.58);
 }
 
-:global([data-theme='light'] .composer-input:focus) {
+:global([data-theme="light"] .composer-input:focus) {
   border-color: rgba(158, 101, 16, 0.58);
   background: rgba(255, 255, 255, 0.98);
   box-shadow:
@@ -660,33 +588,33 @@ onBeforeUnmount(() => dispose(!submitting.value))
     inset 0 0 24px rgba(58, 143, 142, 0.03);
 }
 
-:global([data-theme='light'] .image-slot) {
+:global([data-theme="light"] .image-slot) {
   border-color: rgba(80, 108, 120, 0.26);
   background: #eef3f5;
 }
 
-:global([data-theme='light'] .image-overlay) {
+:global([data-theme="light"] .image-overlay) {
   background: rgba(238, 244, 246, 0.86);
   color: #455b66;
 }
 
-:global([data-theme='light'] .image-remove) {
+:global([data-theme="light"] .image-remove) {
   border-color: rgba(121, 91, 47, 0.28);
   background: rgba(255, 255, 255, 0.9);
   color: #506570;
 }
 
-:global([data-theme='light'] .composer-actions) {
+:global([data-theme="light"] .composer-actions) {
   border-top-color: rgba(80, 108, 120, 0.18);
 }
 
-:global([data-theme='light'] .attach-button) {
+:global([data-theme="light"] .attach-button) {
   border-color: rgba(78, 109, 121, 0.28);
   background: rgba(255, 255, 255, 0.72);
   color: #536a75;
 }
 
-:global([data-theme='light'] .send-button) {
+:global([data-theme="light"] .send-button) {
   border-color: rgba(157, 101, 18, 0.48);
   background:
     linear-gradient(135deg, rgba(189, 124, 27, 0.14), transparent),
@@ -695,11 +623,11 @@ onBeforeUnmount(() => dispose(!submitting.value))
   box-shadow: 0 0 18px rgba(176, 112, 18, 0.05);
 }
 
-:global([data-theme='light'] .composer-error) {
+:global([data-theme="light"] .composer-error) {
   color: #a33f36;
 }
 
-:global([data-theme='light'] .drop-hint) {
+:global([data-theme="light"] .drop-hint) {
   border-color: rgba(147, 90, 8, 0.62);
   background: rgba(250, 246, 237, 0.94);
   color: #7f4f0a;

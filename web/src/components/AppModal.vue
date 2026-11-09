@@ -1,26 +1,26 @@
 <script setup lang="ts">
-import { NModal } from 'naive-ui'
+const emit = defineEmits<{ close: [] }>();
 withDefaults(
   defineProps<{
-    open: boolean
-    title: string
-    busy?: boolean
-    wide?: boolean
+    open: boolean;
+    title: string;
+    busy?: boolean;
+    wide?: boolean;
   }>(),
   { busy: false, wide: false },
-)
-const emit = defineEmits<{ close: [] }>()
+);
 </script>
+
 <template>
   <NModal
-    :show="open"
-    preset="card"
-    :title="title"
     :aria-label="title"
     :closable="!busy"
-    :mask-closable="!busy"
     :close-on-esc="!busy"
+    :mask-closable="!busy"
+    preset="card"
+    :show="open"
     :style="{ width: wide ? '760px' : '540px', maxWidth: 'calc(100vw - 32px)' }"
+    :title
     @update:show="(value) => !value && emit('close')"
   >
     <slot />

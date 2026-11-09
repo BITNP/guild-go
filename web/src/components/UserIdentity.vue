@@ -1,40 +1,42 @@
 <script setup lang="ts">
-import { NTag } from 'naive-ui'
-import UserAvatar from '@/components/UserAvatar.vue'
-import type { UserSummary } from '@/lib/api'
+import type { UserSummary } from "@/api";
+
 withDefaults(
   defineProps<{
-    user: UserSummary
-    size?: number
-    showName?: boolean
-    showPosition?: boolean
+    user: UserSummary;
+    size?: number;
+    showName?: boolean;
+    showPosition?: boolean;
   }>(),
   { size: 26, showName: true, showPosition: false },
-)
+);
 </script>
+
 <template>
   <span class="user-identity">
     <RouterLink
-      :to="{ name: 'user', params: { subject: user.subject } }"
-      class="user-link"
       :aria-label="user.userName"
+      class="user-link"
+      :to="{ name: 'user', params: { subject: user.subject } }"
     >
       <UserAvatar
         class="user-avatar"
         :name="user.userName"
-        :size="size"
+        :size
         :src="user.avatar"
       />
       <span v-if="showName" class="user-name">{{ user.userName }}</span>
     </RouterLink>
     <NTag
       v-if="showPosition && user.positions[0]"
-      size="small"
       :bordered="false"
-      >{{ user.positions[0].label }}</NTag
+      size="small"
     >
+      {{ user.positions[0].label }}
+    </NTag>
   </span>
 </template>
+
 <style scoped>
 .user-identity,
 .user-link {

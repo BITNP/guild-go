@@ -1,81 +1,75 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue'
-import { FileText, MessageSquare, X } from '@lucide/vue'
-import ImageGallery from '@/components/ImageGallery.vue'
-import PreviewImage from '@/components/PreviewImage.vue'
-import type { ProgressItem } from '@/lib/api'
-import {
-  formatDateTime,
-  reactionEmoji,
-  reactionKeys,
-} from '@/lib/utils'
-
-const props = defineProps<{
-  item: ProgressItem
-  nodeTitle: string
-  busy: boolean
-}>()
+import type { ProgressItem } from "@/api";
 
 const emit = defineEmits<{
-  close: []
-  reaction: [commentId: number, emoji: string]
-}>()
+  close: [];
+  reaction: [commentId: number, emoji: string];
+}>();
+
+const props = defineProps<{
+  item: ProgressItem;
+  nodeTitle: string;
+  busy: boolean;
+}>();
 
 const comment = computed(() =>
-  props.item.kind === 'comment' ? props.item.comment : null,
-)
+  props.item.kind === "comment" ? props.item.comment : null,
+);
 const change = computed(() =>
-  props.item.kind === 'description_change'
+  props.item.kind === "description_change"
     ? props.item.descriptionChange
     : null,
-)
-const author = computed(() => comment.value?.author ?? change.value?.author)
-const createdAt = computed(() =>
-  comment.value?.createdAt ?? change.value?.createdAt ?? '',
-)
+);
+const author = computed(() => comment.value?.author ?? change.value?.author);
+const createdAt = computed(
+  () => comment.value?.createdAt ?? change.value?.createdAt ?? "",
+);
 const body = computed(() => {
   if (comment.value) {
     return comment.value.body.trim()
       ? comment.value.body
-      : comment.value.attachments.length
-        ? '图片进展'
-        : '无正文'
+      : comment.value.attachments.length > 0
+        ? "图片进展"
+        : "无正文";
   }
-  return change.value?.after.trim() ? change.value.after : '清空了节点描述'
-})
+
+  return change.value?.after.trim() ? change.value.after : "清空了节点描述";
+});
 
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') emit('close')
+  if (event.key === "Escape") {
+    emit("close");
+  }
 }
 
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+onMounted(() => window.addEventListener("keydown", onKeydown));
+onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 </script>
 
 <template>
   <div class="progress-detail-backdrop" @click.self="emit('close')">
     <article
+      aria-labelledby="progress-detail-title"
+      aria-modal="true"
       class="progress-detail"
       data-graph-progress-detail
       role="dialog"
-      aria-modal="true"
-      aria-labelledby="progress-detail-title"
     >
       <header class="progress-detail-header">
-        <span class="progress-detail-mark" aria-hidden="true">
+        <span aria-hidden="true" class="progress-detail-mark">
           <MessageSquare v-if="comment" :size="17" />
           <FileText v-else :size="17" />
         </span>
         <div>
           <span class="progress-detail-kicker">
-            {{ comment ? '进展' : '描述变更' }}
+            {{ comment ? "进展" : "描述变更" }}
           </span>
           <strong id="progress-detail-title">{{ nodeTitle }}</strong>
         </div>
         <button
-          type="button"
-          class="progress-detail-close"
           aria-label="关闭进展详情"
+          class="progress-detail-close"
+          type="button"
           @click="emit('close')"
         >
           <X :size="17" />
@@ -98,21 +92,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         >
           <div class="progress-detail-images">
             <PreviewImage
-            v-for="(image, index) in comment.attachments"
-            :key="image.id"
-            :src="image.url"
-            :alt="`进展图片 ${index + 1}`"
-            :width="132"
-            :height="100"
-            lazy
-            class="progress-detail-image"
+              v-for="(image, index) in comment.attachments"
+              :key="image.id"
+              :alt="`进展图片 ${index + 1}`"
+              class="progress-detail-image"
+              :height="100"
+              lazy
+              :src="image.url"
+              :width="132"
             />
           </div>
         </ImageGallery>
 
         <details v-if="change" class="progress-before">
           <summary>查看修改前内容</summary>
-          <p>{{ change.before || '此前没有节点描述' }}</p>
+          <p>{{ change.before || "此前没有节点描述" }}</p>
         </details>
       </div>
 
@@ -121,14 +115,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <button
           v-for="emoji in reactionKeys"
           :key="emoji"
-          type="button"
+          :aria-label="reactionEmoji[emoji]?.label"
           :class="{
             active: comment.reactions.some(
               (reaction) => reaction.emoji === emoji && reaction.reactedByMe,
             ),
           }"
           :disabled="busy"
-          :aria-label="reactionEmoji[emoji]?.label"
+          type="button"
           @click="emit('reaction', comment.id, emoji)"
         >
           {{ reactionEmoji[emoji]?.symbol }}
@@ -361,78 +355,82 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   transform: perspective(1400px) translateY(16px) scale(0.97);
 }
 
-:global([data-theme='light'] .progress-detail-backdrop) {
+:global([data-theme="light"] .progress-detail-backdrop) {
   background: rgba(220, 228, 232, 0.42);
 }
 
-:global([data-theme='light'] .progress-detail) {
+:global([data-theme="light"] .progress-detail) {
   border-color: rgba(158, 103, 18, 0.3);
   border-left-color: rgba(151, 94, 12, 0.62);
   background:
     linear-gradient(135deg, rgba(193, 128, 29, 0.07), transparent 32%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(245, 248, 249, 0.99));
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.99),
+      rgba(245, 248, 249, 0.99)
+    );
   box-shadow:
     0 30px 90px rgba(45, 60, 69, 0.24),
     inset 0 0 44px rgba(55, 137, 135, 0.02);
   color: #273740;
 }
 
-:global([data-theme='light'] .progress-detail-header),
-:global([data-theme='light'] .progress-detail-meta) {
+:global([data-theme="light"] .progress-detail-header),
+:global([data-theme="light"] .progress-detail-meta) {
   border-color: rgba(81, 105, 116, 0.16);
 }
 
-:global([data-theme='light'] .progress-detail-header strong) {
+:global([data-theme="light"] .progress-detail-header strong) {
   color: #17242c;
 }
 
-:global([data-theme='light'] .progress-detail-mark) {
+:global([data-theme="light"] .progress-detail-mark) {
   border-color: rgba(153, 99, 16, 0.36);
   color: #8b5a10;
 }
 
-:global([data-theme='light'] .progress-detail-kicker) {
+:global([data-theme="light"] .progress-detail-kicker) {
   color: #207a63;
 }
 
-:global([data-theme='light'] .progress-detail-meta) {
+:global([data-theme="light"] .progress-detail-meta) {
   color: #667b85;
 }
 
-:global([data-theme='light'] .progress-detail-close) {
+:global([data-theme="light"] .progress-detail-close) {
   border-color: rgba(78, 105, 117, 0.24);
   background: rgba(255, 255, 255, 0.78);
   color: #546b75;
 }
 
-:global([data-theme='light'] .progress-detail-body > p) {
+:global([data-theme="light"] .progress-detail-body > p) {
   color: #24343d;
 }
 
-:global([data-theme='light'] .progress-before) {
+:global([data-theme="light"] .progress-before) {
   border-top-color: rgba(80, 105, 116, 0.15);
 }
 
-:global([data-theme='light'] .progress-before summary) {
+:global([data-theme="light"] .progress-before summary) {
   color: #8b590e;
 }
 
-:global([data-theme='light'] .progress-before p) {
+:global([data-theme="light"] .progress-before p) {
   color: #5b707a;
 }
 
-:global([data-theme='light'] .progress-detail-reactions) {
+:global([data-theme="light"] .progress-detail-reactions) {
   border-top-color: rgba(80, 105, 116, 0.16);
   color: #687d87;
 }
 
-:global([data-theme='light'] .progress-detail-reactions button) {
+:global([data-theme="light"] .progress-detail-reactions button) {
   border-color: rgba(82, 108, 120, 0.24);
   background: rgba(255, 255, 255, 0.76);
   color: #283942;
 }
 
-:global([data-theme='light'] .progress-detail-reactions button.active) {
+:global([data-theme="light"] .progress-detail-reactions button.active) {
   border-color: rgba(156, 100, 16, 0.52);
   background: rgba(190, 126, 29, 0.1);
 }
