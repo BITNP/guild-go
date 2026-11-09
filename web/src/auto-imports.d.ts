@@ -147,6 +147,7 @@ declare global {
   const useTemplateRef: typeof import('vue').useTemplateRef
   const useTheme: typeof import('./composables/useTheme').useTheme
   const useThemeVars: typeof import('naive-ui').useThemeVars
+  const visibleNodeIds: typeof import('./lib/nodeTree').visibleNodeIds
   const watch: typeof import('vue').watch
   const watchEffect: typeof import('vue').watchEffect
   const watchPostEffect: typeof import('vue').watchPostEffect
@@ -173,6 +174,9 @@ declare global {
   // @ts-ignore
   export type { MoveTargetOption } from './lib/moveTargets'
   import('./lib/moveTargets')
+  // @ts-ignore
+  export type { NodeTreeFilters } from './lib/nodeTree'
+  import('./lib/nodeTree')
   // @ts-ignore
   export type { LinkSegment } from './lib/text'
   import('./lib/text')
@@ -322,6 +326,7 @@ declare module 'vue' {
     readonly useTemplateRef: UnwrapRef<typeof import('vue')['useTemplateRef']>
     readonly useTheme: UnwrapRef<typeof import('./composables/useTheme')['useTheme']>
     readonly useThemeVars: UnwrapRef<typeof import('naive-ui')['useThemeVars']>
+    readonly visibleNodeIds: UnwrapRef<typeof import('./lib/nodeTree')['visibleNodeIds']>
     readonly watch: UnwrapRef<typeof import('vue')['watch']>
     readonly watchEffect: UnwrapRef<typeof import('vue')['watchEffect']>
     readonly watchPostEffect: UnwrapRef<typeof import('vue')['watchPostEffect']>

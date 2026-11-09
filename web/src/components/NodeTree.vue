@@ -21,39 +21,13 @@ const tags = computed(() =>
     .sort((a, b) => a.localeCompare(b, "zh-CN"))
     .map((value) => ({ label: value, value })),
 );
-const visible = computed(() => {
-  if (!filtering.value) {
-    return null;
-  }
-  const result = new Set<number>();
-  const query = search.value.trim().toLowerCase();
-  for (const node of nodes.value) {
-    if (relation.value === "leader" && node.myRelation !== "leader") {
-      continue;
-    }
-    if (relation.value === "member" && !node.myRelation) {
-      continue;
-    }
-    if (tag.value && !node.tags.includes(tag.value)) {
-      continue;
-    }
-    if (
-      query &&
-      !node.title.toLowerCase().includes(query) &&
-      !node.tags.some((value) => value.toLowerCase().includes(query))
-    ) {
-      continue;
-    }
-    let current: NodeSummary | undefined = node;
-    while (current && !result.has(current.id)) {
-      result.add(current.id);
-      current =
-        current.parentId == null ? undefined : byId.value.get(current.parentId);
-    }
-  }
-
-  return result;
-});
+const visible = computed(() =>
+  visibleNodeIds(nodes.value, byId.value, {
+    search: search.value,
+    relation: relation.value,
+    tag: tag.value,
+  }),
+);
 
 function treeOption(node: NodeSummary): TreeOption[] {
   if (visible.value && !visible.value.has(node.id)) {
