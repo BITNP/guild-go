@@ -137,6 +137,7 @@ declare global {
   const useNodeInlineEditing: typeof import('./composables/useNodeInlineEditing').useNodeInlineEditing
   const useNodePage: typeof import('./composables/useNodePage').useNodePage
   const useNodeStore: typeof import('./composables/useNodeStore').useNodeStore
+  const useOverviewPage: typeof import('./composables/useOverviewPage').useOverviewPage
   const usePanelTilt: typeof import('./composables/usePanelTilt').usePanelTilt
   const useProgressSection: typeof import('./composables/useProgressSection').useProgressSection
   const useRoute: typeof import('vue-router').useRoute
@@ -307,6 +308,7 @@ declare module 'vue' {
     readonly useNodeInlineEditing: UnwrapRef<typeof import('./composables/useNodeInlineEditing')['useNodeInlineEditing']>
     readonly useNodePage: UnwrapRef<typeof import('./composables/useNodePage')['useNodePage']>
     readonly useNodeStore: UnwrapRef<typeof import('./composables/useNodeStore')['useNodeStore']>
+    readonly useOverviewPage: UnwrapRef<typeof import('./composables/useOverviewPage')['useOverviewPage']>
     readonly usePanelTilt: UnwrapRef<typeof import('./composables/usePanelTilt')['usePanelTilt']>
     readonly useProgressSection: UnwrapRef<typeof import('./composables/useProgressSection')['useProgressSection']>
     readonly useRoute: UnwrapRef<typeof import('vue-router')['useRoute']>
