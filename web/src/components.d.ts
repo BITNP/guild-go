@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AccountMenu: typeof import('./components/AccountMenu.vue')['default']
     AppModal: typeof import('./components/AppModal.vue')['default']
     AppShell: typeof import('./components/AppShell.vue')['default']
     ArrowDown: typeof import('@lucide/vue')['ArrowDown']
