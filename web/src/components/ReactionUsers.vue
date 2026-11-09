@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { UserSummary } from "@/api";
-
 const props = defineProps<{ commentId: number; emoji: string }>();
 const people = ref<UserSummary[]>([]);
 const loading = ref(true);

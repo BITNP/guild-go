@@ -1,5 +1,3 @@
-import type { NodeDetail } from "@/api";
-
 interface LoadNodeOptions {
   silent?: boolean;
   errorFallback?: string;

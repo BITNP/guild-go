@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { Reaction } from "@/api";
-
 const emit = defineEmits<{ reaction: [emoji: string] }>();
 const props = defineProps<{
   commentId: number;

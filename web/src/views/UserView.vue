@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { Profile } from "@/api";
-
 const route = useRoute();
 const { user } = useAuth();
 const subject = computed(() => String(route.params.subject ?? ""));

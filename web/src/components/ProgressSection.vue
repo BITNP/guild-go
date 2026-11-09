@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Comment, ProgressCursor, ProgressItem, Reaction } from "@/api";
+import type { Comment } from "@/api";
 
 const emit = defineEmits<{ changed: [] }>();
 const props = defineProps<{

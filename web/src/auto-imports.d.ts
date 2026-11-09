@@ -157,8 +157,14 @@ declare global {
   export type { ApiError } from './api/client'
   import('./api/client')
   // @ts-ignore
+  export type { AuthStatus, Department, Permissions, Position, Profile, UserSummary, Attachment, Comment, CommentList, CommentPreview, DescriptionChange, ProgressCursor, ProgressItem, ProgressList, Reaction, Breadcrumb, ChildNode, EffectiveMember, EffectiveMembers, MemberSource, NodeCreateInput, NodeDetail, NodePermissions, NodeSummary, NodeUpdateInput, Overview, RecentComment, RootSummary } from './api/index'
+  import('./api/index')
+  // @ts-ignore
   export type { ThemeMode } from './composables/useTheme'
   import('./composables/useTheme')
+  // @ts-ignore
+  export type { GraphNode, GraphNeighborhood } from './graph/types'
+  import('./graph/types')
   // @ts-ignore
   export type { LinkSegment } from './lib/text'
   import('./lib/text')

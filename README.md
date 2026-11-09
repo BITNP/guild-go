@@ -121,9 +121,10 @@ doc/API.md              API 契约
 
 没有 pnpm workspace，也没有把前端作为独立发布物；前端源码在 `web/`，Vite 输出到 `internal/web/dist`，Go 二进制嵌入后单进程提供。
 
-前端通过 `unplugin-auto-import` 自动导入 Vue、Vue Router、Naive UI、Lucide
-以及 `@/api`、`@/composables`、`@/lib` 的运行时导出；本地组件由
-`unplugin-vue-components` 自动注册。类型仍使用显式 `import type`，便于追踪边界。
+前端通过 `unplugin-auto-import` 自动导入 Vue、Vue Router、Naive UI、Lucide，
+以及 `@/api`、`@/composables`、`@/lib` 的运行时导出和 `@/api`、`@/graph/types`
+的类型导出；本地组件由 `unplugin-vue-components` 自动注册。`Comment`、`ChildNode`
+与 DOM 全局类型同名，继续显式 `import type`。
 
 ## 权限模型
 

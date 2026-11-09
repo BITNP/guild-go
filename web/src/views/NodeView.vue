@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { NodeDetail } from "@/api";
-
 const route = useRoute();
 const router = useRouter();
 const { reload: reloadNodes } = useNodeStore();

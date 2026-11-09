@@ -1,7 +1,5 @@
 import * as THREE from "three";
 
-import type { ThemeMode } from "@/composables/useTheme";
-
 const LABEL_CANVAS_WIDTH = 768;
 const LABEL_CANVAS_HEIGHT = 192;
 

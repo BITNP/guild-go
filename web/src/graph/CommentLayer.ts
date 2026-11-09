@@ -1,8 +1,5 @@
 import * as THREE from "three";
 
-import type { ProgressItem } from "@/api";
-import type { ThemeMode } from "@/composables/useTheme";
-
 import {
   CARD_CANVAS_HEIGHT,
   CARD_CANVAS_WIDTH,

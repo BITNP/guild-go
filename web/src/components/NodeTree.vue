@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import type { TreeOption } from "naive-ui";
 
-import type { NodeDetail, NodeSummary } from "@/api";
-
 const emit = defineEmits<{ navigate: [] }>();
 const route = useRoute();
 const router = useRouter();

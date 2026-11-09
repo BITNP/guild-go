@@ -1,6 +1,4 @@
-import type { NodeSummary } from "@/api";
 import { VIRTUAL_ROOT_ID } from "@/graph/layout";
-import type { GraphNeighborhood } from "@/graph/types";
 import {
   buildVirtualRootDetail,
   buildVirtualRootNode,

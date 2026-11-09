@@ -1,5 +1,3 @@
-import type { NodeDetail } from "@/api";
-
 interface CreateParent {
   id: number | null;
   title: string;

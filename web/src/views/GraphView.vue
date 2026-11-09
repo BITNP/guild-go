@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Comment, NodeDetail } from "@/api";
+import type { Comment } from "@/api";
 import { VIRTUAL_ROOT_ID } from "@/graph/layout";
 
 interface GraphStageExpose {

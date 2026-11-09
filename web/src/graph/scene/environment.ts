@@ -1,7 +1,5 @@
 import * as THREE from "three";
 
-import type { ThemeMode } from "@/composables/useTheme";
-
 import type { GraphGround } from "../ground";
 import { createGround } from "../ground";
 import { createDust } from "../visuals";

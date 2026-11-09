@@ -1,8 +1,5 @@
 import * as THREE from "three";
 
-import type { ThemeMode } from "@/composables/useTheme";
-import type { GraphNode } from "@/graph/types";
-
 import { VIRTUAL_ROOT_ID } from "../layout";
 import { createLabelTexture, createNodeGlowTexture } from "../visuals";
 import { SCENE_PALETTES, nodeAccent } from "./palette";

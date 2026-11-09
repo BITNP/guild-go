@@ -1,8 +1,5 @@
 import * as THREE from "three";
 
-import type { ProgressItem } from "@/api";
-import type { ThemeMode } from "@/composables/useTheme";
-
 export const CARD_CANVAS_WIDTH = 1024;
 export const CARD_CANVAS_HEIGHT = 400;
 export const REACTION_ROW_TOP = 300;

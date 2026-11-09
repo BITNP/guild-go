@@ -1,4 +1,4 @@
-import type { Comment, ProgressCursor, ProgressItem, Reaction } from "@/api";
+import type { Comment } from "@/api";
 
 export function useGraphProgress() {
   const items = ref<ProgressItem[]>([]);

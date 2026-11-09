@@ -1,5 +1,3 @@
-import type { ThemeMode } from "@/composables/useTheme";
-
 export interface ScenePalette {
   accent: number;
   background: number;

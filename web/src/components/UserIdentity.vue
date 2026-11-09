@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { UserSummary } from "@/api";
-
 withDefaults(
   defineProps<{
     user: UserSummary;

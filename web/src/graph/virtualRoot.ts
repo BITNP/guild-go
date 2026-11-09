@@ -1,4 +1,4 @@
-import type { ChildNode, NodeDetail, NodeSummary } from "@/api";
+import type { ChildNode } from "@/api";
 
 import { VIRTUAL_ROOT_ID } from "./layout";
 import type { GraphNode } from "./types";

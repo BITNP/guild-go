@@ -1,7 +1,4 @@
 <script setup lang="ts">
-import type { NodeDetail } from "@/api";
-import type { GraphNode } from "@/graph/types";
-
 const emit = defineEmits<{
   close: [];
   navigate: [id: number];
@@ -60,7 +57,7 @@ function onMembersSaved(node: NodeDetail) {
   emit("updated", node);
 }
 
-function createNode() {
+function requestCreateNode() {
   if (props.isVirtualRoot) {
     emit("createRoot");
   } else {
@@ -203,7 +200,7 @@ function createNode() {
                 v-if="detail.permissions.canAddChild"
                 class="panel-edit-button is-primary"
                 type="button"
-                @click="createNode"
+                @click="requestCreateNode"
               >
                 <Plus :size="12" />
                 {{ isVirtualRoot ? "新建根节点" : "新建子节点" }}

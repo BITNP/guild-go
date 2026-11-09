@@ -1,10 +1,6 @@
 import * as THREE from "three";
 import { CSS3DRenderer } from "three/addons/renderers/CSS3DRenderer.js";
 
-import type { ProgressItem } from "@/api";
-import type { ThemeMode } from "@/composables/useTheme";
-import type { GraphNeighborhood, GraphNode } from "@/graph/types";
-
 import { CommentLayer } from "./CommentLayer";
 import type { GraphLayout } from "./layout";
 import { VIRTUAL_ROOT_ID, layoutGraph } from "./layout";

@@ -1,5 +1,3 @@
-import type { Reaction } from "@/api";
-
 export function useCommentReactions(
   update: (commentId: number, reactions: Reaction[]) => void,
   fallbackError: string,

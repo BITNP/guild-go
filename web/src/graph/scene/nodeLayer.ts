@@ -1,8 +1,5 @@
 import * as THREE from "three";
 
-import type { ThemeMode } from "@/composables/useTheme";
-import type { GraphNode } from "@/graph/types";
-
 import type { GraphLayout } from "../layout";
 import { VIRTUAL_ROOT_ID } from "../layout";
 import { LABEL_ASPECT_RATIO } from "../visuals";

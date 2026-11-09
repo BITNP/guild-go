@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChildNode, UserSummary } from "@/api";
+import type { ChildNode } from "@/api";
 
 defineProps<{ node: ChildNode; leaders?: UserSummary[] }>();
 </script>

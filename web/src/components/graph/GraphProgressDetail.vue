@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { ProgressItem } from "@/api";
-
 const emit = defineEmits<{
   close: [];
   reaction: [commentId: number, emoji: string];

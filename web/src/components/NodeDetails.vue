@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { NodeDetail } from "@/api";
-
 defineProps<{ node: NodeDetail }>();
 </script>
 

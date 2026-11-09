@@ -1,5 +1,3 @@
-import type { NodeSummary } from "@/api";
-
 const nodes = ref<NodeSummary[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);

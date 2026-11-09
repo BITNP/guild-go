@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import type { Comment, ProgressItem } from "@/api";
-import type { ThemeMode } from "@/composables/useTheme";
+import type { Comment } from "@/api";
 import { GraphScene } from "@/graph/GraphScene";
-import type { GraphNeighborhood, GraphNode } from "@/graph/types";
 
 const emit = defineEmits<{
   select: [id: number];

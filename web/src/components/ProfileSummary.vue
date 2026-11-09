@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { Profile } from "@/api";
-
 defineProps<{ profile: Profile; showPermissions: boolean }>();
 </script>
 

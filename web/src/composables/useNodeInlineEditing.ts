@@ -1,5 +1,3 @@
-import type { NodeDetail } from "@/api";
-
 export function useNodeInlineEditing(
   node: MaybeRefOrGetter<NodeDetail | null>,
   onUpdated: (node: NodeDetail) => void,

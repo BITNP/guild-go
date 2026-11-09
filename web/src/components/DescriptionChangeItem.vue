@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { DescriptionChange } from "@/api";
-
 const props = defineProps<{ change: DescriptionChange }>();
 const expanded = ref(false);
 const action = computed(() =>

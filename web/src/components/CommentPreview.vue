@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { CommentPreview } from "@/api";
-
 defineProps<{
   comment: Omit<CommentPreview, "attachmentCount"> & {
     attachmentCount?: number;

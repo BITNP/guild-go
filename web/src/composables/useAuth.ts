@@ -1,5 +1,3 @@
-import type { Profile } from "@/api";
-
 const user = ref<Profile | null>(null);
 const state = ref<"anonymous" | "active">("anonymous");
 const loading = ref(true);

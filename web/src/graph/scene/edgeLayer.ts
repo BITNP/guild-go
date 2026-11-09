@@ -1,7 +1,5 @@
 import * as THREE from "three";
 
-import type { ThemeMode } from "@/composables/useTheme";
-
 import type { GraphLayout } from "../layout";
 import { VIRTUAL_ROOT_ID } from "../layout";
 import { createEdgeGeometry } from "../visuals";

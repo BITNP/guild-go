@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { NodeDetail } from "@/api";
-
 const emit = defineEmits<{
   "update:open": [open: boolean];
   "saved": [node: NodeDetail];
@@ -72,17 +70,20 @@ async function submit() {
       dueAt: due.value === null ? null : new Date(due.value).toISOString(),
       tags: splitTags(tags.value),
     };
-    const result = creating.value
-      ? await createNode({
-          ...data,
-          parentId: props.parentId,
-          leaderSubjects: leaders.value,
-          memberSubjects: members.value,
-        })
-      : await updateNode(props.node!.id, {
-          ...data,
-          completed: completed.value,
-        });
+    let result: NodeDetail;
+    if (creating.value) {
+      result = await createNode({
+        ...data,
+        parentId: props.parentId,
+        leaderSubjects: leaders.value,
+        memberSubjects: members.value,
+      });
+    } else {
+      result = await updateNode(props.node!.id, {
+        ...data,
+        completed: completed.value,
+      });
+    }
     emit("saved", result);
     emit("update:open", false);
   } catch (err) {

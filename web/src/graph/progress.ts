@@ -1,5 +1,3 @@
-import type { ProgressItem } from "@/api";
-
 export function progressTextureKey(item: ProgressItem): string {
   if (item.kind === "description_change") {
     const change = item.descriptionChange;

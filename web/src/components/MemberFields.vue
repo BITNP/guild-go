@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import type { SelectGroupOption, SelectOption } from "naive-ui";
 
-import type { EffectiveMembers, UserSummary } from "@/api";
-
 const props = withDefaults(
   defineProps<{
     open: boolean;

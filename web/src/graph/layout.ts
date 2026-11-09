@@ -1,5 +1,3 @@
-import type { GraphNode } from "@/graph/types";
-
 export const VIRTUAL_ROOT_ID = -1;
 
 const FIRST_RING_RADIUS = 9.2;

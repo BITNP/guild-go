@@ -22,7 +22,12 @@ export default defineConfig({
     AutoImport({
       dts: "src/auto-imports.d.ts",
       dtsMode: "overwrite",
-      dirs: ["src/api/index.ts", "src/composables", "src/lib"],
+      dirs: [
+        "src/api/index.ts",
+        "src/composables",
+        "src/graph/types.ts",
+        "src/lib",
+      ],
       imports: [
         "vue",
         "vue-router",

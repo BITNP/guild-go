@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { NodeDetail, NodeSummary } from "@/api";
-
 const emit = defineEmits<{ close: []; saved: [node: NodeDetail] }>();
 const props = defineProps<{ open: boolean; node: NodeDetail }>();
 const { isAdmin, isManager } = useAuth();

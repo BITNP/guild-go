@@ -1,5 +1,3 @@
-import type { Department } from "@/api";
-
 export function departmentLabel(
   department: Department | string | null | undefined,
 ): string {
