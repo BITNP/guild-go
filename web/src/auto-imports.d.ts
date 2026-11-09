@@ -128,12 +128,14 @@ declare global {
   const useCssVars: typeof import('vue').useCssVars
   const useGraphProgress: typeof import('./composables/useGraphProgress').useGraphProgress
   const useGraphSelection: typeof import('./composables/useGraphSelection').useGraphSelection
+  const useGraphView: typeof import('./composables/useGraphView').useGraphView
   const useId: typeof import('vue').useId
   const useLink: typeof import('vue-router').useLink
   const useModel: typeof import('vue').useModel
   const useNodeDetailState: typeof import('./composables/useNodeDetailState').useNodeDetailState
   const useNodeDialogs: typeof import('./composables/useNodeDialogs').useNodeDialogs
   const useNodeInlineEditing: typeof import('./composables/useNodeInlineEditing').useNodeInlineEditing
+  const useNodePage: typeof import('./composables/useNodePage').useNodePage
   const useNodeStore: typeof import('./composables/useNodeStore').useNodeStore
   const usePanelTilt: typeof import('./composables/usePanelTilt').usePanelTilt
   const useRoute: typeof import('vue-router').useRoute
@@ -295,12 +297,14 @@ declare module 'vue' {
     readonly useCssVars: UnwrapRef<typeof import('vue')['useCssVars']>
     readonly useGraphProgress: UnwrapRef<typeof import('./composables/useGraphProgress')['useGraphProgress']>
     readonly useGraphSelection: UnwrapRef<typeof import('./composables/useGraphSelection')['useGraphSelection']>
+    readonly useGraphView: UnwrapRef<typeof import('./composables/useGraphView')['useGraphView']>
     readonly useId: UnwrapRef<typeof import('vue')['useId']>
     readonly useLink: UnwrapRef<typeof import('vue-router')['useLink']>
     readonly useModel: UnwrapRef<typeof import('vue')['useModel']>
     readonly useNodeDetailState: UnwrapRef<typeof import('./composables/useNodeDetailState')['useNodeDetailState']>
     readonly useNodeDialogs: UnwrapRef<typeof import('./composables/useNodeDialogs')['useNodeDialogs']>
     readonly useNodeInlineEditing: UnwrapRef<typeof import('./composables/useNodeInlineEditing')['useNodeInlineEditing']>
+    readonly useNodePage: UnwrapRef<typeof import('./composables/useNodePage')['useNodePage']>
     readonly useNodeStore: UnwrapRef<typeof import('./composables/useNodeStore')['useNodeStore']>
     readonly usePanelTilt: UnwrapRef<typeof import('./composables/usePanelTilt')['usePanelTilt']>
     readonly useRoute: UnwrapRef<typeof import('vue-router')['useRoute']>

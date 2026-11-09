@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { Comment } from "@/api";
 import { VIRTUAL_ROOT_ID } from "@/graph/layout";
 
 interface GraphStageExpose {
@@ -9,55 +8,24 @@ interface GraphStageExpose {
 
 const {
   nodes,
-  byId,
-  roots,
-  childrenOf,
   loading,
-  error: dataError,
-  load,
+  dataError,
   reload,
-  removeSubtree,
-} = useNodeStore();
-const { isManager, isAdmin } = useAuth();
-const { mode: themeMode } = useTheme();
-const {
-  items: progress,
-  loading: progressLoading,
-  hasMore: progressHaveMore,
-  error: progressError,
-  load: loadProgress,
-  loadOlder: loadOlderProgress,
-  add: addProgressComment,
-  updateReactions,
-  clear: clearProgress,
-} = useGraphProgress();
-const {
-  reacting,
-  error: reactionError,
-  react,
-  clearError: clearReactionError,
-} = useCommentReactions(updateReactions, "表情操作失败");
-const canManageRoots = computed(() => isManager.value || isAdmin.value);
-const {
+  themeMode,
   active,
   detail,
   detailError,
   detailLoading,
   loadDetail,
-  refresh: refreshSelection,
-  select: selectNode,
-  selectedId,
-  setDetail,
-  clear: clearSelection,
-} = useGraphSelection({
-  byId,
-  canManageRoots,
-  childrenOf,
-  loadProgress,
-  nodes,
-  roots,
-});
-const {
+  selectNode,
+  clearSelection,
+  progress,
+  progressLoading,
+  progressHaveMore,
+  progressError,
+  loadOlderProgress,
+  reacting,
+  reactionError,
   editOpen,
   createOpen,
   createParent,
@@ -66,122 +34,26 @@ const {
   moveOpen,
   orderOpen,
   openEdit,
-  openCreate,
-  openDelete: openDeleteDialog,
   openMove,
   openOrder,
   closeAll,
-} = useNodeDialogs();
+  expandedProgress,
+  expandedProgressKey,
+  selectionLoading,
+  onCommentCreated,
+  reactToComment,
+  openProgress,
+  onDetailUpdated,
+  openCreateRoot,
+  openCreateChild,
+  openDelete,
+  onNodeSaved,
+  onNodeCreated,
+  onNodeMoved,
+  onNodeDeleted,
+  onNodesOrdered,
+} = useGraphView();
 const stage = ref<GraphStageExpose | null>(null);
-const expandedProgressKey = ref<string | null>(null);
-
-const expandedProgress = computed(() => {
-  const key = expandedProgressKey.value;
-
-  return key == null
-    ? null
-    : (progress.value.find((item) => progressKey(item) === key) ?? null);
-});
-const selectionLoading = computed(() => {
-  const selected = active.value;
-  if (!selected) {
-    return false;
-  }
-  const detailPending =
-    detailLoading.value ||
-    (detail.value?.id !== selected.node.id && !detailError.value);
-
-  return detailPending || progressLoading.value;
-});
-
-function onCommentCreated(comment: Comment) {
-  addProgressComment(comment);
-  clearReactionError();
-
-  if (detail.value?.id === comment.nodeId) {
-    setDetail({
-      ...detail.value,
-      subtreeCommentCount: detail.value.subtreeCommentCount + 1,
-    });
-  }
-
-  void reload();
-}
-
-function reactToComment(commentId: number, emoji: string) {
-  void react(commentId, emoji);
-}
-
-function openProgress(key: string) {
-  expandedProgressKey.value = key;
-}
-
-function onDetailUpdated(node: NodeDetail) {
-  if (active.value?.node.id === node.id) {
-    setDetail(node);
-  }
-  void reload();
-}
-
-function openCreateRoot() {
-  openCreate(null);
-}
-
-function openCreateChild() {
-  if (!detail.value) {
-    return;
-  }
-  openCreate(detail.value);
-}
-
-function openDelete() {
-  openDeleteDialog(detail.value);
-}
-
-async function onNodeSaved(node: NodeDetail) {
-  closeAll();
-
-  if (active.value?.node.id === node.id) {
-    setDetail(node);
-  }
-  await reload();
-  if (active.value?.node.id === node.id) {
-    await loadProgress(node.id);
-  }
-}
-
-async function onNodeCreated(node: NodeDetail) {
-  closeAll();
-  await reload();
-  selectNode(node.id);
-}
-
-async function onNodeMoved(node: NodeDetail) {
-  closeAll();
-  await reload();
-
-  if (active.value?.node.id === node.id) {
-    await refreshSelection();
-  }
-}
-
-async function onNodeDeleted() {
-  const deletedId = deleteTarget.value?.id;
-  const parentId = deleteTarget.value?.parentId ?? null;
-
-  closeAll();
-  if (deletedId != null) {
-    removeSubtree(deletedId);
-  }
-  await reload();
-  selectNode(parentId ?? VIRTUAL_ROOT_ID);
-}
-
-async function onNodesOrdered() {
-  closeAll();
-  await reload();
-  await refreshSelection();
-}
 
 function onWheel(event: WheelEvent) {
   if (!active.value) {
@@ -199,17 +71,6 @@ function onWheel(event: WheelEvent) {
   event.stopPropagation();
   stage.value?.scrollProgress(event.deltaY);
 }
-
-onMounted(() => {
-  void load();
-});
-
-watch(selectedId, () => {
-  closeAll();
-  clearReactionError();
-  expandedProgressKey.value = null;
-  clearProgress();
-});
 </script>
 
 <template>

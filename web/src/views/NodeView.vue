@@ -1,19 +1,10 @@
 <script setup lang="ts">
-const route = useRoute();
-const router = useRouter();
-const { reload: reloadNodes } = useNodeStore();
-const nodeId = computed(() => Number(route.params.id));
 const {
   detail,
   loading,
   error,
-  load: loadDetail,
-  setDetail,
-  setError,
-} = useNodeDetailState(true);
-const actionError = ref<string | null>(null);
-const toggling = ref(false);
-const {
+  actionError,
+  toggling,
   editOpen,
   createOpen,
   membersOpen,
@@ -27,94 +18,15 @@ const {
   openOrder,
   openMembers,
   closeAll,
-} = useNodeDialogs();
-
-async function load(silent = false) {
-  const requested = nodeId.value;
-
-  if (!Number.isSafeInteger(requested) || requested <= 0) {
-    setError("节点不存在");
-
-    return;
-  }
-
-  actionError.value = null;
-
-  await loadDetail(requested, {
-    silent,
-    errorFallback: "无法加载节点",
-    shouldApply: () => requested === nodeId.value,
-  });
-}
-
-async function toggleComplete() {
-  const node = detail.value;
-  if (!node || !node.permissions.canEdit || toggling.value) {
-    return;
-  }
-  toggling.value = true;
-  actionError.value = null;
-  try {
-    const updated = await updateNode(node.id, {
-      title: node.title,
-      description: node.description,
-      dueAt: node.dueAt,
-      tags: node.tags,
-      completed: !node.completedAt,
-    });
-    if (node.id === nodeId.value) {
-      setDetail(updated);
-    }
-    await reloadNodes();
-  } catch (err) {
-    if (node.id === nodeId.value) {
-      actionError.value = errorMessage(err, "更新完成状态失败");
-    }
-  } finally {
-    toggling.value = false;
-  }
-}
-
-function onSaved(node: NodeDetail) {
-  if (node.id === nodeId.value) {
-    setDetail(node);
-  }
-  closeAll();
-  void reloadNodes();
-}
-
-async function onCreated(node: NodeDetail) {
-  closeAll();
-  await reloadNodes();
-  await router.push({ name: "node", params: { id: node.id } });
-}
-
-async function onOrdered() {
-  closeAll();
-  await Promise.all([load(true), reloadNodes()]);
-}
-
-async function onDeleted() {
-  const parentId = detail.value?.parentId;
-  closeAll();
-  await reloadNodes();
-  await router.push(
-    parentId ? { name: "node", params: { id: parentId } } : { name: "home" },
-  );
-}
-
-async function onCommentChanged() {
-  await Promise.all([load(true), reloadNodes()]);
-}
-
-watch(
-  nodeId,
-  () => {
-    closeAll();
-    void load();
-  },
-  { immediate: true },
-);
+  load,
+  toggleCompletion,
+  onSaved,
+  onCreated,
+  onOrdered,
+  onDeleted,
+  onCommentChanged,
+  goHome,
+} = useNodePage();
 </script>
 
 <template>
@@ -128,9 +40,7 @@ watch(
         <NAlert v-if="error" type="error">
           {{ error }}
           <NButton text @click="load()">重试</NButton>
-          <NButton text @click="router.push({ name: 'home' })">
-            返回总览
-          </NButton>
+          <NButton text @click="goHome">返回总览</NButton>
         </NAlert>
         <template v-else-if="detail">
           <header class="node-header">
@@ -172,7 +82,7 @@ watch(
                     :loading="toggling"
                     quaternary
                     :type="detail.completedAt ? 'success' : 'default'"
-                    @click="toggleComplete"
+                    @click="toggleCompletion"
                   >
                     <Check v-if="detail.completedAt" :size="24" />
                     <Circle v-else :size="26" />
