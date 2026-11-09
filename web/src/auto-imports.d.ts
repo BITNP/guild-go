@@ -24,6 +24,7 @@ declare global {
   const UserRound: typeof import('@lucide/vue').UserRound
   const apiFetch: typeof import('./api/client').apiFetch
   const attachmentUrl: typeof import('./api/comments').attachmentUrl
+  const buildMoveTargets: typeof import('./lib/moveTargets').buildMoveTargets
   const cloneVNode: typeof import('vue').cloneVNode
   const computed: typeof import('vue').computed
   const createApp: typeof import('vue').createApp
@@ -170,6 +171,9 @@ declare global {
   export type { GraphNode, GraphNeighborhood } from './graph/types'
   import('./graph/types')
   // @ts-ignore
+  export type { MoveTargetOption } from './lib/moveTargets'
+  import('./lib/moveTargets')
+  // @ts-ignore
   export type { LinkSegment } from './lib/text'
   import('./lib/text')
 }
@@ -195,6 +199,7 @@ declare module 'vue' {
     readonly UserRound: UnwrapRef<typeof import('@lucide/vue')['UserRound']>
     readonly apiFetch: UnwrapRef<typeof import('./api/client')['apiFetch']>
     readonly attachmentUrl: UnwrapRef<typeof import('./api/comments')['attachmentUrl']>
+    readonly buildMoveTargets: UnwrapRef<typeof import('./lib/moveTargets')['buildMoveTargets']>
     readonly cloneVNode: UnwrapRef<typeof import('vue')['cloneVNode']>
     readonly computed: UnwrapRef<typeof import('vue')['computed']>
     readonly createApp: UnwrapRef<typeof import('vue')['createApp']>

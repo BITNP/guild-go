@@ -41,59 +41,12 @@ watch(
   { immediate: true },
 );
 
-const options = computed(() => {
-  const byId = new Map(nodes.value.map((node) => [node.id, node]));
-  const children = new Map<number, number[]>();
-  for (const node of nodes.value) {
-    if (node.parentId == null) {
-      continue;
-    }
-    const siblings = children.get(node.parentId) ?? [];
-    siblings.push(node.id);
-    children.set(node.parentId, siblings);
-  }
-  const excluded = new Set<number>();
-  const pending = [props.node.id];
-  while (pending.length > 0) {
-    const id = pending.pop()!;
-    if (excluded.has(id)) {
-      continue;
-    }
-    excluded.add(id);
-    pending.push(...(children.get(id) ?? []));
-  }
-
-  function path(node: NodeSummary) {
-    const titles: string[] = [];
-    const seen = new Set<number>();
-    let current: NodeSummary | undefined = node;
-    while (current && !seen.has(current.id)) {
-      seen.add(current.id);
-      titles.unshift(current.title);
-      current =
-        current.parentId == null ? undefined : byId.get(current.parentId);
-    }
-
-    return titles.join(" / ");
-  }
-
-  const result = nodes.value
-    .filter(
-      (node) =>
-        !excluded.has(node.id) &&
-        node.id !== props.node.parentId &&
-        (isAdmin.value || node.myRelation === "leader"),
-    )
-    .map((node) => ({ label: path(node), value: node.id }))
-    .sort(
-      (a, b) => a.label.localeCompare(b.label, "zh-CN") || a.value - b.value,
-    );
-  if ((isAdmin.value || isManager.value) && props.node.parentId != null) {
-    result.unshift({ label: "总览（移动为根节点）", value: 0 });
-  }
-
-  return result;
-});
+const options = computed(() =>
+  buildMoveTargets(nodes.value, props.node, {
+    canMoveAnyNode: isAdmin.value,
+    canMoveToRoot: isAdmin.value || isManager.value,
+  }),
+);
 
 async function save() {
   if (saving.value || loading.value || target.value == null) {
