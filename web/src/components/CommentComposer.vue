@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, useId } from 'vue'
+import { onBeforeUnmount, ref, useId } from 'vue'
 import {
   NAlert,
   NButton,
@@ -13,94 +13,77 @@ import { ImagePlus } from '@lucide/vue'
 import ImageUploadPreview from '@/components/ImageUploadPreview.vue'
 import ImageGallery from '@/components/ImageGallery.vue'
 import {
-  createComment,
-  deleteCommentUpload,
-  uploadCommentImage,
-  type Comment,
-} from '@/lib/api'
+  COMMENT_IMAGE_ACCEPT,
+  COMMENT_IMAGE_LIMIT,
+  filesFromClipboard,
+  filesFromDataTransfer,
+  hasFileDrag,
+  useCommentImageDrafts,
+} from '@/composables/useCommentImageDrafts'
+import { createComment, type Comment } from '@/lib/api'
 import { errorMessage } from '@/lib/utils'
-const props = defineProps<{ nodeId: number }>(),
-  emit = defineEmits<{ created: [comment: Comment] }>()
-type DraftImage = {
-  file: File
-  src: string
-  status:
-    | { state: 'uploading' }
-    | { state: 'uploaded'; id: number }
-    | { state: 'failed'; message: string }
-}
-const body = ref(''),
-  images = ref<DraftImage[]>([]),
-  submitting = ref(false),
-  error = ref<string | null>(null),
-  fileInput = ref<HTMLInputElement | null>(null)
+
+const props = defineProps<{ nodeId: number }>()
+const emit = defineEmits<{ created: [comment: Comment] }>()
+const body = ref('')
+const submitting = ref(false)
+const error = ref<string | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+const dragging = ref(false)
 const hintId = useId()
-const pending = computed(() =>
-  images.value.some((image) => image.status.state !== 'uploaded'),
-)
-const types = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
-let active = true
-function discard(id: number) {
-  void deleteCommentUpload(id).catch(() => {
-    /* Expiry cleanup removes uploads left by interrupted requests. */
-  })
+const { images, pending, addFiles, retry, remove, clear, dispose } =
+  useCommentImageDrafts(() => props.nodeId)
+let dragDepth = 0
+
+function acceptFiles(files: File[]) {
+  error.value = null
+  error.value = addFiles(files)
 }
-async function upload(image: DraftImage) {
-  image.status = { state: 'uploading' }
-  try {
-    const { id } = await uploadCommentImage(props.nodeId, image.file)
-    if (!images.value.includes(image)) {
-      discard(id)
-      return
-    }
-    image.status = { state: 'uploaded', id }
-  } catch (err) {
-    image.status = { state: 'failed', message: errorMessage(err) }
-  }
-}
+
 function selectFiles(event: Event) {
   const input = event.target as HTMLInputElement
   const selected = [...(input.files ?? [])]
   input.value = ''
-  error.value = null
-  for (const file of selected) {
-    if (images.value.length >= 4) {
-      error.value = '每条进展最多 4 张图片'
-      break
-    }
-    if (!types.has(file.type)) {
-      error.value = '只支持 JPEG、PNG、WebP、GIF 图片'
-      continue
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      error.value = '单张图片不能超过 5 MB'
-      continue
-    }
-    const image = reactive<DraftImage>({
-      file,
-      src: URL.createObjectURL(file),
-      status: { state: 'uploading' },
-    })
-    images.value.push(image)
-    void upload(image)
-  }
+  acceptFiles(selected)
 }
-function retry(image: DraftImage) {
-  if (!submitting.value && image.status.state === 'failed') void upload(image)
+
+function pasteImages(event: ClipboardEvent) {
+  const files = filesFromClipboard(event.clipboardData)
+  if (!files.length) return
+  event.preventDefault()
+  acceptFiles(files)
 }
-function remove(image: DraftImage) {
-  if (submitting.value || image.status.state === 'uploading') return
-  images.value = images.value.filter((item) => item !== image)
-  URL.revokeObjectURL(image.src)
-  if (image.status.state === 'uploaded') discard(image.status.id)
+
+function dragEnter(event: DragEvent) {
+  if (submitting.value || !hasFileDrag(event.dataTransfer)) return
+  event.preventDefault()
+  dragDepth += 1
+  dragging.value = true
 }
-function clearImages(abandon: boolean) {
-  for (const image of images.value) {
-    URL.revokeObjectURL(image.src)
-    if (abandon && image.status.state === 'uploaded') discard(image.status.id)
-  }
-  images.value = []
+
+function dragOver(event: DragEvent) {
+  if (submitting.value || !hasFileDrag(event.dataTransfer)) return
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+  dragging.value = true
 }
+
+function dragLeave(event: DragEvent) {
+  if (!dragging.value) return
+  event.preventDefault()
+  dragDepth = Math.max(0, dragDepth - 1)
+  if (dragDepth === 0) dragging.value = false
+}
+
+function dropFiles(event: DragEvent) {
+  const files = filesFromDataTransfer(event.dataTransfer)
+  if (!files.length) return
+  event.preventDefault()
+  dragDepth = 0
+  dragging.value = false
+  if (!submitting.value) acceptFiles(files)
+}
+
 async function submit() {
   if (submitting.value || pending.value) return
   error.value = null
@@ -114,9 +97,8 @@ async function submit() {
       image.status.state === 'uploaded' ? [image.status.id] : [],
     )
     const comment = await createComment(props.nodeId, body.value, ids)
-    if (!active) return
     body.value = ''
-    clearImages(false)
+    clear(false)
     emit('created', comment)
   } catch (err) {
     error.value = errorMessage(err)
@@ -124,81 +106,126 @@ async function submit() {
     submitting.value = false
   }
 }
+
 function shortcut(event: KeyboardEvent) {
   if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
     event.preventDefault()
     void submit()
   }
 }
-onBeforeUnmount(() => {
-  active = false
-  clearImages(!submitting.value)
-})
+
+onBeforeUnmount(() => dispose(!submitting.value))
 </script>
 <template>
-  <NCard size="small"
-    ><NForm @submit.prevent="submit"
-      ><NFormItem label="发布进展" :show-feedback="false"
-        ><NInput
-          v-model:value="body"
-          type="textarea"
-          :disabled="submitting"
-          :maxlength="5000"
-          :autosize="{ minRows: 2, maxRows: 10 }"
-          :input-props="{
-            'aria-label': '发布进展',
-            'aria-describedby': hintId,
-          }"
-          placeholder="写下进展或问题…"
-          @keydown="shortcut" /></NFormItem
-      ><ImageGallery
-        ><div v-if="images.length" class="image-previews">
-          <ImageUploadPreview
-            v-for="image in images"
-            :key="image.src"
-            :src="image.src"
-            :name="image.file.name"
-            :uploading="image.status.state === 'uploading'"
-            :error="
-              image.status.state === 'failed' ? image.status.message : null
-            "
-            :disabled="submitting"
-            @retry="retry(image)"
-            @remove="remove(image)"
-          /></div
-      ></ImageGallery>
-      <div class="composer-actions">
-        <NButton
-          size="small"
-          :disabled="submitting || images.length >= 4"
-          @click="fileInput?.click()"
-          ><template #icon><ImagePlus :size="16" /></template>添加图片
-          {{ images.length }}/4</NButton
-        ><NButton
-          type="primary"
-          size="small"
-          attr-type="submit"
-          :loading="submitting"
-          :disabled="pending"
-          >发布进展</NButton
-        >
-      </div>
-      <input
-        ref="fileInput"
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
-        multiple
-        class="file-input"
-        @change="selectFiles"
-      /><NText :id="hintId" depth="3" class="composer-hint"
-        >最多 4 张图片，每张不超过 5 MB · Ctrl / ⌘ + Enter 发布</NText
-      ><NAlert v-if="error" type="error" role="alert" class="composer-error">{{
-        error
-      }}</NAlert></NForm
-    ></NCard
+  <div
+    class="composer-shell"
+    @dragenter="dragEnter"
+    @dragover="dragOver"
+    @dragleave="dragLeave"
+    @drop="dropFiles"
   >
+    <NCard size="small">
+      <NForm @submit.prevent="submit">
+        <NFormItem label="发布进展" :show-feedback="false">
+          <NInput
+            v-model:value="body"
+            type="textarea"
+            :disabled="submitting"
+            :maxlength="5000"
+            :autosize="{ minRows: 2, maxRows: 10 }"
+            :input-props="{
+              'aria-label': '发布进展',
+              'aria-describedby': hintId,
+              onPaste: pasteImages,
+            }"
+            placeholder="写下进展或问题…"
+            @keydown="shortcut"
+          />
+        </NFormItem>
+        <ImageGallery>
+          <div v-if="images.length" class="image-previews">
+            <ImageUploadPreview
+              v-for="image in images"
+              :key="image.src"
+              :src="image.src"
+              :name="image.file.name"
+              :uploading="image.status.state === 'uploading'"
+              :error="
+                image.status.state === 'failed' ? image.status.message : null
+              "
+              :disabled="submitting"
+              @retry="retry(image)"
+              @remove="remove(image)"
+            />
+          </div>
+        </ImageGallery>
+        <div class="composer-actions">
+          <NButton
+            size="small"
+            :disabled="submitting || images.length >= COMMENT_IMAGE_LIMIT"
+            @click="fileInput?.click()"
+          >
+            <template #icon><ImagePlus :size="16" /></template>
+            添加图片 {{ images.length }}/{{ COMMENT_IMAGE_LIMIT }}
+          </NButton>
+          <NButton
+            type="primary"
+            size="small"
+            attr-type="submit"
+            :loading="submitting"
+            :disabled="pending"
+          >
+            发布进展
+          </NButton>
+        </div>
+        <input
+          ref="fileInput"
+          type="file"
+          :accept="COMMENT_IMAGE_ACCEPT"
+          multiple
+          class="file-input"
+          @change="selectFiles"
+        />
+        <NText :id="hintId" depth="3" class="composer-hint">
+          可粘贴、拖拽或选择图片 · 最多 {{ COMMENT_IMAGE_LIMIT }} 张，每张不超过
+          5 MB · Ctrl / ⌘ + Enter 发布
+        </NText>
+        <NAlert
+          v-if="error"
+          type="error"
+          role="alert"
+          class="composer-error"
+        >
+          {{ error }}
+        </NAlert>
+      </NForm>
+    </NCard>
+    <div v-if="dragging" class="drop-hint" aria-hidden="true">
+      <ImagePlus :size="22" />
+      <span>松开以添加图片</span>
+    </div>
+  </div>
 </template>
 <style scoped>
+.composer-shell {
+  position: relative;
+}
+.drop-hint {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px dashed var(--guild-primary);
+  border-radius: 8px;
+  background: var(--guild-surface);
+  color: var(--guild-primary);
+  font-size: 14px;
+  font-weight: 600;
+  pointer-events: none;
+}
 .image-previews {
   display: flex;
   flex-wrap: wrap;

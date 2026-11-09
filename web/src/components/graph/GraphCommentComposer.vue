@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, useId } from 'vue'
+import { computed, onBeforeUnmount, ref, useId } from 'vue'
 import {
   ImagePlus,
   Loader2,
@@ -8,21 +8,15 @@ import {
   X,
 } from '@lucide/vue'
 import {
-  createComment,
-  deleteCommentUpload,
-  uploadCommentImage,
-  type Comment,
-} from '@/lib/api'
+  COMMENT_IMAGE_ACCEPT,
+  COMMENT_IMAGE_LIMIT,
+  filesFromClipboard,
+  filesFromDataTransfer,
+  hasFileDrag,
+  useCommentImageDrafts,
+} from '@/composables/useCommentImageDrafts'
+import { createComment, type Comment } from '@/lib/api'
 import { errorMessage } from '@/lib/utils'
-
-type DraftImage = {
-  file: File
-  src: string
-  status:
-    | { state: 'uploading' }
-    | { state: 'uploaded'; id: number }
-    | { state: 'failed'; message: string }
-}
 
 const props = defineProps<{
   nodeId: number
@@ -30,91 +24,72 @@ const props = defineProps<{
 
 const emit = defineEmits<{ created: [comment: Comment] }>()
 const body = ref('')
-const images = ref<DraftImage[]>([])
 const submitting = ref(false)
 const error = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 const textarea = ref<HTMLTextAreaElement | null>(null)
+const dragging = ref(false)
 const bodyId = useId()
-const acceptedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
-const pending = computed(() =>
-  images.value.some((image) => image.status.state !== 'uploaded'),
-)
+const { images, pending, addFiles, retry, remove, clear, dispose } =
+  useCommentImageDrafts(() => props.nodeId)
 const canSubmit = computed(() =>
   !submitting.value &&
   !pending.value &&
   (body.value.trim().length > 0 || images.value.length > 0),
 )
-let active = true
+let dragDepth = 0
 
-function discard(id: number) {
-  void deleteCommentUpload(id).catch(() => {
-    // Unpublished uploads expire automatically if cleanup cannot finish now.
-  })
-}
-
-async function upload(image: DraftImage) {
-  image.status = { state: 'uploading' }
-  try {
-    const { id } = await uploadCommentImage(props.nodeId, image.file)
-    if (!images.value.includes(image)) {
-      discard(id)
-      return
-    }
-    image.status = { state: 'uploaded', id }
-  } catch (err) {
-    image.status = {
-      state: 'failed',
-      message: errorMessage(err, '图片上传失败'),
-    }
-  }
+function acceptFiles(files: File[]) {
+  error.value = null
+  error.value = addFiles(files)
 }
 
 function selectFiles(event: Event) {
   const input = event.target as HTMLInputElement
   const selected = [...(input.files ?? [])]
   input.value = ''
-  error.value = null
-  for (const file of selected) {
-    if (images.value.length >= 4) {
-      error.value = '每条进展最多添加 4 张图片'
-      break
-    }
-    if (!acceptedTypes.has(file.type)) {
-      error.value = '只支持 JPEG、PNG、WebP、GIF 图片'
-      continue
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      error.value = '单张图片不能超过 5 MB'
-      continue
-    }
-    const image = reactive<DraftImage>({
-      file,
-      src: URL.createObjectURL(file),
-      status: { state: 'uploading' },
-    })
-    images.value.push(image)
-    void upload(image)
-  }
+  acceptFiles(selected)
 }
 
-function retry(image: DraftImage) {
-  if (!submitting.value && image.status.state === 'failed') void upload(image)
+function pasteImages(event: ClipboardEvent) {
+  const files = filesFromClipboard(event.clipboardData)
+  if (!files.length) return
+  event.preventDefault()
+  acceptFiles(files)
 }
 
-function remove(image: DraftImage) {
-  if (submitting.value || image.status.state === 'uploading') return
-  images.value = images.value.filter((item) => item !== image)
-  URL.revokeObjectURL(image.src)
-  if (image.status.state === 'uploaded') discard(image.status.id)
+function dragEnter(event: DragEvent) {
+  if (submitting.value || !hasFileDrag(event.dataTransfer)) return
+  event.preventDefault()
+  event.stopPropagation()
+  dragDepth += 1
+  dragging.value = true
 }
 
-function clearImages(abandon: boolean) {
-  for (const image of images.value) {
-    URL.revokeObjectURL(image.src)
-    if (abandon && image.status.state === 'uploaded') discard(image.status.id)
-  }
-  images.value = []
+function dragOver(event: DragEvent) {
+  if (submitting.value || !hasFileDrag(event.dataTransfer)) return
+  event.preventDefault()
+  event.stopPropagation()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+  dragging.value = true
+}
+
+function dragLeave(event: DragEvent) {
+  if (!dragging.value) return
+  event.preventDefault()
+  event.stopPropagation()
+  dragDepth = Math.max(0, dragDepth - 1)
+  if (dragDepth === 0) dragging.value = false
+}
+
+function dropFiles(event: DragEvent) {
+  const files = filesFromDataTransfer(event.dataTransfer)
+  if (!files.length) return
+  event.preventDefault()
+  event.stopPropagation()
+  dragDepth = 0
+  dragging.value = false
+  if (!submitting.value) acceptFiles(files)
 }
 
 async function submit() {
@@ -131,9 +106,8 @@ async function submit() {
       image.status.state === 'uploaded' ? [image.status.id] : [],
     )
     const comment = await createComment(props.nodeId, body.value, attachmentIds)
-    if (!active) return
     body.value = ''
-    clearImages(false)
+    clear(false)
     emit('created', comment)
   } catch (err) {
     error.value = errorMessage(err, '进展发送失败，请重试')
@@ -169,10 +143,7 @@ function focusComposer(event: PointerEvent) {
   textarea.value?.focus({ preventScroll: true })
 }
 
-onBeforeUnmount(() => {
-  active = false
-  clearImages(!submitting.value)
-})
+onBeforeUnmount(() => dispose(!submitting.value))
 </script>
 
 <template>
@@ -185,6 +156,10 @@ onBeforeUnmount(() => {
     @pointerup.stop
     @click.stop
     @dblclick.stop
+    @dragenter="dragEnter"
+    @dragover="dragOver"
+    @dragleave="dragLeave"
+    @drop="dropFiles"
   >
     <textarea
       ref="textarea"
@@ -197,8 +172,9 @@ onBeforeUnmount(() => {
       :disabled="submitting"
       :aria-invalid="!!error"
       aria-label="请输入进展"
-      placeholder="请输入进展"
+      placeholder="输入进展，可粘贴或拖拽图片"
       @keydown="shortcut"
+      @paste="pasteImages"
     />
 
     <div v-if="images.length" class="composer-images" aria-live="polite">
@@ -239,9 +215,9 @@ onBeforeUnmount(() => {
       <button
         type="button"
         class="attach-button"
-        :disabled="submitting || images.length >= 4"
-        aria-label="添加图片"
-        title="添加图片"
+        :disabled="submitting || images.length >= COMMENT_IMAGE_LIMIT"
+        aria-label="添加图片，也可粘贴或拖拽图片"
+        title="添加图片，也可粘贴或拖拽"
         @click="fileInput?.click()"
       >
         <ImagePlus :size="15" />
@@ -262,11 +238,15 @@ onBeforeUnmount(() => {
     <input
       ref="fileInput"
       type="file"
-      accept="image/jpeg,image/png,image/webp,image/gif"
+      :accept="COMMENT_IMAGE_ACCEPT"
       multiple
       class="file-input"
       @change="selectFiles"
     />
+    <div v-if="dragging" class="drop-hint" aria-hidden="true">
+      <ImagePlus :size="20" />
+      <span>松开以添加图片</span>
+    </div>
     <p v-if="error" class="composer-error" role="alert">
       {{ error }}
     </p>
@@ -498,6 +478,23 @@ onBeforeUnmount(() => {
   line-height: 1.5;
 }
 
+.drop-hint {
+  position: absolute;
+  z-index: 4;
+  inset: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px dashed rgba(240, 188, 79, 0.82);
+  border-radius: 2px;
+  background: rgba(4, 11, 14, 0.9);
+  color: #f5d28b;
+  font-size: 20px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
 .file-input {
   display: none;
 }
@@ -700,6 +697,12 @@ onBeforeUnmount(() => {
 
 :global([data-theme='light'] .composer-error) {
   color: #a33f36;
+}
+
+:global([data-theme='light'] .drop-hint) {
+  border-color: rgba(147, 90, 8, 0.62);
+  background: rgba(250, 246, 237, 0.94);
+  color: #7f4f0a;
 }
 
 @media (prefers-reduced-motion: reduce) {
