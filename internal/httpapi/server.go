@@ -2,6 +2,7 @@
 package httpapi
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -11,35 +12,29 @@ import (
 
 	"git.bitnp.net/BITNP/guild-go/internal/auth"
 	"git.bitnp.net/BITNP/guild-go/internal/comments"
-	"git.bitnp.net/BITNP/guild-go/internal/config"
 	"git.bitnp.net/BITNP/guild-go/internal/database"
 	"git.bitnp.net/BITNP/guild-go/internal/nodes"
-	"git.bitnp.net/BITNP/guild-go/internal/storage"
 	"git.bitnp.net/BITNP/guild-go/internal/users"
 	"git.bitnp.net/BITNP/guild-go/internal/web"
 )
 
 // Server owns the HTTP dependencies.
 type Server struct {
-	cfg      config.Config
 	pool     *pgxpool.Pool
 	auth     *auth.Service
 	users    *users.Service
 	nodes    *nodes.Service
 	comments *comments.Service
-	store    storage.Store
 }
 
 // New creates an HTTP server.
-func New(cfg config.Config, pool *pgxpool.Pool, authService *auth.Service, userService *users.Service, nodeService *nodes.Service, commentService *comments.Service, store storage.Store) *Server {
+func New(pool *pgxpool.Pool, authService *auth.Service, userService *users.Service, nodeService *nodes.Service, commentService *comments.Service) *Server {
 	return &Server{
-		cfg:      cfg,
 		pool:     pool,
 		auth:     authService,
 		users:    userService,
 		nodes:    nodeService,
 		comments: commentService,
-		store:    store,
 	}
 }
 
@@ -51,32 +46,32 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/auth/login", s.auth.StartLogin)
 	mux.HandleFunc("GET /api/auth/callback", s.auth.Callback)
 	mux.HandleFunc("GET /api/auth/status", s.authStatus)
-	mux.Handle("GET /api/auth/csrf", s.auth.RequireSession(http.HandlerFunc(s.csrf)))
-	mux.Handle("GET /api/auth/me", s.auth.RequireSession(http.HandlerFunc(s.me)))
-	mux.Handle("POST /api/auth/logout", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.logout))))
+	mux.Handle("GET /api/auth/csrf", s.protected(s.csrf))
+	mux.Handle("GET /api/auth/me", s.protected(s.me))
+	mux.Handle("POST /api/auth/logout", s.protected(s.logout))
 
-	mux.Handle("GET /api/users", s.auth.RequireSession(http.HandlerFunc(s.listUsers)))
-	mux.Handle("GET /api/users/{subject}", s.auth.RequireSession(http.HandlerFunc(s.getUser)))
+	mux.Handle("GET /api/users", s.protected(s.listUsers))
+	mux.Handle("GET /api/users/{subject}", s.protected(s.getUser))
 
-	mux.Handle("GET /api/overview", s.auth.RequireSession(http.HandlerFunc(s.overview)))
-	mux.Handle("GET /api/nodes", s.auth.RequireSession(http.HandlerFunc(s.listNodes)))
-	mux.Handle("GET /api/nodes/{id}", s.auth.RequireSession(http.HandlerFunc(s.getNode)))
-	mux.Handle("POST /api/nodes", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.createNode))))
-	mux.Handle("PUT /api/nodes/order", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.orderNodes))))
-	mux.Handle("PUT /api/nodes/{id}", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.updateNode))))
-	mux.Handle("PUT /api/nodes/{id}/move", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.moveNode))))
-	mux.Handle("DELETE /api/nodes/{id}", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.deleteNode))))
-	mux.Handle("GET /api/nodes/{id}/members", s.auth.RequireSession(http.HandlerFunc(s.getMembers)))
-	mux.Handle("PUT /api/nodes/{id}/members", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.replaceMembers))))
-	mux.Handle("GET /api/nodes/{id}/comments", s.auth.RequireSession(http.HandlerFunc(s.listComments)))
-	mux.Handle("GET /api/nodes/{id}/progress", s.auth.RequireSession(http.HandlerFunc(s.listProgress)))
-	mux.Handle("POST /api/nodes/{id}/comments", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.createComment))))
-	mux.Handle("POST /api/nodes/{id}/comment-images", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.uploadCommentImage))))
-	mux.Handle("DELETE /api/comment-images/{id}", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.deleteCommentUpload))))
-	mux.Handle("DELETE /api/comments/{id}", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.deleteComment))))
-	mux.Handle("GET /api/comments/{id}/reactions/{emoji}", s.auth.RequireSession(http.HandlerFunc(s.reactionUsers)))
-	mux.Handle("PUT /api/comments/{id}/reactions/{emoji}", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.toggleReaction))))
-	mux.Handle("GET /api/attachments/{id}", s.auth.RequireSession(http.HandlerFunc(s.getAttachment)))
+	mux.Handle("GET /api/overview", s.protected(s.overview))
+	mux.Handle("GET /api/nodes", s.protected(s.listNodes))
+	mux.Handle("GET /api/nodes/{id}", s.protected(s.getNode))
+	mux.Handle("POST /api/nodes", s.protected(s.createNode))
+	mux.Handle("PUT /api/nodes/order", s.protected(s.orderNodes))
+	mux.Handle("PUT /api/nodes/{id}", s.protected(s.updateNode))
+	mux.Handle("PUT /api/nodes/{id}/move", s.protected(s.moveNode))
+	mux.Handle("DELETE /api/nodes/{id}", s.protected(s.deleteNode))
+	mux.Handle("GET /api/nodes/{id}/members", s.protected(s.getMembers))
+	mux.Handle("PUT /api/nodes/{id}/members", s.protected(s.replaceMembers))
+	mux.Handle("GET /api/nodes/{id}/comments", s.protected(s.listComments))
+	mux.Handle("GET /api/nodes/{id}/progress", s.protected(s.listProgress))
+	mux.Handle("POST /api/nodes/{id}/comments", s.protected(s.createComment))
+	mux.Handle("POST /api/nodes/{id}/comment-images", s.protected(s.uploadCommentImage))
+	mux.Handle("DELETE /api/comment-images/{id}", s.protected(s.deleteCommentUpload))
+	mux.Handle("DELETE /api/comments/{id}", s.protected(s.deleteComment))
+	mux.Handle("GET /api/comments/{id}/reactions/{emoji}", s.protected(s.reactionUsers))
+	mux.Handle("PUT /api/comments/{id}/reactions/{emoji}", s.protected(s.toggleReaction))
+	mux.Handle("GET /api/attachments/{id}", s.protected(s.getAttachment))
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Status: 404, Error: "NOT_FOUND", Message: "接口不存在"})
@@ -87,7 +82,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := contextWithTimeout(r, 3*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 	if err := database.Ping(ctx, s.pool); err != nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
@@ -99,7 +94,7 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) authStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	session, ok := s.currentSession(r)
+	session, ok := s.auth.SessionForRequest(r)
 	if !ok {
 		writeJSON(w, http.StatusOK, map[string]any{"state": "anonymous", "user": nil})
 		return
@@ -107,36 +102,21 @@ func (s *Server) authStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"state": "active", "user": s.users.Current(session)})
 }
 
-func (s *Server) csrf(w http.ResponseWriter, r *http.Request) {
-	session, ok := auth.SessionFrom(r.Context())
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) csrf(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, map[string]string{"token": session.CSRF, "headerName": "X-CSRF-Token"})
 }
 
-func (s *Server) me(w http.ResponseWriter, r *http.Request) {
-	session, ok := auth.SessionFrom(r.Context())
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) me(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	writeJSON(w, http.StatusOK, s.users.Current(session))
 }
 
-func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
-	session, ok := auth.SessionFrom(r.Context())
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) logout(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	s.auth.Logout(w, r, session.ID)
 }
 
-func (s *Server) currentSession(r *http.Request) (auth.Session, bool) {
-	return s.auth.SessionForRequest(r)
+func (s *Server) protected(handler auth.SessionHandler) http.Handler {
+	return s.auth.RequireSession(auth.RequireCSRF(handler))
 }
 
 func (s *Server) securityHeaders(next http.Handler) http.Handler {

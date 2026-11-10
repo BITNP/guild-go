@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"sync"
 	"time"
 )
@@ -59,18 +58,4 @@ func (p *PendingStore) Cleanup() {
 		}
 	}
 	p.mu.Unlock()
-}
-
-// StartCleanup periodically removes expired pending logins.
-func (p *PendingStore) StartCleanup(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			p.Cleanup()
-		}
-	}
 }

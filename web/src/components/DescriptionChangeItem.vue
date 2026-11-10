@@ -1,48 +1,46 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { NButton, NCollapseTransition, NListItem, NText } from 'naive-ui'
-import DescriptionDiff from '@/components/DescriptionDiff.vue'
-import UserIdentity from '@/components/UserIdentity.vue'
-import type { DescriptionChange } from '@/lib/api'
-import { formatDateTime, timeAgo } from '@/lib/utils'
-
-const props = defineProps<{ change: DescriptionChange }>()
-const expanded = ref(false)
+const props = defineProps<{ change: DescriptionChange }>();
+const expanded = ref(false);
 const action = computed(() =>
-  !props.change.before
-    ? '添加了描述'
-    : !props.change.after
-      ? '清空了描述'
-      : '修改了描述',
-)
+  props.change.before
+    ? props.change.after
+      ? "修改了描述"
+      : "清空了描述"
+    : "添加了描述",
+);
 </script>
 
 <template>
   <NListItem class="description-row">
     <article class="description-change">
       <div class="change-header">
-        <UserIdentity :user="change.author" :size="32" />
+        <UserIdentity :size="32" :user="change.author" />
         <span>{{ action }}</span>
         <NText depth="3">
-          <time :datetime="change.createdAt" :title="formatDateTime(change.createdAt)">
+          <time
+            :datetime="change.createdAt"
+            :title="formatDateTime(change.createdAt)"
+          >
             {{ timeAgo(change.createdAt) }}
           </time>
         </NText>
         <NButton
-          text
-          size="small"
-          class="change-toggle"
-          :aria-expanded="expanded"
           :aria-controls="`description-change-${change.id}`"
+          :aria-expanded="expanded"
+          class="change-toggle"
+          size="small"
+          text
           @click="expanded = !expanded"
-        >{{ expanded ? '收起' : '查看变更' }}</NButton>
+        >
+          {{ expanded ? "收起" : "查看变更" }}
+        </NButton>
       </div>
       <NCollapseTransition :show="expanded">
         <div
           :id="`description-change-${change.id}`"
           class="description-comparison"
         >
-          <DescriptionDiff :before="change.before" :after="change.after" />
+          <DescriptionDiff :after="change.after" :before="change.before" />
         </div>
       </NCollapseTransition>
     </article>

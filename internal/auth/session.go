@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"sync"
@@ -32,11 +31,6 @@ type Store struct {
 // NewStore creates an empty session store.
 func NewStore(timeout time.Duration) *Store {
 	return &Store{sessions: make(map[string]Session), timeout: timeout}
-}
-
-// Timeout returns the sliding session lifetime.
-func (s *Store) Timeout() time.Duration {
-	return s.timeout
 }
 
 // Create stores a new session and returns its identifier and CSRF token.
@@ -103,20 +97,6 @@ func (s *Store) Cleanup() {
 		}
 	}
 	s.mu.Unlock()
-}
-
-// StartCleanup runs periodic cleanup until ctx is cancelled.
-func (s *Store) StartCleanup(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			s.Cleanup()
-		}
-	}
 }
 
 // RandomToken returns a URL-safe random token.

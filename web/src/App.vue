@@ -1,32 +1,23 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import {
-  NConfigProvider,
-  NGlobalStyle,
-  darkTheme,
-  zhCN,
-  dateZhCN,
-} from 'naive-ui'
-import { useTheme } from '@/composables/useTheme'
-import { darkThemeOverrides, lightThemeOverrides } from '@/lib/theme'
-
-const { isDark } = useTheme()
-const naiveTheme = computed(() => (isDark.value ? darkTheme : null))
+const { isDark } = useTheme();
+const naiveTheme = computed(() => (isDark.value ? darkTheme : null));
 const themeOverrides = computed(() =>
   isDark.value ? darkThemeOverrides : lightThemeOverrides,
-)
+);
 </script>
+
 <template>
   <NConfigProvider
-    :locale="zhCN"
     :date-locale="dateZhCN"
+    :locale="zhCN"
     :theme="naiveTheme"
-    :theme-overrides="themeOverrides"
+    :theme-overrides
   >
     <NGlobalStyle />
     <RouterView />
   </NConfigProvider>
 </template>
+
 <style scoped>
 :global(:root) {
   --guild-primary: #1f5fbf;
@@ -47,7 +38,7 @@ const themeOverrides = computed(() =>
   --guild-header-bg: rgba(255, 255, 255, 0.86);
   --guild-shadow: rgba(23, 32, 43, 0.12);
 }
-:global([data-theme='dark']) {
+:global([data-theme="dark"]) {
   --guild-primary: #76aaff;
   --guild-muted: #8797a6;
   --guild-border: #2b3946;
@@ -75,7 +66,7 @@ const themeOverrides = computed(() =>
   box-sizing: border-box;
 }
 :global(a:focus-visible),
-:global(:where(button, summary, [role='button']):focus-visible) {
+:global(:where(button, summary, [role="button"]):focus-visible) {
   outline: 2px solid var(--guild-primary);
   outline-offset: 3px;
 }

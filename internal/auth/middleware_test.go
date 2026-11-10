@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"testing"
 	"time"
 )
@@ -16,14 +15,10 @@ func TestDevAuthBypassProvidesAdminSession(t *testing.T) {
 	}
 
 	var got Session
-	handler := service.RequireSession(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		session, ok := SessionFrom(r.Context())
-		if !ok {
-			t.Fatal("development session missing from request context")
-		}
+	handler := service.RequireSession(func(w http.ResponseWriter, r *http.Request, session Session) {
 		got = session
 		w.WriteHeader(http.StatusNoContent)
-	}))
+	})
 
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/overview", nil))
@@ -44,9 +39,9 @@ func TestDevAuthBypassProvidesAdminSession(t *testing.T) {
 
 func TestRequireSessionRejectsAnonymousRequest(t *testing.T) {
 	service := newTestService(t)
-	handler := service.RequireSession(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	handler := service.RequireSession(func(http.ResponseWriter, *http.Request, Session) {
 		t.Fatal("anonymous request must not reach the handler")
-	}))
+	})
 
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/nodes", nil))
@@ -56,9 +51,9 @@ func TestRequireSessionRejectsAnonymousRequest(t *testing.T) {
 
 func TestRequireSessionReportsExpiredSession(t *testing.T) {
 	service := newTestService(t)
-	handler := service.RequireSession(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	handler := service.RequireSession(func(http.ResponseWriter, *http.Request, Session) {
 		t.Fatal("expired session must not reach the handler")
-	}))
+	})
 
 	request := httptest.NewRequest(http.MethodGet, "/api/nodes", nil)
 	request.AddCookie(&http.Cookie{Name: SessionCookieName, Value: "unknown-or-expired"})
@@ -70,11 +65,7 @@ func TestRequireSessionReportsExpiredSession(t *testing.T) {
 
 func newTestService(t *testing.T) *Service {
 	t.Helper()
-	publicURL, err := url.Parse("http://localhost:5173")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return NewService(nil, NewStore(time.Minute), NewPendingStore(), publicURL, false, nil)
+	return NewService(nil, NewStore(time.Minute), NewPendingStore(), false, nil)
 }
 
 func assertAuthError(t *testing.T, response *httptest.ResponseRecorder, message string) {

@@ -1,39 +1,37 @@
 <script setup lang="ts">
-import { NSpace, NText } from 'naive-ui'
-import UserIdentity from '@/components/UserIdentity.vue'
-import type { CommentPreview } from '@/lib/api'
-import { reactionEmoji, timeAgo } from '@/lib/utils'
 defineProps<{
-  comment: Omit<CommentPreview, 'attachmentCount'> & {
-    attachmentCount?: number
-  }
-}>()
+  comment: Omit<CommentPreview, "attachmentCount"> & {
+    attachmentCount?: number;
+  };
+}>();
 </script>
+
 <template>
   <div class="comment-preview">
     <div class="preview-byline">
-      <UserIdentity :user="comment.author" :size="22" /><NText depth="3">{{
-        timeAgo(comment.createdAt)
-      }}</NText
-      ><NText v-if="comment.attachmentCount" depth="3"
-        >{{ comment.attachmentCount }} 张图片</NText
-      >
+      <UserIdentity :size="22" :user="comment.author" />
+      <NText depth="3">{{ timeAgo(comment.createdAt) }}</NText>
+      <NText v-if="comment.attachmentCount" depth="3">
+        {{ comment.attachmentCount }} 张图片
+      </NText>
       <NSpace
-        v-if="comment.reactionSummary.length"
-        :size="8"
+        v-if="comment.reactionSummary.length > 0"
         class="preview-reactions"
-        ><NText
+        :size="8"
+      >
+        <NText
           v-for="reaction in comment.reactionSummary"
           :key="reaction.emoji"
           depth="3"
-          >{{ reactionEmoji[reaction.emoji]?.symbol }}
-          {{ reaction.count }}</NText
-        ></NSpace
-      >
+        >
+          {{ reactionEmoji[reaction.emoji]?.symbol }} {{ reaction.count }}
+        </NText>
+      </NSpace>
     </div>
-    <p class="preview-body">{{ comment.bodyPreview || '发布了图片' }}</p>
+    <p class="preview-body">{{ comment.bodyPreview || "发布了图片" }}</p>
   </div>
 </template>
+
 <style scoped>
 .comment-preview {
   border-left: 2px solid var(--guild-border);

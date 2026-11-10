@@ -2,8 +2,6 @@ package comments
 
 import (
 	"context"
-	"fmt"
-	"io"
 	"strings"
 	"unicode/utf8"
 
@@ -70,11 +68,15 @@ func (s *Service) Create(ctx context.Context, session auth.Session, nodeID int64
 	if body == "" && len(attachmentIDs) == 0 {
 		return Comment{}, apperr.BadRequest("进展内容不能为空")
 	}
-	commentID, err := s.repo.Create(ctx, nodeID, session.Subject, body, attachmentIDs)
+	row, err := s.repo.Create(ctx, nodeID, session.Subject, body, attachmentIDs)
 	if err != nil {
 		return Comment{}, err
 	}
-	return s.one(ctx, session, commentID)
+	items, err := s.assemble(ctx, session, []commentRow{row})
+	if err != nil {
+		return Comment{}, err
+	}
+	return items[0], nil
 }
 
 // List returns a page of comments for a node.
@@ -101,12 +103,9 @@ func (s *Service) List(ctx context.Context, session auth.Session, nodeID int64, 
 		return List{}, err
 	}
 	var nextBefore *int64
-	if hasMore && len(items) > 0 {
+	if hasMore {
 		value := items[len(items)-1].ID
 		nextBefore = &value
-	}
-	if items == nil {
-		items = []Comment{}
 	}
 	return List{Items: items, HasMore: hasMore, NextBefore: nextBefore}, nil
 }
@@ -128,123 +127,6 @@ func (s *Service) Delete(ctx context.Context, session auth.Session, commentID in
 	if err != nil {
 		return err
 	}
-	s.deleteObjects(keys)
+	storage.DeleteObjects(s.store, keys)
 	return nil
-}
-
-// ToggleReaction toggles one emoji. Every admitted user may react.
-func (s *Service) ToggleReaction(ctx context.Context, commentID int64, subject, emoji string) ([]Reaction, error) {
-	if !ValidEmoji(emoji) {
-		return nil, apperr.BadRequest("不支持的表情")
-	}
-	exists, err := s.repo.Exists(ctx, commentID)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, apperr.NotFound("进展不存在")
-	}
-	return s.repo.ToggleReaction(ctx, commentID, subject, emoji)
-}
-
-// ReactionUsers lists the people who used an emoji. Every admitted user may view them.
-func (s *Service) ReactionUsers(ctx context.Context, session auth.Session, commentID int64, emoji string) ([]users.Summary, error) {
-	if !ValidEmoji(emoji) {
-		return nil, apperr.BadRequest("不支持的表情")
-	}
-	exists, err := s.repo.Exists(ctx, commentID)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, apperr.NotFound("进展不存在")
-	}
-	subjects, err := s.repo.ReactionSubjects(ctx, commentID, emoji)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]users.Summary, 0, len(subjects))
-	for _, subject := range subjects {
-		result = append(result, s.users.SummaryFor(ctx, session, subject))
-	}
-	return result, nil
-}
-
-// GetAttachment returns the stream for one image.
-func (s *Service) GetAttachment(ctx context.Context, id int64) (io.ReadCloser, string, int64, error) {
-	row, err := s.repo.AttachmentByID(ctx, id)
-	if err == pgx.ErrNoRows {
-		return nil, "", 0, apperr.NotFound("附件不存在")
-	}
-	if err != nil {
-		return nil, "", 0, err
-	}
-	return s.store.Get(ctx, row.ObjectKey)
-}
-
-func (s *Service) one(ctx context.Context, session auth.Session, commentID int64) (Comment, error) {
-	row, err := s.repo.Get(ctx, commentID)
-	if err != nil {
-		return Comment{}, err
-	}
-	items, err := s.assemble(ctx, session, []CommentRow{row})
-	if err != nil {
-		return Comment{}, err
-	}
-	if len(items) == 0 {
-		return Comment{}, apperr.NotFound("进展不存在")
-	}
-	return items[0], nil
-}
-
-func (s *Service) assemble(ctx context.Context, session auth.Session, rows []CommentRow) ([]Comment, error) {
-	if len(rows) == 0 {
-		return []Comment{}, nil
-	}
-	ids := make([]int64, 0, len(rows))
-	subjects := make([]string, 0, len(rows))
-	for _, row := range rows {
-		ids = append(ids, row.ID)
-		subjects = append(subjects, row.Author)
-	}
-	authors := s.users.Summaries(ctx, session, subjects)
-	attachments, err := s.repo.AttachmentsForComments(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	reactions, err := s.repo.ReactionsForComments(ctx, ids, session.Subject)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]Comment, 0, len(rows))
-	for _, row := range rows {
-		author, ok := authors[row.Author]
-		if !ok {
-			author = users.Summary{Subject: row.Author, UserName: row.Author, Positions: []users.Position{}}
-		}
-		attachmentViews := make([]Attachment, 0, len(attachments[row.ID]))
-		for _, attachment := range attachments[row.ID] {
-			attachmentViews = append(attachmentViews, Attachment{
-				ID:          attachment.ID,
-				URL:         fmt.Sprintf("/api/attachments/%d", attachment.ID),
-				ContentType: attachment.ContentType,
-				SizeBytes:   attachment.SizeBytes,
-			})
-		}
-		commentReactions := reactions[row.ID]
-		if commentReactions == nil {
-			commentReactions = []Reaction{}
-		}
-		result = append(result, Comment{
-			ID:          row.ID,
-			NodeID:      row.NodeID,
-			Author:      author,
-			Body:        row.Body,
-			CreatedAt:   row.CreatedAt,
-			Attachments: attachmentViews,
-			Reactions:   commentReactions,
-			CanDelete:   row.Author == session.Subject || session.Permissions.SystemAdmin,
-		})
-	}
-	return result, nil
 }

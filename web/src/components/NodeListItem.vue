@@ -1,77 +1,71 @@
 <script setup lang="ts">
-import { NListItem, NSpace, NTag, NText } from 'naive-ui'
-import {
-  Check,
-  Circle,
-  CalendarDays,
-  Network,
-} from '@lucide/vue'
-import NodeStatusTag from '@/components/NodeStatusTag.vue'
-import CommentPreview from '@/components/CommentPreview.vue'
-import UserIdentity from '@/components/UserIdentity.vue'
-import type { ChildNode, UserSummary } from '@/lib/api'
-import { formatDateTime, isOverdue } from '@/lib/utils'
-defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
+import type { ChildNode } from "@/api";
+
+defineProps<{ node: ChildNode; leaders?: UserSummary[] }>();
 </script>
+
 <template>
   <NListItem class="node-list-item">
     <article class="node-entry">
       <Check
         v-if="node.completedAt"
-        :size="16"
-        class="completed-icon"
         aria-label="已完成"
+        class="completed-icon"
+        :size="16"
       />
-      <Circle v-else :size="16" class="node-icon" aria-label="未完成" />
+      <Circle v-else aria-label="未完成" class="node-icon" :size="16" />
       <div class="entry-content">
         <div class="entry-heading">
           <RouterLink
-            :to="{ name: 'node', params: { id: node.id } }"
             class="node-link"
-            >{{ node.title }}</RouterLink
+            :to="{ name: 'node', params: { id: node.id } }"
           >
+            {{ node.title }}
+          </RouterLink>
           <NodeStatusTag
             v-if="node.completedAt || isOverdue(node.dueAt, node.completedAt)"
-            :due-at="node.dueAt"
             :completed-at="node.completedAt"
+            :due-at="node.dueAt"
           />
         </div>
-        <div v-if="node.tags.length || node.dueAt || node.childCount" class="entry-metadata">
-          <NTag v-for="tag in node.tags" :key="tag" size="small">{{
-            tag
-          }}</NTag>
-          <span v-if="node.dueAt" class="metadata-item"
-            ><CalendarDays :size="13" aria-hidden="true" />预期完成
-            {{ formatDateTime(node.dueAt) }}</span
-          >
-          <span v-if="node.childCount" class="metadata-item"
-            ><Network :size="13" aria-hidden="true" />{{
-              node.childCount
-            }}
-            个子节点</span
-          >
+        <div
+          v-if="node.tags.length > 0 || node.dueAt || node.childCount"
+          class="entry-metadata"
+        >
+          <NTag v-for="tag in node.tags" :key="tag" size="small">
+            {{ tag }}
+          </NTag>
+          <span v-if="node.dueAt" class="metadata-item">
+            <CalendarDays aria-hidden="true" :size="13" />
+            预期完成 {{ formatDateTime(node.dueAt) }}
+          </span>
+          <span v-if="node.childCount" class="metadata-item">
+            <Network aria-hidden="true" :size="13" />
+            {{ node.childCount }} 个子节点
+          </span>
         </div>
-        <NSpace v-if="leaders?.length" :size="12" class="entry-leaders">
+        <NSpace v-if="leaders?.length" class="entry-leaders" :size="12">
           <NText depth="3">负责人</NText>
           <UserIdentity
             v-for="leader in leaders"
             :key="leader.subject"
-            :user="leader"
             :size="20"
+            :user="leader"
           />
         </NSpace>
-        <NText v-else-if="leaders" depth="3" class="entry-leaders no-leader"
-          >暂无负责人</NText
-        >
+        <NText v-else-if="leaders" class="entry-leaders no-leader" depth="3">
+          暂无负责人
+        </NText>
         <CommentPreview
           v-if="node.latestComment"
-          :comment="node.latestComment"
           class="entry-comment"
+          :comment="node.latestComment"
         />
       </div>
     </article>
   </NListItem>
 </template>
+
 <style scoped>
 .node-entry {
   position: relative;
@@ -113,7 +107,7 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
   font-weight: 600;
 }
 .node-link::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
 }

@@ -1,2 +1,4 @@
+shellEmulator: true
+
 allowBuilds:
   esbuild: false

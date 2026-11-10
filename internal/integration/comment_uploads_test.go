@@ -9,7 +9,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -18,7 +17,6 @@ import (
 	"git.bitnp.net/BITNP/guild-go/internal/apperr"
 	"git.bitnp.net/BITNP/guild-go/internal/auth"
 	"git.bitnp.net/BITNP/guild-go/internal/comments"
-	"git.bitnp.net/BITNP/guild-go/internal/config"
 	"git.bitnp.net/BITNP/guild-go/internal/httpapi"
 	"git.bitnp.net/BITNP/guild-go/internal/nodes"
 	"git.bitnp.net/BITNP/guild-go/internal/storage"
@@ -40,9 +38,8 @@ func TestCommentImageHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	publicURL, _ := url.Parse("http://guild.example")
-	authService := auth.NewService(nil, sessions, nil, publicURL, false, nil)
-	handler := httpapi.New(config.Config{}, f.pool, authService, f.users, f.nodes, f.comments, f.store).Handler()
+	authService := auth.NewService(nil, sessions, nil, false, nil)
+	handler := httpapi.New(f.pool, authService, f.users, f.nodes, f.comments).Handler()
 	path := fmt.Sprintf("/api/nodes/%d/comment-images", root.ID)
 	var imageID int64
 	for _, test := range []struct {

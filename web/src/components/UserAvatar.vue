@@ -1,26 +1,25 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { NAvatar } from 'naive-ui'
-
 const props = withDefaults(
   defineProps<{ name: string; src?: string | null; size?: number }>(),
   { size: 26 },
-)
-const initial = computed(() => props.name.slice(0, 1))
+);
+const initial = computed(() => props.name.slice(0, 1));
 </script>
 
 <template>
   <NAvatar
-    round
-    :size="size"
-    :src="src || undefined"
-    object-fit="cover"
     color="#1f5fbf"
-    :style="{ fontSize: `${Math.max(12, Math.round(size * 0.42))}px` }"
     :img-props="{ alt: '' }"
+    object-fit="cover"
+    round
+    :size
+    :src="src || undefined"
+    :style="{ fontSize: `${Math.max(12, Math.round(size * 0.42))}px` }"
   >
     <template v-if="!src" #default>{{ initial }}</template>
-    <template #fallback><span class="avatar-initial">{{ initial }}</span></template>
+    <template #fallback>
+      <span class="avatar-initial">{{ initial }}</span>
+    </template>
   </NAvatar>
 </template>
 

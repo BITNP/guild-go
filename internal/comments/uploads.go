@@ -2,7 +2,9 @@ package comments
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"time"
 
@@ -34,7 +36,7 @@ func (s *Service) UploadImage(ctx context.Context, session auth.Session, nodeID 
 	}
 	id, err := s.repo.AddUpload(ctx, nodeID, session.Subject, key, contentType, int64(len(data)))
 	if err != nil {
-		s.deleteObjects([]string{key})
+		storage.DeleteObjects(s.store, []string{key})
 		return 0, err
 	}
 	return id, nil
@@ -49,7 +51,7 @@ func (s *Service) DeleteUpload(ctx context.Context, session auth.Session, id int
 	if err != nil {
 		return err
 	}
-	s.deleteObjects([]string{key})
+	storage.DeleteObjects(s.store, []string{key})
 	return nil
 }
 
@@ -64,7 +66,7 @@ func (s *Service) StartUploadCleanup(ctx context.Context) {
 				slog.Warn("clean up unpublished comment images failed", "error", err)
 			}
 		} else {
-			s.deleteObjects(keys)
+			storage.DeleteObjects(s.store, keys)
 		}
 		select {
 		case <-ctx.Done():
@@ -74,12 +76,18 @@ func (s *Service) StartUploadCleanup(ctx context.Context) {
 	}
 }
 
-func (s *Service) deleteObjects(keys []string) {
-	for _, key := range keys {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if err := s.store.Delete(ctx, key); err != nil {
-			slog.Warn("delete comment attachment failed", "key", key, "error", err)
-		}
-		cancel()
+// GetAttachment returns the stream for one image.
+func (s *Service) GetAttachment(ctx context.Context, id int64) (io.ReadCloser, string, int64, error) {
+	row, err := s.repo.AttachmentByID(ctx, id)
+	if err == pgx.ErrNoRows {
+		return nil, "", 0, apperr.NotFound("附件不存在")
 	}
+	if err != nil {
+		return nil, "", 0, err
+	}
+	reader, contentType, size, err := s.store.Get(ctx, row.ObjectKey)
+	if errors.Is(err, storage.ErrNotFound) {
+		return nil, "", 0, apperr.NotFound("附件不存在")
+	}
+	return reader, contentType, size, err
 }

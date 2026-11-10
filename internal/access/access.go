@@ -11,7 +11,7 @@ import (
 
 // Checker evaluates effective membership and leadership in the node tree.
 type Checker struct {
-	pool queryer
+	db queryer
 }
 
 type queryer interface {
@@ -21,25 +21,18 @@ type queryer interface {
 
 // New creates a tree access checker.
 func New(pool *pgxpool.Pool) *Checker {
-	return &Checker{pool: pool}
+	return &Checker{db: pool}
 }
 
 // InTx evaluates permissions against the same transaction as a tree change.
 func InTx(tx pgx.Tx) *Checker {
-	return &Checker{pool: tx}
-}
-
-// Counts summarizes a subtree.
-type Counts struct {
-	Nodes       int
-	Comments    int
-	Attachments int
+	return &Checker{db: tx}
 }
 
 // NodeExists reports whether a node exists.
 func (c *Checker) NodeExists(ctx context.Context, nodeID int64) (bool, error) {
 	var exists bool
-	err := c.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM nodes WHERE id=$1)`, nodeID).Scan(&exists)
+	err := c.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM nodes WHERE id=$1)`, nodeID).Scan(&exists)
 	return exists, err
 }
 
@@ -101,7 +94,7 @@ SELECT EXISTS (
     WHERE m.subject = $2 AND m.role = 'leader'
 )`
 	var ok bool
-	err := c.pool.QueryRow(ctx, query, nodeID, subject).Scan(&ok)
+	err := c.db.QueryRow(ctx, query, nodeID, subject).Scan(&ok)
 	return ok, err
 }
 
@@ -125,7 +118,7 @@ SELECT EXISTS (
     WHERE m.subject = $2 AND m.role = 'leader'
 )`
 	var ok bool
-	err := c.pool.QueryRow(ctx, query, nodeID, subject).Scan(&ok)
+	err := c.db.QueryRow(ctx, query, nodeID, subject).Scan(&ok)
 	return ok, err
 }
 
@@ -154,7 +147,7 @@ UNION ALL
 SELECT id, false FROM participated`
 	leaders = make(map[int64]struct{})
 	members = make(map[int64]struct{})
-	rows, err := c.pool.Query(ctx, query, subject)
+	rows, err := c.db.Query(ctx, query, subject)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -206,7 +199,7 @@ JOIN ancestors a ON a.id = m.node_id
 JOIN nodes n ON n.id = m.node_id
 WHERE m.role = 'leader'
 ORDER BY 1, 3`
-	rows, err := c.pool.Query(ctx, query, nodeID)
+	rows, err := c.db.Query(ctx, query, nodeID)
 	if err != nil {
 		return nil, err
 	}
@@ -222,56 +215,8 @@ ORDER BY 1, 3`
 	return result, rows.Err()
 }
 
-// SubtreeCounts counts nodes, comments and attachments in a subtree.
-func (c *Checker) SubtreeCounts(ctx context.Context, nodeID int64) (Counts, error) {
-	const query = `
-WITH RECURSIVE subtree AS (
-    SELECT id FROM nodes WHERE id = $1
-    UNION ALL
-    SELECT n.id FROM nodes n JOIN subtree s ON n.parent_id = s.id
-)
-SELECT
-    (SELECT count(*) FROM subtree),
-    (SELECT count(*) FROM comments c JOIN subtree s ON s.id = c.node_id),
-    (SELECT count(*) FROM comment_attachments a
-     JOIN comments c ON c.id = a.comment_id
-     JOIN subtree s ON s.id = c.node_id)`
-	var counts Counts
-	err := c.pool.QueryRow(ctx, query, nodeID).Scan(&counts.Nodes, &counts.Comments, &counts.Attachments)
-	return counts, err
-}
-
-// AttachmentKeysForNode returns S3 object keys for every attachment in a subtree.
-func (c *Checker) AttachmentKeysForNode(ctx context.Context, nodeID int64) ([]string, error) {
-	const query = `
-WITH RECURSIVE subtree AS (
-    SELECT id FROM nodes WHERE id = $1
-    UNION ALL
-    SELECT n.id FROM nodes n JOIN subtree s ON n.parent_id = s.id
-)
-SELECT a.object_key
-FROM comment_attachments a
-LEFT JOIN comments c ON c.id = a.comment_id
-JOIN subtree s ON s.id = COALESCE(c.node_id, a.pending_node_id)
-ORDER BY a.id`
-	rows, err := c.pool.Query(ctx, query, nodeID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var keys []string
-	for rows.Next() {
-		var key string
-		if err := rows.Scan(&key); err != nil {
-			return nil, err
-		}
-		keys = append(keys, key)
-	}
-	return keys, rows.Err()
-}
-
 func (c *Checker) querySubjects(ctx context.Context, query string, nodeID int64) ([]string, error) {
-	rows, err := c.pool.Query(ctx, query, nodeID)
+	rows, err := c.db.Query(ctx, query, nodeID)
 	if err != nil {
 		return nil, err
 	}

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"slices"
 	"strings"
 	"testing"
@@ -15,7 +14,6 @@ import (
 	authz "git.bitnp.net/BITNP/bitnp-authz"
 	"git.bitnp.net/BITNP/guild-go/internal/apperr"
 	"git.bitnp.net/BITNP/guild-go/internal/auth"
-	"git.bitnp.net/BITNP/guild-go/internal/config"
 	"git.bitnp.net/BITNP/guild-go/internal/httpapi"
 	"git.bitnp.net/BITNP/guild-go/internal/nodes"
 )
@@ -243,28 +241,7 @@ func TestQueuedMoveRechecksInheritedLeadership(t *testing.T) {
 		_, err := f.nodes.Move(ctx, f.alice, child.ID, nodes.MoveRequest{ParentID: &target.ID})
 		result <- err
 	}()
-	// Wait until the move has passed its initial authorization and is queued.
-	ticker := time.NewTicker(10 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		var waiting bool
-		if err := f.pool.QueryRow(ctx, `SELECT EXISTS (
-			SELECT 1 FROM pg_stat_activity WHERE datname=current_database()
-			AND wait_event_type='Lock' AND query='LOCK TABLE nodes IN SHARE ROW EXCLUSIVE MODE'
-		)`).Scan(&waiting); err != nil {
-			t.Fatal(err)
-		}
-		if waiting {
-			break
-		}
-		select {
-		case err := <-result:
-			t.Fatalf("move did not wait for tree lock: %v", err)
-		case <-ctx.Done():
-			t.Fatal(ctx.Err())
-		case <-ticker.C:
-		}
-	}
+	waitForBlockedOperation(t, ctx, f.pool, tx.Conn().PgConn().PID(), result)
 	// Simulate a preceding move removing Alice's inherited authority.
 	if _, err := tx.Exec(ctx, `UPDATE nodes SET parent_id=$2 WHERE id=$1`, child.ID, other.ID); err != nil {
 		t.Fatal(err)
@@ -285,12 +262,11 @@ func TestMoveHTTPRequiresExplicitDestinationAndCSRF(t *testing.T) {
 	f := setup(t)
 	root := createMoveNode(t, f, nil, "Root", "alice")
 	child := createMoveNode(t, f, &root.ID, "Child", "alice")
-	publicURL, _ := url.Parse("http://guild.example")
-	authService := auth.NewService(nil, auth.NewStore(time.Minute), auth.NewPendingStore(), publicURL, false, nil)
+	authService := auth.NewService(nil, auth.NewStore(time.Minute), auth.NewPendingStore(), false, nil)
 	if err := authService.EnableDevAuthBypass("admin", "Admin"); err != nil {
 		t.Fatal(err)
 	}
-	handler := httpapi.New(config.Config{}, f.pool, authService, f.users, f.nodes, f.comments, f.store).Handler()
+	handler := httpapi.New(f.pool, authService, f.users, f.nodes, f.comments).Handler()
 	csrfResponse := httptest.NewRecorder()
 	handler.ServeHTTP(csrfResponse, httptest.NewRequest(http.MethodGet, "/api/auth/csrf", nil))
 	var csrf struct{ Token string }

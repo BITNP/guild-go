@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { NTag } from 'naive-ui'
-defineProps<{ title: string; count?: number | string }>()
+defineProps<{ title: string; count?: number | string }>();
 </script>
 
 <template>
@@ -9,12 +8,13 @@ defineProps<{ title: string; count?: number | string }>()
       <h2>{{ title }}</h2>
       <NTag
         v-if="count !== undefined"
-        size="small"
-        round
         :bordered="false"
         class="section-count"
-        >{{ count }}</NTag
+        round
+        size="small"
       >
+        {{ count }}
+      </NTag>
     </div>
     <div v-if="$slots.default" class="section-actions"><slot /></div>
   </div>
