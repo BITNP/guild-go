@@ -16,25 +16,38 @@ const SessionCookieName = "guild_session"
 
 // Service implements login, callback and logout.
 type Service struct {
-	OIDC      *OIDC
-	Sessions  *Store
-	Pending   *PendingStore
-	PublicURL *url.URL
-	Provision func(ctx context.Context, subject string) error
-	Secure    bool
+	oidc      *OIDC
+	sessions  *Store
+	pending   *PendingStore
+	provision func(ctx context.Context, subject string) error
+	secure    bool
 
 	devSession *Session
 }
 
 // NewService wires the authentication service.
-func NewService(oidcClient *OIDC, sessions *Store, pending *PendingStore, publicURL *url.URL, secure bool, provision func(context.Context, string) error) *Service {
+func NewService(oidcClient *OIDC, sessions *Store, pending *PendingStore, secure bool, provision func(context.Context, string) error) *Service {
 	return &Service{
-		OIDC:      oidcClient,
-		Sessions:  sessions,
-		Pending:   pending,
-		PublicURL: publicURL,
-		Provision: provision,
-		Secure:    secure,
+		oidc:      oidcClient,
+		sessions:  sessions,
+		pending:   pending,
+		provision: provision,
+		secure:    secure,
+	}
+}
+
+func (s *Service) StartCleanup(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.sessions.Cleanup()
+			s.pending.Cleanup()
+		}
 	}
 }
 
@@ -65,7 +78,7 @@ func (s *Service) SessionForRequest(r *http.Request) (Session, bool) {
 	if err != nil || cookie.Value == "" {
 		return Session{}, false
 	}
-	return s.Sessions.Get(cookie.Value)
+	return s.sessions.Get(cookie.Value)
 }
 
 // StartLogin begins an authorization-code flow.
@@ -91,13 +104,13 @@ func (s *Service) StartLogin(w http.ResponseWriter, r *http.Request) {
 		s.redirectError(w, r, "oidc_failed")
 		return
 	}
-	authURL, err := s.OIDC.AuthCodeURL(r.Context(), state, nonce, verifier)
+	authURL, err := s.oidc.AuthCodeURL(r.Context(), state, nonce, verifier)
 	if err != nil {
 		slog.Warn("OIDC discovery failed", "error", err)
 		s.redirectError(w, r, "provider_unavailable")
 		return
 	}
-	s.Pending.Put(state, PendingLogin{Nonce: nonce, Verifier: verifier, ReturnTo: returnTo})
+	s.pending.Put(state, PendingLogin{Nonce: nonce, Verifier: verifier, ReturnTo: returnTo})
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	http.Redirect(w, r, authURL, http.StatusFound)
@@ -116,12 +129,12 @@ func (s *Service) Callback(w http.ResponseWriter, r *http.Request) {
 		s.redirectError(w, r, "oidc_failed")
 		return
 	}
-	pending, ok := s.Pending.Take(state)
+	pending, ok := s.pending.Take(state)
 	if !ok {
 		s.redirectError(w, r, "oidc_failed")
 		return
 	}
-	idToken, claims, err := s.OIDC.Exchange(r.Context(), code, pending.Verifier)
+	idToken, claims, err := s.oidc.Exchange(r.Context(), code, pending.Verifier)
 	if err != nil {
 		slog.Warn("OIDC callback failed", "error", err)
 		s.redirectError(w, r, "oidc_failed")
@@ -147,7 +160,7 @@ func (s *Service) Callback(w http.ResponseWriter, r *http.Request) {
 		s.redirectError(w, r, "oidc_failed")
 		return
 	}
-	if err := s.Provision(r.Context(), subject); err != nil {
+	if err := s.provision(r.Context(), subject); err != nil {
 		slog.Error("provision known user failed", "subject", subject, "error", err)
 		s.redirectError(w, r, "oidc_failed")
 		return
@@ -156,7 +169,7 @@ func (s *Service) Callback(w http.ResponseWriter, r *http.Request) {
 	email, _ := claims["email"].(string)
 	email = strings.TrimSpace(email)
 	picture := safePicture(claims)
-	sessionID, _, err := s.Sessions.Create(subject, name, email, picture, permissions)
+	sessionID, _, err := s.sessions.Create(subject, name, email, picture, permissions)
 	if err != nil {
 		slog.Error("create session failed", "error", err)
 		s.redirectError(w, r, "oidc_failed")
@@ -170,7 +183,7 @@ func (s *Service) Callback(w http.ResponseWriter, r *http.Request) {
 
 // Logout deletes the current session and clears the cookie.
 func (s *Service) Logout(w http.ResponseWriter, r *http.Request, sessionID string) {
-	s.Sessions.Delete(sessionID)
+	s.sessions.Delete(sessionID)
 	s.clearSessionCookie(w)
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -181,7 +194,7 @@ func (s *Service) setSessionCookie(w http.ResponseWriter, id string) {
 		Value:    id,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   s.Secure,
+		Secure:   s.secure,
 		SameSite: http.SameSiteLaxMode,
 	})
 }
@@ -192,7 +205,7 @@ func (s *Service) clearSessionCookie(w http.ResponseWriter) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   s.Secure,
+		Secure:   s.secure,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),

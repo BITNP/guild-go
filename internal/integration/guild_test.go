@@ -64,8 +64,8 @@ func setup(t *testing.T) *fixture {
 	userService := users.NewService(userRepo, users.NewDirectory(users.NewKeycloakAdmin("", "", "", "")))
 	checker := access.New(pool)
 	store := storage.NewMemoryStore()
-	nodeService := nodes.NewService(nodes.NewRepository(pool), userService, checker, store)
 	commentService := comments.NewService(comments.NewRepository(pool), userService, checker, store)
+	nodeService := nodes.NewService(nodes.NewRepository(pool), userService, checker, store, commentService)
 
 	return &fixture{
 		pool:     pool,

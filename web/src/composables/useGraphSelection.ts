@@ -4,13 +4,10 @@ import {
   buildVirtualRootNode,
 } from "@/graph/virtualRoot";
 
-import { useNodeDetailState } from "./useNodeDetailState";
-
 interface GraphSelectionOptions {
   byId: MaybeRefOrGetter<ReadonlyMap<number, NodeSummary>>;
   canManageRoots: MaybeRefOrGetter<boolean>;
   childrenOf: (parentId: number) => NodeSummary[];
-  loadProgress: (nodeId: number) => Promise<void>;
   nodes: MaybeRefOrGetter<NodeSummary[]>;
   roots: MaybeRefOrGetter<NodeSummary[]>;
 }
@@ -71,9 +68,6 @@ export function useGraphSelection(options: GraphSelectionOptions) {
     await fetchDetail(id, {
       errorFallback: "无法加载节点详情",
       shouldApply: () => selectedId.value === id,
-      afterLoad: async () => {
-        await options.loadProgress(id);
-      },
     });
   }
 

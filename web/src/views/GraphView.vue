@@ -13,6 +13,7 @@ const {
   reload,
   themeMode,
   active,
+  panelOpen,
   detail,
   detailError,
   detailLoading,
@@ -25,7 +26,6 @@ const {
   progressError,
   loadOlderProgress,
   reacting,
-  reactionError,
   editOpen,
   createOpen,
   createParent,
@@ -130,7 +130,8 @@ function onWheel(event: WheelEvent) {
 
       <Transition name="node-panel">
         <GraphNodePanel
-          v-if="active"
+          v-if="active && panelOpen"
+          id="graph-node-panel"
           :detail="detail?.id === active.node.id ? detail : null"
           :error="detailError"
           :is-virtual-root="active.node.id === VIRTUAL_ROOT_ID"
@@ -138,7 +139,7 @@ function onWheel(event: WheelEvent) {
           :parent-id="active.parent?.id ?? null"
           :parent-title="active.parent?.title ?? null"
           :selected="active.node"
-          @close="clearSelection"
+          @close="panelOpen = false"
           @create-child="openCreateChild"
           @create-root="openCreateRoot"
           @edit="openEdit"
@@ -175,10 +176,26 @@ function onWheel(event: WheelEvent) {
         </div>
       </header>
 
-      <div v-if="!active" class="graph-toolbar">
-        <button class="graph-button" type="button" @click="stage?.fitView()">
+      <div v-if="!active || !panelOpen" class="graph-toolbar">
+        <button
+          v-if="!active"
+          class="graph-button"
+          type="button"
+          @click="stage?.fitView()"
+        >
           <Focus aria-hidden="true" :size="14" />
           显示全部节点
+        </button>
+        <button
+          v-else
+          aria-controls="graph-node-panel"
+          :aria-expanded="panelOpen"
+          class="graph-button"
+          type="button"
+          @click="panelOpen = true"
+        >
+          <PanelRight aria-hidden="true" :size="14" />
+          节点信息
         </button>
       </div>
 
@@ -191,8 +208,8 @@ function onWheel(event: WheelEvent) {
         </div>
       </div>
 
-      <p v-if="progressError || reactionError" class="graph-toast" role="alert">
-        {{ progressError || reactionError }}
+      <p v-if="progressError" class="graph-toast" role="alert">
+        {{ progressError }}
       </p>
     </div>
 

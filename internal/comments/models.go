@@ -78,3 +78,43 @@ func ValidEmoji(key string) bool {
 	}
 	return false
 }
+
+// DescriptionChange retains the text on both sides of a saved description edit.
+type DescriptionChange struct {
+	ID        int64         `json:"id"`
+	NodeID    int64         `json:"nodeId"`
+	Author    users.Summary `json:"author"`
+	Before    string        `json:"before"`
+	After     string        `json:"after"`
+	CreatedAt time.Time     `json:"createdAt"`
+}
+
+// ProgressItem is either a user comment or a description change.
+type ProgressItem struct {
+	Kind              string             `json:"kind"`
+	Comment           *Comment           `json:"comment,omitempty"`
+	DescriptionChange *DescriptionChange `json:"descriptionChange,omitempty"`
+}
+
+// ProgressCursor identifies a position in the combined chronological feed.
+type ProgressCursor struct {
+	CreatedAt time.Time `json:"createdAt"`
+	Kind      string    `json:"kind"`
+	ID        int64     `json:"id"`
+}
+
+// ProgressList is a page of comments and description changes, newest first.
+type ProgressList struct {
+	Items      []ProgressItem  `json:"items"`
+	HasMore    bool            `json:"hasMore"`
+	NextBefore *ProgressCursor `json:"nextBefore"`
+}
+
+// commentRow is a stored comment.
+type commentRow struct {
+	ID        int64
+	NodeID    int64
+	Author    string
+	Body      string
+	CreatedAt time.Time
+}

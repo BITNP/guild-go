@@ -15,21 +15,27 @@ export function useGraphView() {
   } = useNodeStore();
   const { isManager, isAdmin } = useAuth();
   const { mode: themeMode } = useTheme();
-  const progress = useGraphProgress();
-  const reactions = useCommentReactions(
-    progress.updateReactions,
-    "表情操作失败",
-  );
   const canManageRoots = computed(() => isManager.value || isAdmin.value);
   const selection = useGraphSelection({
     byId,
     canManageRoots,
     childrenOf,
-    loadProgress: progress.load,
     nodes,
     roots,
   });
+  const progress = useProgressFeed(() =>
+    selection.selectedId.value === VIRTUAL_ROOT_ID
+      ? null
+      : selection.selectedId.value,
+  );
+  const chronologicalProgress = computed(() =>
+    [...progress.items.value].reverse(),
+  );
+  const progressError = computed(
+    () => progress.loadError.value ?? progress.error.value,
+  );
   const dialogs = useNodeDialogs();
+  const panelOpen = ref(true);
   const expandedProgressKey = ref<string | null>(null);
   const expandedProgress = computed(() => {
     const key = expandedProgressKey.value;
@@ -54,7 +60,6 @@ export function useGraphView() {
 
   function onCommentCreated(comment: Comment) {
     progress.add(comment);
-    reactions.clearError();
 
     if (selection.detail.value?.id === comment.nodeId) {
       selection.setDetail({
@@ -64,10 +69,6 @@ export function useGraphView() {
     }
 
     void reload();
-  }
-
-  function reactToComment(commentId: number, emoji: string) {
-    void reactions.react(commentId, emoji);
   }
 
   function openProgress(key: string) {
@@ -104,7 +105,7 @@ export function useGraphView() {
     }
     await reload();
     if (selection.active.value?.node.id === node.id) {
-      await progress.load(node.id);
+      await progress.reload();
     }
   }
 
@@ -143,9 +144,8 @@ export function useGraphView() {
 
   watch(selection.selectedId, () => {
     dialogs.closeAll();
-    reactions.clearError();
+    panelOpen.value = true;
     expandedProgressKey.value = null;
-    progress.clear();
   });
 
   onMounted(() => {
@@ -159,19 +159,19 @@ export function useGraphView() {
     reload,
     themeMode,
     active: selection.active,
+    panelOpen,
     detail: selection.detail,
     detailError: selection.detailError,
     detailLoading: selection.detailLoading,
     loadDetail: selection.loadDetail,
     selectNode: selection.select,
     clearSelection: selection.clear,
-    progress: progress.items,
+    progress: chronologicalProgress,
     progressLoading: progress.loading,
     progressHaveMore: progress.hasMore,
-    progressError: progress.error,
-    loadOlderProgress: progress.loadOlder,
-    reacting: reactions.reacting,
-    reactionError: reactions.error,
+    progressError,
+    loadOlderProgress: progress.loadMore,
+    reacting: progress.reacting,
     editOpen: dialogs.editOpen,
     createOpen: dialogs.createOpen,
     createParent: dialogs.createParent,
@@ -180,8 +180,6 @@ export function useGraphView() {
     moveOpen: dialogs.moveOpen,
     orderOpen: dialogs.orderOpen,
     openEdit: dialogs.openEdit,
-    openCreate: dialogs.openCreate,
-    openDeleteDialog: dialogs.openDelete,
     openMove: dialogs.openMove,
     openOrder: dialogs.openOrder,
     closeAll: dialogs.closeAll,
@@ -189,7 +187,7 @@ export function useGraphView() {
     expandedProgressKey,
     selectionLoading,
     onCommentCreated,
-    reactToComment,
+    reactToComment: progress.react,
     openProgress,
     onDetailUpdated,
     openCreateRoot,

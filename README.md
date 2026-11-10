@@ -7,7 +7,7 @@ Guild of Pioneers 的 Go 重写版：一个仓库、一个 Go 二进制、一个
 - 可将节点及其整棵子树移入其他节点或提升为根节点，成员和内容保留，继承权限按新位置计算。
 - 可手动发布文字或附图进展，支持固定 emoji 反应；查看父节点时预览每个直接子节点最近发布的内容。
 - 节点的“进展”按时间混排评论与描述变更，可展开查看修改前后全文。描述历史从功能启用后开始记录，新节点的非空初始描述也会记录；旧节点第一次修改时保留修改前原文。
-- 3D 关系图谱：读取完整节点列表后在浏览器渲染，支持俯视镜头、节点聚焦和节点上方只读评论流（复用 `GET /api/nodes`，无额外接口）。
+- 3D 关系图谱：复用节点与进展接口在浏览器渲染，支持俯视镜头、节点聚焦、发布图文进展和表情回应。节点信息面板可独立收起，收起后保留当前节点与进展输入框。
 - 删除节点会级联删除整棵子树、评论和附件。
 - Keycloak OIDC 登录，权限解析使用 [`bitnp-authz`](https://git.bitnp.net/BITNP/bitnp-authz)。
 - 前端 Vue 3 + Vite + Naive UI，使用 Vue scoped CSS，保留中文高密度三栏；由 Go `embed` 直接提供静态文件。
@@ -108,23 +108,39 @@ docker compose up -d --build
 cmd/guild/              Go 入口
 internal/auth/          OIDC、内存会话、CSRF、登录/回调
 internal/users/         已知用户索引、Keycloak Admin API 显示缓存
-internal/nodes/         节点树、成员、继承权限、排序
-internal/comments/      评论、反应、附件元数据
-internal/storage/       S3 上传/读取/删除
+internal/access/        节点树的有效成员、负责人和关系查询
+internal/nodes/         节点查询与变更、成员管理、排序、子树统计
+internal/comments/      评论、描述变更时间线、预览、表情、图片元数据
+internal/storage/       S3 上传/读取/删除、提交后的对象清理
 internal/database/      pgxpool + 嵌入式迁移
 internal/httpapi/       路由、错误、静态 SPA、中间件
 internal/web/           go:embed 前端 dist
 web/                    Vue 3 + Vite 前端
+  src/api/              请求客户端、接口函数与数据类型
+  src/composables/      节点状态、进展数据流与页面交互
+  src/components/       复用组件与图谱面板
+  src/graph/            Three.js 场景、相机、节点与进展图层
+  src/views/            页面布局与组件组合
 third_party/bitnp-authz/  内嵌的 bitnp-authz Go 源码快照
 doc/API.md              API 契约
 ```
 
 没有 pnpm workspace，也没有把前端作为独立发布物；前端源码在 `web/`，Vite 输出到 `internal/web/dist`，Go 二进制嵌入后单进程提供。
 
+后端的 HTTP 层负责解析请求和返回响应。受保护的路由统一执行登录与 CSRF 检查，再将会话显式传入处理函数和业务服务。
+
+节点模块管理节点与成员，调用评论模块获取最新评论预览和全站最近评论；评论的作者信息、图片和表情由评论模块统一组装。权限模块负责树上的成员关系与授权查询，子树统计和删除所需的附件清单由节点数据层负责。
+
+移动和删除节点在事务内取得树写入锁后重新确认权限。删除子树时，在同一事务中读取已发表和待发表图片的存储键并删除数据，提交后统一清理存储对象；单个对象删除失败会记录日志，并继续清理其余对象。
+
 前端通过 `unplugin-auto-import` 自动导入 Vue、Vue Router、Naive UI、Lucide，
 以及 `@/api`、`@/composables`、`@/lib` 的运行时导出和 `@/api`、`@/graph/types`
 的类型导出；本地组件由 `unplugin-vue-components` 自动注册。`Comment`、`ChildNode`
 与 DOM 全局类型同名，继续显式 `import type`。
+
+节点页与图谱共用 `useProgressFeed` 处理进展加载、分页和表情更新，按各自的展示顺序渲染。
+两处评论输入框共用图片草稿、粘贴拖拽与提交逻辑，图片上传状态由 `ImageUploadPreview` 展示。
+图谱的层级导航、成员管理和面板布局分别维护，卡片与相机共用进展卡片的尺寸定义。
 
 ## 权限模型
 

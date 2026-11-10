@@ -2,7 +2,6 @@ package users
 
 import (
 	"context"
-	"sort"
 	"strings"
 
 	authz "git.bitnp.net/BITNP/bitnp-authz"
@@ -120,15 +119,7 @@ func (s *Service) Get(ctx context.Context, session auth.Session, subject string)
 	if subject == session.Subject {
 		return s.Current(session), nil
 	}
-	identity := s.directory.LookupOrFallback(ctx, subject)
-	return Profile{
-		Summary: Summary{
-			Subject:   subject,
-			UserName:  identity.UserName,
-			Avatar:    identity.Avatar,
-			Positions: identity.Positions,
-		},
-	}, nil
+	return Profile{Summary: s.SummaryFor(ctx, session, subject)}, nil
 }
 
 // List returns the known-user directory.
@@ -137,7 +128,6 @@ func (s *Service) List(ctx context.Context, session auth.Session) ([]Summary, er
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(subjects)
 	result := make([]Summary, 0, len(subjects))
 	for _, subject := range subjects {
 		result = append(result, s.SummaryFor(ctx, session, subject))

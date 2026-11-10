@@ -10,16 +10,21 @@ export function useNodeInlineEditing(
   const completionError = ref<string | null>(null);
 
   const busy = computed(() => savingDue.value || savingCompletion.value);
+  let generation = 0;
 
-  function resetEditing() {
-    if (busy.value) {
-      return;
-    }
-
-    editingDue.value = false;
-    dueError.value = null;
-    completionError.value = null;
-  }
+  watch(
+    () => toValue(node)?.id,
+    () => {
+      generation++;
+      editingDue.value = false;
+      dueValue.value = null;
+      savingDue.value = false;
+      dueError.value = null;
+      savingCompletion.value = false;
+      completionError.value = null;
+    },
+    { flush: "sync" },
+  );
 
   function startDueEdit() {
     const current = toValue(node);
@@ -49,6 +54,7 @@ export function useNodeInlineEditing(
 
     savingDue.value = true;
     dueError.value = null;
+    const currentGeneration = generation;
 
     try {
       const updated = await updateNode(current.id, {
@@ -62,12 +68,18 @@ export function useNodeInlineEditing(
         completed: !!current.completedAt,
       });
 
-      editingDue.value = false;
+      if (currentGeneration === generation) {
+        editingDue.value = false;
+      }
       onUpdated(updated);
     } catch (err) {
-      dueError.value = errorMessage(err, "保存到期时间失败");
+      if (currentGeneration === generation) {
+        dueError.value = errorMessage(err, "保存到期时间失败");
+      }
     } finally {
-      savingDue.value = false;
+      if (currentGeneration === generation) {
+        savingDue.value = false;
+      }
     }
   }
 
@@ -84,6 +96,7 @@ export function useNodeInlineEditing(
 
     savingCompletion.value = true;
     completionError.value = null;
+    const currentGeneration = generation;
 
     try {
       const updated = await updateNode(current.id, {
@@ -96,9 +109,13 @@ export function useNodeInlineEditing(
 
       onUpdated(updated);
     } catch (err) {
-      completionError.value = errorMessage(err, "更新完成状态失败");
+      if (currentGeneration === generation) {
+        completionError.value = errorMessage(err, "更新完成状态失败");
+      }
     } finally {
-      savingCompletion.value = false;
+      if (currentGeneration === generation) {
+        savingCompletion.value = false;
+      }
     }
   }
 
@@ -113,6 +130,5 @@ export function useNodeInlineEditing(
     cancelDueEdit,
     saveDue,
     toggleCompletion,
-    resetEditing,
   };
 }

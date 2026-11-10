@@ -5,21 +5,23 @@ import (
 
 	"git.bitnp.net/BITNP/guild-go/internal/access"
 	"git.bitnp.net/BITNP/guild-go/internal/auth"
+	"git.bitnp.net/BITNP/guild-go/internal/comments"
 	"git.bitnp.net/BITNP/guild-go/internal/storage"
 	"git.bitnp.net/BITNP/guild-go/internal/users"
 )
 
 // Service implements node use cases.
 type Service struct {
-	repo   *Repository
-	users  *users.Service
-	access *access.Checker
-	store  storage.Store
+	repo     *Repository
+	users    *users.Service
+	access   *access.Checker
+	store    storage.Store
+	comments *comments.Service
 }
 
 // NewService creates a node service.
-func NewService(repo *Repository, userService *users.Service, checker *access.Checker, store storage.Store) *Service {
-	return &Service{repo: repo, users: userService, access: checker, store: store}
+func NewService(repo *Repository, userService *users.Service, checker *access.Checker, store storage.Store, commentService *comments.Service) *Service {
+	return &Service{repo: repo, users: userService, access: checker, store: store, comments: commentService}
 }
 
 // List returns the flat tree used by the sidebar.
@@ -98,16 +100,9 @@ func (s *Service) Overview(ctx context.Context, session auth.Session) (Overview,
 		})
 	}
 
-	recentRows, err := s.repo.RecentComments(ctx, 50)
+	recentViews, err := s.comments.Recent(ctx, session, 50)
 	if err != nil {
 		return Overview{}, err
-	}
-	recentViews, err := s.recentViews(ctx, session, recentRows)
-	if err != nil {
-		return Overview{}, err
-	}
-	if rootSummaries == nil {
-		rootSummaries = []RootSummary{}
 	}
 	return Overview{Roots: rootSummaries, RecentComments: recentViews}, nil
 }
@@ -139,7 +134,7 @@ func (s *Service) Get(ctx context.Context, session auth.Session, id int64) (Deta
 		return Detail{}, err
 	}
 
-	counts, err := s.access.SubtreeCounts(ctx, id)
+	counts, err := s.repo.SubtreeCounts(ctx, id)
 	if err != nil {
 		return Detail{}, err
 	}
@@ -177,12 +172,6 @@ func (s *Service) Get(ctx context.Context, session auth.Session, id int64) (Deta
 
 	inheritedLeaderCount := len(effectiveLeaderSet) - len(intersect(effectiveLeaderSet, directSubjects))
 	inheritedMemberCount := len(effectiveMemberSet) - len(intersect(effectiveMemberSet, directSubjects))
-	if inheritedLeaderCount < 0 {
-		inheritedLeaderCount = 0
-	}
-	if inheritedMemberCount < 0 {
-		inheritedMemberCount = 0
-	}
 
 	return Detail{
 		Node:                   node,

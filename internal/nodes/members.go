@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"git.bitnp.net/BITNP/guild-go/internal/access"
 	"git.bitnp.net/BITNP/guild-go/internal/apperr"
 	"git.bitnp.net/BITNP/guild-go/internal/auth"
 	"git.bitnp.net/BITNP/guild-go/internal/users"
@@ -15,17 +16,13 @@ func (s *Service) ReplaceMembers(ctx context.Context, session auth.Session, id i
 	if _, err := s.repo.Get(ctx, id); err != nil {
 		return Detail{}, err
 	}
-	if err := s.requireStructural(ctx, session, id, "只有节点负责人可以管理成员"); err != nil {
+	if err := requireStructural(ctx, session, s.access, id, "只有节点负责人可以管理成员"); err != nil {
 		return Detail{}, err
 	}
 
 	leaders, members, err := s.normalizeMembers(ctx, req.Leaders, req.Members, "")
 	if err != nil {
 		return Detail{}, err
-	}
-
-	if len(leaders) == 0 {
-		return Detail{}, apperr.BadRequest("节点至少需要一个直接负责人")
 	}
 
 	if err := s.repo.ReplaceMembers(ctx, id, leaders, members); err != nil {
@@ -103,12 +100,12 @@ func (s *Service) EffectiveMembers(ctx context.Context, session auth.Session, id
 	return EffectiveMembers{Leaders: leaders, Members: members}, nil
 }
 
-func (s *Service) requireStructural(ctx context.Context, session auth.Session, nodeID int64, message string) error {
+func requireStructural(ctx context.Context, session auth.Session, checker *access.Checker, nodeID int64, message string) error {
 	if session.Permissions.SystemAdmin {
 		return nil
 	}
 
-	allowed, err := s.access.IsEffectiveLeader(ctx, nodeID, session.Subject)
+	allowed, err := checker.IsEffectiveLeader(ctx, nodeID, session.Subject)
 	if err != nil {
 		return err
 	}

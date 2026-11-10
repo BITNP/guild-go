@@ -11,12 +11,11 @@ import (
 	"testing"
 	"time"
 
+	authz "git.bitnp.net/BITNP/bitnp-authz"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 
-	authz "git.bitnp.net/BITNP/bitnp-authz"
 	"git.bitnp.net/BITNP/guild-go/internal/auth"
-	"git.bitnp.net/BITNP/guild-go/internal/config"
 	"git.bitnp.net/BITNP/guild-go/internal/httpapi"
 	"git.bitnp.net/BITNP/guild-go/internal/users"
 )
@@ -85,10 +84,10 @@ func TestLoginEmailInCurrentProfile(t *testing.T) {
 			publicURL, _ := url.Parse("http://guild.example")
 			authService := auth.NewService(
 				auth.NewOIDC(issuer.URL, "guild", "test-secret", publicURL.String()+"/api/auth/callback"),
-				sessions, pending, publicURL, false,
+				sessions, pending, false,
 				func(context.Context, string) error { return nil },
 			)
-			handler := httpapi.New(config.Config{}, nil, authService, users.NewService(nil, nil), nil, nil, nil).Handler()
+			handler := httpapi.New(nil, authService, users.NewService(nil, nil), nil, nil).Handler()
 			callback := httptest.NewRecorder()
 			handler.ServeHTTP(callback, httptest.NewRequest(http.MethodGet, "/api/auth/callback?state=login-state&code=test-code", nil))
 			cookies := callback.Result().Cookies()

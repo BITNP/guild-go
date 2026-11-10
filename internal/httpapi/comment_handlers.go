@@ -7,15 +7,11 @@ import (
 	"strconv"
 
 	"git.bitnp.net/BITNP/guild-go/internal/apperr"
+	"git.bitnp.net/BITNP/guild-go/internal/auth"
 	"git.bitnp.net/BITNP/guild-go/internal/storage"
 )
 
-func (s *Server) listComments(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) listComments(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	nodeID, err := parseID(r, "id")
 	if err != nil {
 		writeError(w, r, err)
@@ -39,12 +35,7 @@ func (s *Server) listComments(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (s *Server) createComment(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) createComment(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	nodeID, err := parseID(r, "id")
 	if err != nil {
 		writeError(w, r, err)
@@ -66,12 +57,7 @@ func (s *Server) createComment(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, result)
 }
 
-func (s *Server) deleteComment(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) deleteComment(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	id, err := parseID(r, "id")
 	if err != nil {
 		writeError(w, r, err)
@@ -84,12 +70,7 @@ func (s *Server) deleteComment(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) reactionUsers(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) reactionUsers(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	id, err := parseID(r, "id")
 	if err != nil {
 		writeError(w, r, err)
@@ -103,12 +84,7 @@ func (s *Server) reactionUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (s *Server) toggleReaction(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) toggleReaction(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	id, err := parseID(r, "id")
 	if err != nil {
 		writeError(w, r, err)
@@ -122,17 +98,13 @@ func (s *Server) toggleReaction(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"reactions": result})
 }
 
-func (s *Server) getAttachment(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getAttachment(w http.ResponseWriter, r *http.Request, _ auth.Session) {
 	id, err := parseID(r, "id")
 	if err != nil {
 		writeError(w, r, err)
 		return
 	}
 	reader, contentType, size, err := s.comments.GetAttachment(r.Context(), id)
-	if errors.Is(err, storage.ErrNotFound) {
-		writeJSON(w, http.StatusNotFound, errorResponse{Status: 404, Error: "NOT_FOUND", Message: "附件不存在"})
-		return
-	}
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -152,12 +124,7 @@ func (s *Server) getAttachment(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, reader)
 }
 
-func (s *Server) uploadCommentImage(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) uploadCommentImage(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	nodeID, err := parseID(r, "id")
 	if err != nil {
 		writeError(w, r, err)
@@ -176,12 +143,7 @@ func (s *Server) uploadCommentImage(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]int64{"id": id})
 }
 
-func (s *Server) deleteCommentUpload(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) deleteCommentUpload(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	id, err := parseID(r, "id")
 	if err != nil {
 		writeError(w, r, err)

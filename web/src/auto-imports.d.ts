@@ -124,10 +124,8 @@ declare global {
   const useAuth: typeof import('./composables/useAuth').useAuth
   const useCommentComposer: typeof import('./composables/useCommentComposer').useCommentComposer
   const useCommentImageDrafts: typeof import('./composables/useCommentImageDrafts').useCommentImageDrafts
-  const useCommentReactions: typeof import('./composables/useCommentReactions').useCommentReactions
   const useCssModule: typeof import('vue').useCssModule
   const useCssVars: typeof import('vue').useCssVars
-  const useGraphProgress: typeof import('./composables/useGraphProgress').useGraphProgress
   const useGraphSelection: typeof import('./composables/useGraphSelection').useGraphSelection
   const useGraphView: typeof import('./composables/useGraphView').useGraphView
   const useId: typeof import('vue').useId
@@ -140,6 +138,7 @@ declare global {
   const useNodeStore: typeof import('./composables/useNodeStore').useNodeStore
   const useOverviewPage: typeof import('./composables/useOverviewPage').useOverviewPage
   const usePanelTilt: typeof import('./composables/usePanelTilt').usePanelTilt
+  const useProgressFeed: typeof import('./composables/useProgressFeed').useProgressFeed
   const useProgressSection: typeof import('./composables/useProgressSection').useProgressSection
   const useRoute: typeof import('vue-router').useRoute
   const useRouter: typeof import('vue-router').useRouter
@@ -165,6 +164,9 @@ declare global {
   // @ts-ignore
   export type { AuthStatus, Department, Permissions, Position, Profile, UserSummary, Attachment, Comment, CommentList, CommentPreview, DescriptionChange, ProgressCursor, ProgressItem, ProgressList, Reaction, Breadcrumb, ChildNode, EffectiveMember, EffectiveMembers, MemberSource, NodeCreateInput, NodeDetail, NodePermissions, NodeSummary, NodeUpdateInput, Overview, RecentComment, RootSummary } from './api/index'
   import('./api/index')
+  // @ts-ignore
+  export type { CommentImageDraft } from './composables/useCommentImageDrafts'
+  import('./composables/useCommentImageDrafts')
   // @ts-ignore
   export type { ThemeMode } from './composables/useTheme'
   import('./composables/useTheme')
@@ -303,10 +305,8 @@ declare module 'vue' {
     readonly useAuth: UnwrapRef<typeof import('./composables/useAuth')['useAuth']>
     readonly useCommentComposer: UnwrapRef<typeof import('./composables/useCommentComposer')['useCommentComposer']>
     readonly useCommentImageDrafts: UnwrapRef<typeof import('./composables/useCommentImageDrafts')['useCommentImageDrafts']>
-    readonly useCommentReactions: UnwrapRef<typeof import('./composables/useCommentReactions')['useCommentReactions']>
     readonly useCssModule: UnwrapRef<typeof import('vue')['useCssModule']>
     readonly useCssVars: UnwrapRef<typeof import('vue')['useCssVars']>
-    readonly useGraphProgress: UnwrapRef<typeof import('./composables/useGraphProgress')['useGraphProgress']>
     readonly useGraphSelection: UnwrapRef<typeof import('./composables/useGraphSelection')['useGraphSelection']>
     readonly useGraphView: UnwrapRef<typeof import('./composables/useGraphView')['useGraphView']>
     readonly useId: UnwrapRef<typeof import('vue')['useId']>
@@ -319,6 +319,7 @@ declare module 'vue' {
     readonly useNodeStore: UnwrapRef<typeof import('./composables/useNodeStore')['useNodeStore']>
     readonly useOverviewPage: UnwrapRef<typeof import('./composables/useOverviewPage')['useOverviewPage']>
     readonly usePanelTilt: UnwrapRef<typeof import('./composables/usePanelTilt')['usePanelTilt']>
+    readonly useProgressFeed: UnwrapRef<typeof import('./composables/useProgressFeed')['useProgressFeed']>
     readonly useProgressSection: UnwrapRef<typeof import('./composables/useProgressSection')['useProgressSection']>
     readonly useRoute: UnwrapRef<typeof import('vue-router')['useRoute']>
     readonly useRouter: UnwrapRef<typeof import('vue-router')['useRouter']>

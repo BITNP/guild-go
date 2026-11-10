@@ -68,7 +68,7 @@ func main() {
 	sessions := auth.NewStore(cfg.SessionTimeout)
 	pending := auth.NewPendingStore()
 	oidcClient := auth.NewOIDC(cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret, cfg.RedirectURL())
-	authService := auth.NewService(oidcClient, sessions, pending, cfg.PublicURL, cfg.SecureCookie, userService.Provision)
+	authService := auth.NewService(oidcClient, sessions, pending, cfg.SecureCookie, userService.Provision)
 	if cfg.DevAuthBypass {
 		if err := userService.Provision(ctx, cfg.DevAuthSubject); err != nil {
 			slog.Error("provision development user failed", "error", err)
@@ -82,15 +82,14 @@ func main() {
 	}
 
 	checker := access.New(pool)
-	nodeRepo := nodes.NewRepository(pool)
-	nodeService := nodes.NewService(nodeRepo, userService, checker, store)
 	commentRepo := comments.NewRepository(pool)
 	commentService := comments.NewService(commentRepo, userService, checker, store)
+	nodeRepo := nodes.NewRepository(pool)
+	nodeService := nodes.NewService(nodeRepo, userService, checker, store, commentService)
 
-	server := httpapi.New(cfg, pool, authService, userService, nodeService, commentService, store)
+	server := httpapi.New(pool, authService, userService, nodeService, commentService)
 
-	go sessions.StartCleanup(ctx)
-	go pending.StartCleanup(ctx)
+	go authService.StartCleanup(ctx)
 	go commentService.StartUploadCleanup(ctx)
 
 	httpServer := &http.Server{

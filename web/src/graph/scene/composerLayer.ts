@@ -2,7 +2,7 @@ import type * as THREE from "three";
 import { CSS3DObject } from "three/addons/renderers/CSS3DRenderer.js";
 
 import type { ComposerPose } from "../CommentLayer";
-import { COMMENT_CARD_WIDTH } from "../CommentLayer";
+import { PROGRESS_CARD_WIDTH } from "../progressLayout";
 
 export class ComposerLayer {
   private readonly scene: THREE.Scene;
@@ -31,7 +31,7 @@ export class ComposerLayer {
     const object = new CSS3DObject(element);
     const width = Math.max(1, element.offsetWidth || 620);
 
-    object.scale.setScalar(COMMENT_CARD_WIDTH / width);
+    object.scale.setScalar(PROGRESS_CARD_WIDTH / width);
     object.visible = false;
     object.element.style.pointerEvents = "auto";
     object.element.style.userSelect = "text";

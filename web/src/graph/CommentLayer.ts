@@ -13,6 +13,11 @@ import {
 } from "./commentTextures";
 import { smoothstep } from "./math";
 import { progressTextureKey } from "./progress";
+import {
+  PROGRESS_CARD_CENTER_X as CARD_CENTER_X,
+  PROGRESS_CARD_HEIGHT as CARD_HEIGHT,
+  PROGRESS_CARD_WIDTH as CARD_WIDTH,
+} from "./progressLayout";
 
 interface ProgressVisual {
   anchor: THREE.Group;
@@ -40,12 +45,6 @@ export interface ComposerPose {
   opacity: number;
 }
 
-export const COMMENT_CARD_WIDTH = 6.2;
-export const COMMENT_CARD_HEIGHT = 2.36;
-
-const CARD_WIDTH = COMMENT_CARD_WIDTH;
-const CARD_HEIGHT = COMMENT_CARD_HEIGHT;
-const CARD_CENTER_X = CARD_WIDTH / 2 + 0.28;
 const BASE_Y = 2.62;
 const SPACING = 2.85;
 const FADE_START = 6.2;

@@ -22,7 +22,6 @@ const props = defineProps<{
   isVirtualRoot: boolean;
 }>();
 
-const membersOpen = ref(false);
 const panel = ref<HTMLElement | null>(null);
 const title = computed(() => props.detail?.title ?? props.selected.title);
 const {
@@ -36,26 +35,12 @@ const {
   cancelDueEdit,
   saveDue,
   toggleCompletion,
-  resetEditing,
 } = useNodeInlineEditing(
   () => props.detail,
   (node) => emit("updated", node),
 );
 
 usePanelTilt(panel);
-
-watch(
-  () => props.selected.id,
-  () => {
-    membersOpen.value = false;
-    resetEditing();
-  },
-);
-
-function onMembersSaved(node: NodeDetail) {
-  membersOpen.value = false;
-  emit("updated", node);
-}
 
 function requestCreateNode() {
   if (props.isVirtualRoot) {
@@ -77,6 +62,7 @@ function requestCreateNode() {
       <button
         aria-label="关闭节点面板"
         class="panel-close"
+        :disabled="savingDue || savingCompletion"
         type="button"
         @click="emit('close')"
       >
@@ -114,33 +100,28 @@ function requestCreateNode() {
         </span>
       </div>
       <div v-if="detail && !isVirtualRoot" class="panel-node-actions">
-        <button
+        <GraphPanelButton
           v-if="detail.permissions.canEdit"
-          class="panel-edit-button"
-          type="button"
           @click="emit('edit')"
         >
           <Pencil :size="12" />
           编辑节点
-        </button>
-        <button
+        </GraphPanelButton>
+        <GraphPanelButton
           v-if="detail.permissions.canEdit"
-          class="panel-edit-button"
-          type="button"
           @click="emit('move')"
         >
           <FolderInput :size="12" />
           移动节点
-        </button>
-        <button
+        </GraphPanelButton>
+        <GraphPanelButton
           v-if="detail.permissions.canDelete"
-          class="panel-delete-button"
-          type="button"
+          tone="danger"
           @click="emit('remove')"
         >
           <Trash2 :size="12" />
           删除节点
-        </button>
+        </GraphPanelButton>
       </div>
     </header>
 
@@ -160,104 +141,34 @@ function requestCreateNode() {
       </div>
 
       <template v-else-if="detail">
-        <section aria-labelledby="panel-structure-title" class="panel-section">
-          <h3 id="panel-structure-title">
-            {{ isVirtualRoot ? "全部根节点" : "层级关系" }}
-          </h3>
-          <div v-if="!isVirtualRoot" class="panel-relation">
-            <span class="relation-label">父节点</span>
-            <button
-              v-if="parentId != null"
-              class="relation-link"
-              type="button"
-              @click="emit('navigate', parentId)"
-            >
-              <span>{{ parentTitle ?? `节点 #${parentId}` }}</span>
-              <ChevronRight :size="14" />
-            </button>
-            <span v-else class="relation-empty">当前为根节点</span>
-          </div>
+        <GraphNodeStructure
+          :is-virtual-root
+          :node="detail"
+          :parent-id
+          :parent-title
+          @create="requestCreateNode"
+          @navigate="emit('navigate', $event)"
+          @reorder="emit('reorder')"
+        />
 
-          <div class="panel-children">
-            <div class="children-heading">
-              <span>{{ isVirtualRoot ? "根节点" : "子节点" }}</span>
-              <span>{{ detail.children.length }}</span>
-            </div>
-            <div class="children-actions">
-              <button
-                v-if="
-                  detail.permissions.canReorderChildren &&
-                  detail.children.length > 1
-                "
-                class="panel-edit-button"
-                type="button"
-                @click="emit('reorder')"
-              >
-                <ArrowUpDown :size="12" />
-                {{ isVirtualRoot ? "调整根节点顺序" : "调整子节点顺序" }}
-              </button>
-              <button
-                v-if="detail.permissions.canAddChild"
-                class="panel-edit-button is-primary"
-                type="button"
-                @click="requestCreateNode"
-              >
-                <Plus :size="12" />
-                {{ isVirtualRoot ? "新建根节点" : "新建子节点" }}
-              </button>
-            </div>
-            <div v-if="detail.children.length > 0" class="children-list">
-              <button
-                v-for="child in detail.children"
-                :key="child.id"
-                class="child-link"
-                type="button"
-                @click="emit('navigate', child.id)"
-              >
-                <span aria-hidden="true" class="child-orb" />
-                <span class="child-title">{{ child.title }}</span>
-                <span v-if="child.childCount" class="child-count">
-                  {{ child.childCount }} 个子节点
-                </span>
-                <ChevronRight :size="13" />
-              </button>
-            </div>
-            <p v-else class="relation-empty">
-              {{ isVirtualRoot ? "暂无根节点" : "暂无子节点" }}
-            </p>
-          </div>
-        </section>
-
-        <section
-          v-if="!isVirtualRoot"
-          aria-labelledby="panel-description-title"
-          class="panel-section"
-        >
-          <h3 id="panel-description-title">节点描述</h3>
+        <GraphPanelSection v-if="!isVirtualRoot" title="节点描述">
           <p v-if="detail.description" class="panel-description">
             {{ detail.description }}
           </p>
           <p v-else class="panel-empty-copy">暂无节点描述</p>
-        </section>
+        </GraphPanelSection>
 
-        <section
-          v-if="!isVirtualRoot"
-          aria-labelledby="panel-meta-title"
-          class="panel-section"
-        >
-          <div class="panel-section-heading">
-            <h3 id="panel-meta-title">节点信息</h3>
-            <button
+        <GraphPanelSection v-if="!isVirtualRoot" title="节点信息">
+          <template #actions>
+            <GraphPanelButton
               v-if="detail.permissions.canEdit && !editingDue"
-              class="panel-edit-button"
               :disabled="savingCompletion"
-              type="button"
               @click="startDueEdit"
             >
               <Pencil :size="12" />
               修改预期完成
-            </button>
-          </div>
+            </GraphPanelButton>
+          </template>
 
           <div v-if="editingDue" class="meta-editor">
             <label class="meta-editor-field">
@@ -324,54 +235,14 @@ function requestCreateNode() {
               <dd>{{ detail.subtreeCommentCount }}</dd>
             </div>
           </dl>
-        </section>
+        </GraphPanelSection>
 
-        <section
+        <GraphNodePeople
           v-if="!isVirtualRoot"
-          aria-labelledby="panel-people-title"
-          class="panel-section panel-people"
-        >
-          <div class="people-heading">
-            <h3 id="panel-people-title">参与人员</h3>
-            <button
-              v-if="detail.permissions.canManageMembers"
-              class="panel-edit-button"
-              type="button"
-              @click="membersOpen = true"
-            >
-              <Pencil :size="12" />
-              管理成员
-            </button>
-          </div>
-
-          <div class="people-group">
-            <h4>直接负责人</h4>
-            <ul v-if="detail.directLeaders.length > 0" class="people-list">
-              <li v-for="person in detail.directLeaders" :key="person.subject">
-                <UserIdentity :size="24" :user="person" />
-              </li>
-            </ul>
-            <p v-else class="panel-empty-copy">暂无直接负责人</p>
-          </div>
-
-          <div class="people-group">
-            <h4>直接成员</h4>
-            <ul v-if="detail.directMembers.length > 0" class="people-list">
-              <li v-for="person in detail.directMembers" :key="person.subject">
-                <UserIdentity :size="24" :user="person" />
-              </li>
-            </ul>
-            <p v-else class="panel-empty-copy">暂无直接成员</p>
-          </div>
-
-          <p
-            v-if="detail.inheritedLeaderCount || detail.inheritedMemberCount"
-            class="inherited-count"
-          >
-            另有 {{ detail.inheritedLeaderCount }} 位上级负责人、
-            {{ detail.inheritedMemberCount }} 位继承成员。
-          </p>
-        </section>
+          :key="detail.id"
+          :node="detail"
+          @updated="emit('updated', $event)"
+        />
       </template>
     </div>
 
@@ -384,14 +255,6 @@ function requestCreateNode() {
         <ExternalLink aria-hidden="true" :size="15" />
       </RouterLink>
     </footer>
-
-    <MembersDialog
-      v-if="detail && !isVirtualRoot"
-      :node="detail"
-      :open="membersOpen"
-      @close="membersOpen = false"
-      @saved="onMembersSaved"
-    />
   </aside>
 </template>
 
@@ -495,9 +358,14 @@ function requestCreateNode() {
   cursor: pointer;
 }
 
-.panel-close:hover {
+.panel-close:hover:not(:disabled) {
   border-color: rgba(238, 185, 77, 0.62);
   color: #f2c66f;
+}
+
+.panel-close:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 .panel-header h2 {
@@ -562,19 +430,11 @@ function requestCreateNode() {
   font-size: 13px;
 }
 
-.panel-node-actions,
-.children-actions {
+.panel-node-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-}
-
-.panel-node-actions {
   margin-top: 12px;
-}
-
-.children-actions {
-  margin: -3px 0 9px;
 }
 
 .panel-scroll {
@@ -586,141 +446,10 @@ function requestCreateNode() {
   scrollbar-width: thin;
 }
 
-.panel-section {
-  padding: 19px 24px;
-  border-bottom: 1px solid rgba(139, 164, 169, 0.13);
-}
-
-.panel-section h3,
-.people-heading h3 {
-  margin: 0 0 13px;
-  color: #e7c47b;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.panel-section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 13px;
-}
-
-.panel-section-heading h3 {
-  margin: 0;
-}
-
-.panel-relation {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-}
-
-.relation-label {
-  color: #84979b;
-  font-size: 13px;
-}
-
-.relation-link,
-.child-link {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-
-.relation-link {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid rgba(221, 176, 75, 0.22);
-  border-radius: 2px;
-  background: rgba(218, 170, 67, 0.055);
-  font-size: 14px;
-  text-align: left;
-}
-
-.relation-link span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.relation-link:hover,
-.child-link:hover {
-  border-color: rgba(238, 185, 77, 0.56);
-  background: rgba(221, 174, 70, 0.09);
-  color: #f5d38e;
-}
-
-.relation-empty,
 .panel-empty-copy {
   margin: 0;
   color: #71868b;
   font-size: 14px;
-}
-
-.panel-children {
-  margin-top: 16px;
-}
-
-.children-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 7px;
-  color: #84979b;
-  font-size: 13px;
-}
-
-.children-heading span:last-child {
-  color: #d8b35f;
-  font-variant-numeric: tabular-nums;
-}
-
-.children-list {
-  display: grid;
-  gap: 4px;
-}
-
-.child-link {
-  display: grid;
-  grid-template-columns: 7px minmax(0, 1fr) auto 14px;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  padding: 8px 9px;
-  border: 1px solid transparent;
-  border-radius: 2px;
-  color: #c6d1d2;
-  font-size: 15px;
-  text-align: left;
-}
-
-.child-orb {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #d9aa49;
-  box-shadow: 0 0 8px rgba(227, 176, 67, 0.72);
-}
-
-.child-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.child-count {
-  color: #70858a;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 .panel-description {
@@ -806,94 +535,6 @@ function requestCreateNode() {
   opacity: 0.55;
 }
 
-.people-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 13px;
-}
-
-.people-heading h3 {
-  margin: 0;
-}
-
-.panel-edit-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 9px;
-  border: 1px solid rgba(221, 176, 75, 0.3);
-  border-radius: 2px;
-  background: transparent;
-  color: #d9b96f;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.panel-edit-button:hover {
-  border-color: rgba(240, 187, 78, 0.68);
-  color: #ffe0a2;
-}
-
-.panel-edit-button.is-primary {
-  border-color: rgba(232, 181, 75, 0.58);
-  background: rgba(218, 170, 67, 0.1);
-  color: #f0cb7e;
-}
-
-.panel-delete-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 9px;
-  border: 1px solid rgba(226, 125, 104, 0.34);
-  border-radius: 2px;
-  background: transparent;
-  color: #e3a091;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.panel-delete-button:hover {
-  border-color: rgba(241, 143, 119, 0.7);
-  background: rgba(177, 69, 50, 0.12);
-  color: #ffb9a8;
-}
-
-.panel-edit-button:disabled {
-  cursor: wait;
-  opacity: 0.55;
-}
-
-.people-group + .people-group {
-  margin-top: 15px;
-}
-
-.people-group h4 {
-  margin: 0 0 7px;
-  color: #7e9296;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.people-list {
-  display: grid;
-  gap: 7px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: #c8d2d2;
-  font-size: 15px;
-}
-
-.inherited-count {
-  margin: 15px 0 0;
-  color: #788c90;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
 .panel-loading,
 .panel-error {
   display: grid;
@@ -961,7 +602,7 @@ function requestCreateNode() {
   color: #fff0c7;
 }
 
-:global([data-theme="light"] .node-control-panel) {
+[data-theme="light"] .node-control-panel {
   border-color: rgba(157, 105, 25, 0.28);
   border-right-color: rgba(151, 94, 12, 0.5);
   background:
@@ -977,122 +618,78 @@ function requestCreateNode() {
   color: #263640;
 }
 
-:global([data-theme="light"] .panel-header) {
+[data-theme="light"] .panel-header {
   border-bottom-color: rgba(81, 105, 116, 0.15);
   background: rgba(255, 255, 255, 0.62);
 }
 
-:global([data-theme="light"] .panel-header h2) {
+[data-theme="light"] .panel-header h2 {
   color: #17242d;
 }
 
-:global([data-theme="light"] .panel-close) {
+[data-theme="light"] .panel-close {
   border-color: rgba(84, 107, 117, 0.22);
   background: rgba(255, 255, 255, 0.76);
   color: #5c7079;
 }
 
-:global([data-theme="light"] .status-toggle),
-:global([data-theme="light"] .panel-edit-button) {
+[data-theme="light"] .status-toggle {
   border-color: rgba(155, 101, 17, 0.3);
   background: rgba(184, 119, 21, 0.06);
   color: #80510d;
 }
 
-:global([data-theme="light"] .panel-tag) {
+[data-theme="light"] .panel-tag {
   border-color: rgba(87, 119, 132, 0.26);
   color: #607783;
 }
 
-:global([data-theme="light"] .panel-section) {
-  border-bottom-color: rgba(82, 105, 116, 0.13);
-}
-
-:global([data-theme="light"] .panel-section h3),
-:global([data-theme="light"] .people-heading h3) {
-  color: #8e590d;
-}
-
-:global([data-theme="light"] .relation-label),
-:global([data-theme="light"] .children-heading),
-:global([data-theme="light"] .people-group h4),
-:global([data-theme="light"] .panel-meta-grid dt) {
+[data-theme="light"] .panel-meta-grid dt {
   color: #607580;
 }
 
-:global([data-theme="light"] .relation-link),
-:global([data-theme="light"] .child-link) {
-  color: #344650;
-}
-
-:global([data-theme="light"] .relation-link) {
-  border-color: rgba(157, 104, 21, 0.22);
-  background: rgba(183, 120, 24, 0.05);
-}
-
-:global([data-theme="light"] .relation-link:hover),
-:global([data-theme="light"] .child-link:hover) {
-  border-color: rgba(157, 100, 17, 0.48);
-  background: rgba(183, 120, 24, 0.08);
-  color: #714707;
-}
-
-:global([data-theme="light"] .relation-empty),
-:global([data-theme="light"] .panel-empty-copy) {
+[data-theme="light"] .panel-empty-copy {
   color: #758993;
 }
 
-:global([data-theme="light"] .children-heading span:last-child) {
-  color: #936013;
-}
-
-:global([data-theme="light"] .child-count) {
-  color: #758993;
-}
-
-:global([data-theme="light"] .panel-description),
-:global([data-theme="light"] .panel-meta-grid dd),
-:global([data-theme="light"] .people-list) {
+[data-theme="light"] .panel-description,
+[data-theme="light"] .panel-meta-grid dd {
   color: #344650;
 }
 
-:global([data-theme="light"] .inherited-count) {
-  color: #70848e;
-}
-
-:global([data-theme="light"] .meta-editor-field),
-:global([data-theme="light"] .panel-loading),
-:global([data-theme="light"] .panel-error) {
+[data-theme="light"] .meta-editor-field,
+[data-theme="light"] .panel-loading,
+[data-theme="light"] .panel-error {
   color: #627781;
 }
 
-:global([data-theme="light"] .meta-editor-actions button) {
+[data-theme="light"] .meta-editor-actions button {
   border-color: rgba(81, 106, 118, 0.25);
   background: rgba(255, 255, 255, 0.78);
   color: #4f6570;
 }
 
-:global([data-theme="light"] .meta-editor-actions button.is-primary) {
+[data-theme="light"] .meta-editor-actions button.is-primary {
   border-color: rgba(156, 101, 17, 0.46);
   background: rgba(187, 123, 24, 0.09);
   color: #7d4e0a;
 }
 
-:global([data-theme="light"] .panel-error p) {
+[data-theme="light"] .panel-error p {
   color: #8d590d;
 }
 
-:global([data-theme="light"] .panel-error button) {
+[data-theme="light"] .panel-error button {
   border-color: rgba(156, 101, 17, 0.34);
   color: #7f500b;
 }
 
-:global([data-theme="light"] .panel-footer) {
+[data-theme="light"] .panel-footer {
   border-top-color: rgba(157, 105, 22, 0.2);
   background: rgba(255, 255, 255, 0.9);
 }
 
-:global([data-theme="light"] .panel-page-link) {
+[data-theme="light"] .panel-page-link {
   border-color: rgba(157, 102, 18, 0.38);
   background:
     linear-gradient(90deg, rgba(190, 127, 29, 0.1), transparent),
@@ -1120,8 +717,7 @@ function requestCreateNode() {
     width: calc(100vw - 20px);
   }
 
-  .panel-header,
-  .panel-section {
+  .panel-header {
     padding-right: 18px;
     padding-left: 18px;
   }

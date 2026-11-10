@@ -2,14 +2,12 @@ package nodes
 
 import (
 	"context"
-	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"git.bitnp.net/BITNP/guild-go/internal/apperr"
-	"git.bitnp.net/BITNP/guild-go/internal/comments"
 )
 
 type nodeScan struct {
@@ -72,38 +70,10 @@ type NodeRow struct {
 	LatestCommentAt *time.Time
 }
 
-// LatestRow is the raw latest-comment data for a child.
-type LatestRow struct {
-	ID              int64
-	Body            string
-	CreatedAt       time.Time
-	Author          string
-	AttachmentCount int
-}
-
-// ChildRow is a child node plus its latest comment.
-type ChildRow struct {
-	Node
-	ChildCount   int
-	CommentCount int
-	Latest       *LatestRow
-}
-
 // MemberRow is a direct member row.
 type MemberRow struct {
 	Subject string
 	Role    string
-}
-
-// RecentRow is one recent comment across the whole site.
-type RecentRow struct {
-	ID        int64
-	NodeID    int64
-	NodeTitle string
-	RootTitle string
-	Body      string
-	CreatedAt time.Time
-	Author    string
 }
 
 // Get returns one node.
@@ -160,64 +130,31 @@ func (r *Repository) List(ctx context.Context) ([]NodeRow, error) {
 	return result, rows.Err()
 }
 
-// Children returns direct children (or roots when parentID is nil) with their
-// latest comment.
-func (r *Repository) Children(ctx context.Context, parentID *int64) ([]ChildRow, error) {
+// Children returns direct children, or roots when parentID is nil.
+func (r *Repository) Children(ctx context.Context, parentID *int64) ([]NodeRow, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT n.id, n.parent_id, n.title, n.description, n.due_at, n.completed_at, n.tags,
-		       n.sort_order, n.created_by, n.created_at, n.updated_at,
-		       (SELECT count(*) FROM nodes c WHERE c.parent_id = n.id),
-		       (SELECT count(*) FROM comments c WHERE c.node_id = n.id),
-		       lc.id, lc.body, lc.created_at, lc.author_subject,
-		       (SELECT count(*) FROM comment_attachments a WHERE a.comment_id = lc.id)
-		FROM nodes n
-		LEFT JOIN LATERAL (
-			SELECT id, body, created_at, author_subject
-			FROM comments WHERE node_id = n.id
-			ORDER BY id DESC LIMIT 1
-		) lc ON true
-		WHERE ($1::bigint IS NULL AND n.parent_id IS NULL) OR n.parent_id = $1
-		ORDER BY n.sort_order, n.id`, parentID)
+  SELECT n.id, n.parent_id, n.title, n.description, n.due_at, n.completed_at, n.tags,
+         n.sort_order, n.created_by, n.created_at, n.updated_at,
+         (SELECT count(*) FROM nodes c WHERE c.parent_id = n.id),
+         (SELECT count(*) FROM comments c WHERE c.node_id = n.id)
+  FROM nodes n
+  WHERE ($1::bigint IS NULL AND n.parent_id IS NULL) OR n.parent_id = $1
+  ORDER BY n.sort_order, n.id`, parentID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var result []ChildRow
+	var result []NodeRow
 	for rows.Next() {
 		scan := newScan()
 		var childCount, commentCount int
-		var latestID pgtype.Int8
-		var latestBody pgtype.Text
-		var latestAt pgtype.Timestamptz
-		var latestAuthor pgtype.Text
-		var attachmentCount int
-		args := append(scan.dest(), &childCount, &commentCount,
-			&latestID, &latestBody, &latestAt, &latestAuthor, &attachmentCount)
-
+		args := append(scan.dest(), &childCount, &commentCount)
 		if err := rows.Scan(args...); err != nil {
 			return nil, err
 		}
-
-		row := ChildRow{
-			Node:         scan.value(),
-			ChildCount:   childCount,
-			CommentCount: commentCount,
-		}
-
-		if latestID.Valid {
-			row.Latest = &LatestRow{
-				ID:              latestID.Int64,
-				Body:            latestBody.String,
-				CreatedAt:       latestAt.Time,
-				Author:          latestAuthor.String,
-				AttachmentCount: attachmentCount,
-			}
-		}
-
-		result = append(result, row)
+		result = append(result, NodeRow{Node: scan.value(), ChildCount: childCount, CommentCount: commentCount})
 	}
-
 	return result, rows.Err()
 }
 
@@ -304,89 +241,28 @@ func (r *Repository) RootLeaders(ctx context.Context, rootIDs []int64) (map[int6
 	return result, rows.Err()
 }
 
-// ReactionsForComments returns aggregated reactions for a set of comments.
-func (r *Repository) ReactionsForComments(ctx context.Context, commentIDs []int64, viewer string) (map[int64][]comments.Reaction, error) {
-	result := make(map[int64][]comments.Reaction)
-	if len(commentIDs) == 0 {
-		return result, nil
-	}
-
-	rows, err := r.pool.Query(ctx, `
-		SELECT comment_id, emoji, count(*)::int, bool_or(subject=$2)
-		FROM comment_reactions
-		WHERE comment_id = ANY($1)
-		GROUP BY comment_id, emoji`, commentIDs, viewer)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var commentID int64
-		var reaction comments.Reaction
-
-		if err := rows.Scan(&commentID, &reaction.Emoji, &reaction.Count, &reaction.ReactedByMe); err != nil {
-			return nil, err
-		}
-
-		result[commentID] = append(result[commentID], reaction)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	for id := range result {
-		sortReactions(result[id])
-	}
-
-	return result, nil
+// Counts summarizes a subtree.
+type Counts struct {
+	Nodes       int
+	Comments    int
+	Attachments int
 }
 
-// RecentComments returns the newest comments across all nodes.
-func (r *Repository) RecentComments(ctx context.Context, limit int) ([]RecentRow, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT c.id, c.node_id, n.title, c.body, c.created_at, c.author_subject,
-		       COALESCE(root.title, n.title) AS root_title
-		FROM comments c
-		JOIN nodes n ON n.id = c.node_id
-		LEFT JOIN LATERAL (
-			WITH RECURSIVE chain AS (
-				SELECT id, parent_id, title FROM nodes WHERE id = n.id
-				UNION ALL
-				SELECT p.id, p.parent_id, p.title
-				FROM nodes p JOIN chain ch ON p.id = ch.parent_id
-			)
-			SELECT title FROM chain WHERE parent_id IS NULL LIMIT 1
-		) root ON true
-		ORDER BY c.created_at DESC, c.id DESC
-		LIMIT $1`, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var result []RecentRow
-	for rows.Next() {
-		var row RecentRow
-
-		if err := rows.Scan(&row.ID, &row.NodeID, &row.NodeTitle, &row.Body, &row.CreatedAt, &row.Author, &row.RootTitle); err != nil {
-			return nil, err
-		}
-
-		result = append(result, row)
-	}
-
-	return result, rows.Err()
-}
-
-func sortReactions(reactions []comments.Reaction) {
-	order := make(map[string]int, len(comments.EmojiKeys))
-	for index, key := range comments.EmojiKeys {
-		order[key] = index
-	}
-
-	sort.SliceStable(reactions, func(i, j int) bool {
-		return order[reactions[i].Emoji] < order[reactions[j].Emoji]
-	})
+// SubtreeCounts counts nodes, comments and attachments in a subtree.
+func (r *Repository) SubtreeCounts(ctx context.Context, nodeID int64) (Counts, error) {
+	const query = `
+WITH RECURSIVE subtree AS (
+    SELECT id FROM nodes WHERE id = $1
+    UNION ALL
+    SELECT n.id FROM nodes n JOIN subtree s ON n.parent_id = s.id
+)
+SELECT
+    (SELECT count(*) FROM subtree),
+    (SELECT count(*) FROM comments c JOIN subtree s ON s.id = c.node_id),
+    (SELECT count(*) FROM comment_attachments a
+     JOIN comments c ON c.id = a.comment_id
+     JOIN subtree s ON s.id = c.node_id)`
+	var counts Counts
+	err := r.pool.QueryRow(ctx, query, nodeID).Scan(&counts.Nodes, &counts.Comments, &counts.Attachments)
+	return counts, err
 }

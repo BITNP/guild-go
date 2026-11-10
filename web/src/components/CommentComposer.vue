@@ -76,12 +76,7 @@ onBeforeUnmount(dispose);
               v-for="image in images"
               :key="image.src"
               :disabled="submitting"
-              :error="
-                image.status.state === 'failed' ? image.status.message : null
-              "
-              :name="image.file.name"
-              :src="image.src"
-              :uploading="image.status.state === 'uploading'"
+              :image
               @remove="remove(image)"
               @retry="retry(image)"
             />

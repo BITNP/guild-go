@@ -9,7 +9,7 @@ const ACCEPTED_IMAGE_TYPES = new Set([
   "image/webp",
 ]);
 
-interface DraftImage {
+export interface CommentImageDraft {
   file: File;
   src: string;
   status:
@@ -37,7 +37,7 @@ export const hasFileDrag = (data: DataTransfer | null): boolean =>
   data ? [...data.types].includes("Files") : false;
 
 export function useCommentImageDrafts(nodeId: MaybeRefOrGetter<number>) {
-  const images = ref<DraftImage[]>([]);
+  const images = ref<CommentImageDraft[]>([]);
   const pending = computed(() =>
     images.value.some((image) => image.status.state !== "uploaded"),
   );
@@ -49,7 +49,7 @@ export function useCommentImageDrafts(nodeId: MaybeRefOrGetter<number>) {
     });
   }
 
-  async function upload(image: DraftImage) {
+  async function upload(image: CommentImageDraft) {
     image.status = { state: "uploading" };
     try {
       const { id } = await uploadCommentImage(toValue(nodeId), image.file);
@@ -87,7 +87,7 @@ export function useCommentImageDrafts(nodeId: MaybeRefOrGetter<number>) {
 
         continue;
       }
-      const image = reactive<DraftImage>({
+      const image = reactive<CommentImageDraft>({
         file,
         src: URL.createObjectURL(file),
         status: { state: "uploading" },
@@ -99,13 +99,13 @@ export function useCommentImageDrafts(nodeId: MaybeRefOrGetter<number>) {
     return message;
   }
 
-  function retry(image: DraftImage) {
+  function retry(image: CommentImageDraft) {
     if (active && image.status.state === "failed") {
       void upload(image);
     }
   }
 
-  function remove(image: DraftImage) {
+  function remove(image: CommentImageDraft) {
     if (image.status.state === "uploading") {
       return;
     }

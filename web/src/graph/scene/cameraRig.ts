@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import { nearestAngle } from "../math";
+import { PROGRESS_CARD_WIDTH } from "../progressLayout";
 
 const INITIAL_PITCH = THREE.MathUtils.degToRad(60);
 const INITIAL_YAW = THREE.MathUtils.degToRad(24);
@@ -64,6 +65,9 @@ export class CameraRig {
     this.camera.updateProjectionMatrix();
 
     if (this.focusNodeVisible) {
+      if (!this.focusNodeVirtual) {
+        this.desiredDistance = this.nodeFocusDistance();
+      }
       this.desiredTarget.copy(
         this.focusTarget(
           this.focusNodePosition,
@@ -151,7 +155,7 @@ export class CameraRig {
         ? Math.atan2(this.focusNodePosition.x, this.focusNodePosition.z)
         : this.yaw;
 
-    this.desiredDistance = THREE.MathUtils.clamp(this.camera.fov / 2.2, 16, 21);
+    this.desiredDistance = this.nodeFocusDistance();
     this.desiredPitch = THREE.MathUtils.degToRad(21);
     this.desiredYaw = nearestAngle(this.yaw, radialYaw);
     this.desiredTarget.copy(
@@ -305,6 +309,18 @@ export class CameraRig {
     return Math.max(28, horizontalDistance, verticalDistance) * padding;
   }
 
+  private nodeFocusDistance(): number {
+    const verticalFov = THREE.MathUtils.degToRad(this.camera.fov);
+    const fitWidth = PROGRESS_CARD_WIDTH + 2;
+    const horizontalDistance =
+      fitWidth / (2 * Math.tan(verticalFov / 2) * this.camera.aspect);
+
+    return Math.max(
+      THREE.MathUtils.clamp(this.camera.fov / 2.2, 16, 21),
+      horizontalDistance,
+    );
+  }
+
   private focusTarget(
     nodePosition: THREE.Vector3,
     yaw: number,
@@ -315,6 +331,9 @@ export class CameraRig {
     const verticalExtent =
       2 * distance * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
     const horizontalExtent = verticalExtent * this.camera.aspect;
+    const horizontalOffset = this.focusNodeVirtual
+      ? horizontalExtent * 0.16
+      : Math.max(horizontalExtent * 0.16, PROGRESS_CARD_WIDTH / 2);
     const offsetDirection = new THREE.Vector3(
       Math.sin(yaw) * Math.cos(pitch),
       Math.sin(pitch),
@@ -330,7 +349,7 @@ export class CameraRig {
 
     return nodePosition
       .clone()
-      .addScaledVector(right, horizontalExtent * 0.16)
+      .addScaledVector(right, horizontalOffset)
       .addScaledVector(screenUp, verticalExtent * verticalOffset);
   }
 }

@@ -91,7 +91,6 @@ onBeforeUnmount(dispose);
       :aria-invalid="!!error"
       aria-label="请输入进展"
       class="composer-input"
-      :class="{ 'has-images': images.length > 0 }"
       :disabled="submitting"
       maxlength="5000"
       placeholder="输入进展，可粘贴或拖拽图片"
@@ -101,37 +100,15 @@ onBeforeUnmount(dispose);
     />
 
     <div v-if="images.length > 0" aria-live="polite" class="composer-images">
-      <div v-for="image in images" :key="image.src" class="image-slot">
-        <img :alt="image.file.name" :src="image.src" />
-        <div
-          v-if="image.status.state === 'uploading'"
-          :aria-label="`正在上传：${image.file.name}`"
-          class="image-overlay"
-          role="progressbar"
-        >
-          <Loader2 class="spin" :size="18" />
-        </div>
-        <button
-          v-else-if="image.status.state === 'failed'"
-          :aria-label="`重试上传：${image.file.name}`"
-          class="image-overlay image-retry"
-          :title="image.status.message"
-          type="button"
-          @click="retry(image)"
-        >
-          <RotateCcw :size="16" />
-        </button>
-        <button
-          v-if="image.status.state !== 'uploading'"
-          :aria-label="`移除图片：${image.file.name}`"
-          class="image-remove"
-          :disabled="submitting"
-          type="button"
-          @click="remove(image)"
-        >
-          <X :size="12" />
-        </button>
-      </div>
+      <ImageUploadPreview
+        v-for="image in images"
+        :key="image.src"
+        compact
+        :disabled="submitting"
+        :image
+        @remove="remove(image)"
+        @retry="retry(image)"
+      />
     </div>
 
     <div class="composer-actions">
@@ -182,16 +159,18 @@ onBeforeUnmount(dispose);
 
 <style scoped>
 .graph-comment-composer {
-  --composer-accent: #e8b954;
   position: absolute;
   z-index: 18;
-  bottom: 82px;
-  left: 30px;
-  width: clamp(300px, calc(100vw - 430px), 440px);
-  padding: 17px 18px 14px 22px;
+  display: flex;
+  width: 620px;
+  height: 260px;
+  margin: 0;
+  padding: 18px 22px 14px 26px;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
   border: 1px solid rgba(226, 178, 76, 0.34);
   border-left-color: rgba(240, 188, 79, 0.82);
-  border-radius: 3px;
   background:
     linear-gradient(135deg, rgba(232, 181, 75, 0.1), transparent 34%),
     linear-gradient(180deg, rgba(9, 17, 20, 0.94), rgba(5, 11, 14, 0.97));
@@ -202,8 +181,9 @@ onBeforeUnmount(dispose);
   color: #dce5e4;
   pointer-events: auto;
   backdrop-filter: blur(22px) saturate(120%);
-  transform: perspective(1100px) rotateX(1.1deg) rotateY(1.4deg);
-  transform-origin: 0 100%;
+  transform-origin: 50% 50%;
+  visibility: hidden;
+  opacity: 0;
 }
 
 .graph-comment-composer::before,
@@ -232,21 +212,24 @@ onBeforeUnmount(dispose);
 .composer-input {
   display: block;
   width: 100%;
-  min-height: 82px;
-  max-height: 190px;
-  resize: vertical;
+  min-height: 0;
+  flex: 1 1 auto;
+  resize: none;
   border: 1px solid rgba(108, 148, 155, 0.34);
   border-radius: 2px;
   outline: none;
   background:
     linear-gradient(90deg, rgba(80, 183, 181, 0.05), transparent 34%),
     rgba(2, 9, 12, 0.58);
-  padding: 11px 12px;
+  padding: 10px 12px;
   color: #eef2ec;
   font: inherit;
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 27px;
+  line-height: 1.55;
   caret-color: #f0bd58;
+  touch-action: auto;
+  user-select: text;
+  -webkit-user-select: text;
   transition:
     border-color 160ms ease,
     box-shadow 160ms ease,
@@ -272,80 +255,33 @@ onBeforeUnmount(dispose);
 
 .composer-images {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 9px;
-}
-
-.image-slot {
-  position: relative;
-  width: 62px;
-  height: 62px;
-  overflow: hidden;
-  border: 1px solid rgba(108, 148, 155, 0.34);
-  border-radius: 2px;
-  background: #0b1418;
-}
-
-.image-slot img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.image-overlay {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-content: center;
-  gap: 3px;
-  border: 0;
-  background: rgba(3, 10, 13, 0.76);
-  color: #d7e4e2;
-  font-size: 12px;
-  text-align: center;
-}
-
-.image-retry {
-  cursor: pointer;
-}
-
-.image-retry:hover {
-  color: #f0c46c;
-}
-
-.image-remove {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  display: grid;
-  width: 19px;
-  height: 19px;
-  place-items: center;
-  border: 1px solid rgba(218, 185, 119, 0.3);
-  border-radius: 50%;
-  background: rgba(4, 10, 12, 0.84);
-  color: #cad7d5;
-  cursor: pointer;
+  gap: 5px;
+  margin-top: 6px;
 }
 
 .composer-actions {
   display: flex;
+  flex: none;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 10px;
-  margin-top: 11px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(139, 166, 171, 0.17);
 }
 
 .attach-button,
 .send-button {
   display: inline-flex;
-  min-height: 32px;
+  width: 38px;
+  min-height: 34px;
   align-items: center;
   justify-content: center;
   gap: 6px;
   border-radius: 2px;
-  padding: 0 11px;
+  padding: 0;
   font-size: 13px;
   cursor: pointer;
   transition:
@@ -359,11 +295,6 @@ onBeforeUnmount(dispose);
   border: 1px solid rgba(113, 148, 154, 0.34);
   background: rgba(10, 19, 22, 0.58);
   color: #adbec0;
-}
-
-.attach-button span {
-  color: rgba(225, 181, 90, 0.72);
-  font-variant-numeric: tabular-nums;
 }
 
 .send-button {
@@ -396,10 +327,11 @@ onBeforeUnmount(dispose);
 }
 
 .composer-error {
-  margin: 8px 0 0;
+  flex: none;
+  margin: 4px 0 0;
   color: #f2a18c;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 16px;
+  line-height: 1.3;
 }
 
 .drop-hint {
@@ -439,118 +371,7 @@ onBeforeUnmount(dispose);
   }
 }
 
-@media (max-width: 720px) {
-  .graph-comment-composer {
-    bottom: 74px;
-    left: 14px;
-    width: calc(100vw - 374px);
-    min-width: 264px;
-    padding: 14px 14px 12px 18px;
-  }
-}
-
-@media (max-width: 560px) {
-  .graph-comment-composer {
-    right: 14px;
-    bottom: 70px;
-    width: auto;
-    min-width: 0;
-  }
-}
-
-/*
- * CSS3DRenderer owns this element's position and transform. The fixed logical
- * size keeps it aligned with the 6.2 x 2.36 comment-card plane in the scene.
- */
-.graph-comment-composer {
-  top: auto;
-  right: auto;
-  bottom: auto;
-  left: auto;
-  display: flex;
-  width: 620px;
-  height: 260px;
-  min-width: 0;
-  margin: 0;
-  padding: 18px 22px 14px 26px;
-  flex-direction: column;
-  overflow: hidden;
-  box-sizing: border-box;
-  border-radius: 0;
-  transform-origin: 50% 50%;
-  visibility: hidden;
-  opacity: 0;
-}
-
-.composer-input {
-  min-height: 0;
-  height: auto;
-  max-height: none;
-  flex: 1 1 auto;
-  margin-top: 0;
-  padding: 10px 12px;
-  resize: none;
-  font-size: 27px;
-  line-height: 1.55;
-  touch-action: auto;
-  user-select: text;
-  -webkit-user-select: text;
-}
-
-.composer-input.has-images {
-  height: auto;
-  max-height: none;
-}
-
-.composer-images {
-  flex: none;
-  gap: 5px;
-  margin-top: 6px;
-}
-
-.image-slot {
-  width: 34px;
-  height: 34px;
-}
-
-.image-overlay {
-  gap: 0;
-  font-size: 12px;
-}
-
-.image-overlay svg {
-  width: 13px;
-  height: 13px;
-}
-
-.image-remove {
-  width: 16px;
-  height: 16px;
-}
-
-.composer-actions {
-  flex: none;
-  justify-content: flex-end;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(139, 166, 171, 0.17);
-}
-
-.attach-button,
-.send-button {
-  width: 38px;
-  min-height: 34px;
-  padding: 0;
-}
-
-.composer-error {
-  flex: none;
-  margin-top: 4px;
-  font-size: 16px;
-  line-height: 1.3;
-}
-
-:global([data-theme="light"] .graph-comment-composer) {
+[data-theme="light"] .graph-comment-composer {
   border-color: rgba(160, 105, 20, 0.28);
   border-left-color: rgba(147, 90, 8, 0.62);
   background:
@@ -567,7 +388,7 @@ onBeforeUnmount(dispose);
   color: #2a3942;
 }
 
-:global([data-theme="light"] .composer-input) {
+[data-theme="light"] .composer-input {
   border-color: rgba(79, 108, 120, 0.28);
   background:
     linear-gradient(90deg, rgba(58, 143, 142, 0.04), transparent 34%),
@@ -576,11 +397,11 @@ onBeforeUnmount(dispose);
   caret-color: #9a620e;
 }
 
-:global([data-theme="light"] .composer-input::placeholder) {
+[data-theme="light"] .composer-input::placeholder {
   color: rgba(73, 94, 106, 0.58);
 }
 
-:global([data-theme="light"] .composer-input:focus) {
+[data-theme="light"] .composer-input:focus {
   border-color: rgba(158, 101, 16, 0.58);
   background: rgba(255, 255, 255, 0.98);
   box-shadow:
@@ -588,33 +409,17 @@ onBeforeUnmount(dispose);
     inset 0 0 24px rgba(58, 143, 142, 0.03);
 }
 
-:global([data-theme="light"] .image-slot) {
-  border-color: rgba(80, 108, 120, 0.26);
-  background: #eef3f5;
-}
-
-:global([data-theme="light"] .image-overlay) {
-  background: rgba(238, 244, 246, 0.86);
-  color: #455b66;
-}
-
-:global([data-theme="light"] .image-remove) {
-  border-color: rgba(121, 91, 47, 0.28);
-  background: rgba(255, 255, 255, 0.9);
-  color: #506570;
-}
-
-:global([data-theme="light"] .composer-actions) {
+[data-theme="light"] .composer-actions {
   border-top-color: rgba(80, 108, 120, 0.18);
 }
 
-:global([data-theme="light"] .attach-button) {
+[data-theme="light"] .attach-button {
   border-color: rgba(78, 109, 121, 0.28);
   background: rgba(255, 255, 255, 0.72);
   color: #536a75;
 }
 
-:global([data-theme="light"] .send-button) {
+[data-theme="light"] .send-button {
   border-color: rgba(157, 101, 18, 0.48);
   background:
     linear-gradient(135deg, rgba(189, 124, 27, 0.14), transparent),
@@ -623,11 +428,11 @@ onBeforeUnmount(dispose);
   box-shadow: 0 0 18px rgba(176, 112, 18, 0.05);
 }
 
-:global([data-theme="light"] .composer-error) {
+[data-theme="light"] .composer-error {
   color: #a33f36;
 }
 
-:global([data-theme="light"] .drop-hint) {
+[data-theme="light"] .drop-hint {
   border-color: rgba(147, 90, 8, 0.62);
   background: rgba(250, 246, 237, 0.94);
   color: #7f4f0a;

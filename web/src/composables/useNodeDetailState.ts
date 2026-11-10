@@ -2,7 +2,6 @@ interface LoadNodeOptions {
   silent?: boolean;
   errorFallback?: string;
   shouldApply?: () => boolean;
-  afterLoad?: (node: NodeDetail) => Promise<void> | void;
 }
 
 export function useNodeDetailState(initialLoading = false) {
@@ -29,7 +28,6 @@ export function useNodeDetailState(initialLoading = false) {
       }
 
       detail.value = node;
-      await options.afterLoad?.(node);
     } catch (err) {
       if (current === generation && options.shouldApply?.() !== false) {
         detail.value = null;

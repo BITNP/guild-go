@@ -2,14 +2,13 @@ package nodes
 
 import (
 	"context"
-	"log/slog"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"git.bitnp.net/BITNP/guild-go/internal/access"
 	"git.bitnp.net/BITNP/guild-go/internal/apperr"
 	"git.bitnp.net/BITNP/guild-go/internal/auth"
+	"git.bitnp.net/BITNP/guild-go/internal/storage"
 )
 
 // Create inserts a root or child node.
@@ -60,7 +59,7 @@ func (s *Service) Update(ctx context.Context, session auth.Session, id int64, re
 	if _, err := s.repo.Get(ctx, id); err != nil {
 		return Detail{}, err
 	}
-	if err := s.requireStructural(ctx, session, id, "只有节点负责人可以编辑节点"); err != nil {
+	if err := requireStructural(ctx, session, s.access, id, "只有节点负责人可以编辑节点"); err != nil {
 		return Detail{}, err
 	}
 
@@ -73,7 +72,7 @@ func (s *Service) Update(ctx context.Context, session auth.Session, id int64, re
 	req.Description = description
 	req.Tags = tags
 
-	if _, err := s.repo.Update(ctx, id, req, session.Subject); err != nil {
+	if err := s.repo.Update(ctx, id, req, session.Subject); err != nil {
 		return Detail{}, err
 	}
 
@@ -86,7 +85,7 @@ func (s *Service) Move(ctx context.Context, session auth.Session, id int64, req 
 	if err != nil {
 		return Detail{}, err
 	}
-	if err := s.requireStructural(ctx, session, id, "只有节点负责人可以移动节点"); err != nil {
+	if err := requireStructural(ctx, session, s.access, id, "只有节点负责人可以移动节点"); err != nil {
 		return Detail{}, err
 	}
 
@@ -106,15 +105,12 @@ func (s *Service) Move(ctx context.Context, session auth.Session, id int64, req 
 		if _, err := s.repo.Get(ctx, *req.ParentID); err != nil {
 			return Detail{}, err
 		}
-		if err := s.requireStructural(ctx, session, *req.ParentID, "只有目标父节点负责人可以移入节点"); err != nil {
+		if err := requireStructural(ctx, session, s.access, *req.ParentID, "只有目标父节点负责人可以移入节点"); err != nil {
 			return Detail{}, err
 		}
 	}
 
 	if err := s.repo.Move(ctx, id, req.ParentID, func(tx pgx.Tx) error {
-		if session.Permissions.SystemAdmin {
-			return nil
-		}
 		// A queued move may have lost inherited leadership while another move
 		// committed. Recheck after acquiring the tree lock, in this transaction.
 		checker := access.InTx(tx)
@@ -123,12 +119,8 @@ func (s *Service) Move(ctx context.Context, session auth.Session, id int64, req 
 			ids = append(ids, *req.ParentID)
 		}
 		for _, nodeID := range ids {
-			allowed, err := checker.IsEffectiveLeader(ctx, nodeID, session.Subject)
-			if err != nil {
+			if err := requireStructural(ctx, session, checker, nodeID, "移动权限已变化，请刷新后重试"); err != nil {
 				return err
-			}
-			if !allowed {
-				return apperr.Forbidden("移动权限已变化，请刷新后重试")
 			}
 		}
 		return nil
@@ -144,26 +136,17 @@ func (s *Service) Delete(ctx context.Context, session auth.Session, id int64) er
 	if _, err := s.repo.Get(ctx, id); err != nil {
 		return err
 	}
-	if err := s.requireStructural(ctx, session, id, "只有节点负责人可以删除节点"); err != nil {
+	if err := requireStructural(ctx, session, s.access, id, "只有节点负责人可以删除节点"); err != nil {
 		return err
 	}
 
-	keys, err := s.access.AttachmentKeysForNode(ctx, id)
+	keys, err := s.repo.Delete(ctx, id, func(tx pgx.Tx) error {
+		return requireStructural(ctx, session, access.InTx(tx), id, "删除权限已变化，请刷新后重试")
+	})
 	if err != nil {
 		return err
 	}
-
-	if err := s.repo.Delete(ctx, id); err != nil {
-		return err
-	}
-
-	for _, key := range keys {
-		deleteCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if err := s.store.Delete(deleteCtx, key); err != nil {
-			slog.Warn("delete node attachment failed", "key", key, "error", err)
-		}
-		cancel()
-	}
+	storage.DeleteObjects(s.store, keys)
 
 	return nil
 }
@@ -181,7 +164,7 @@ func (s *Service) Reorder(ctx context.Context, session auth.Session, parentID *i
 		return err
 	}
 
-	if err := s.requireStructural(ctx, session, *parentID, "只有父节点负责人可以调整子节点顺序"); err != nil {
+	if err := requireStructural(ctx, session, s.access, *parentID, "只有父节点负责人可以调整子节点顺序"); err != nil {
 		return err
 	}
 

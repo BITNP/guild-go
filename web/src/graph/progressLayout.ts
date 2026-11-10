@@ -1,0 +1,3 @@
+export const PROGRESS_CARD_WIDTH = 6.2;
+export const PROGRESS_CARD_HEIGHT = 2.36;
+export const PROGRESS_CARD_CENTER_X = PROGRESS_CARD_WIDTH / 2 + 0.28;

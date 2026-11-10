@@ -2,6 +2,7 @@ package nodes
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -59,10 +60,8 @@ func (r *Repository) Create(ctx context.Context, req CreateRequest, createdBy st
 }
 
 // Update replaces editable fields and toggles real completion time.
-func (r *Repository) Update(ctx context.Context, id int64, req UpdateRequest, subject string) (Node, error) {
-	scan := newScan()
-
-	err := database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
+func (r *Repository) Update(ctx context.Context, id int64, req UpdateRequest, subject string) error {
+	return database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
 		var previous string
 		err := tx.QueryRow(ctx, `SELECT description FROM nodes WHERE id=$1 FOR UPDATE`, id).Scan(&previous)
 		if err == pgx.ErrNoRows {
@@ -72,6 +71,7 @@ func (r *Repository) Update(ctx context.Context, id int64, req UpdateRequest, su
 			return err
 		}
 
+		var updatedAt time.Time
 		if err := tx.QueryRow(ctx, `
 		UPDATE nodes SET
 			title=$2,
@@ -81,27 +81,21 @@ func (r *Repository) Update(ctx context.Context, id int64, req UpdateRequest, su
 			completed_at = CASE WHEN $6 THEN COALESCE(completed_at, now()) ELSE NULL END,
 			updated_at=clock_timestamp()
 		WHERE id=$1
-		RETURNING id, parent_id, title, description, due_at, completed_at, tags,
-		          sort_order, created_by, created_at, updated_at`,
-			id, req.Title, req.Description, req.DueAt, req.Tags, req.Completed).Scan(scan.dest()...); err != nil {
+		RETURNING updated_at`,
+			id, req.Title, req.Description, req.DueAt, req.Tags, req.Completed).Scan(&updatedAt); err != nil {
 			return err
 		}
 
 		if previous != req.Description {
 			_, err := tx.Exec(ctx, `
 				INSERT INTO node_description_changes (node_id, author_subject, old_description, new_description, created_at)
-				VALUES ($1,$2,$3,$4,$5)`, id, subject, previous, req.Description, scan.node.UpdatedAt)
+				VALUES ($1,$2,$3,$4,$5)`, id, subject, previous, req.Description, updatedAt)
 
 			return err
 		}
 
 		return nil
 	})
-	if err != nil {
-		return Node{}, err
-	}
-
-	return scan.value(), nil
 }
 
 func sameParent(a, b *int64) bool {
@@ -113,7 +107,7 @@ func (r *Repository) Move(ctx context.Context, id int64, parentID *int64, author
 	return database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
 		// Serialize tree writes so concurrent moves cannot create a cycle between
 		// validation and update, and destination ordering stays consistent.
-		if _, err := tx.Exec(ctx, `LOCK TABLE nodes IN SHARE ROW EXCLUSIVE MODE`); err != nil {
+		if _, err := tx.Exec(ctx, `LOCK TABLE nodes IN EXCLUSIVE MODE`); err != nil {
 			return err
 		}
 
@@ -170,18 +164,52 @@ func (r *Repository) Move(ctx context.Context, id int64, parentID *int64, author
 	})
 }
 
-// Delete removes a node; PostgreSQL cascades to the whole subtree.
-func (r *Repository) Delete(ctx context.Context, id int64) error {
-	tag, err := r.pool.Exec(ctx, `DELETE FROM nodes WHERE id=$1`, id)
-	if err != nil {
+// Delete removes a subtree and returns its published and pending image keys.
+func (r *Repository) Delete(ctx context.Context, id int64, authorize func(pgx.Tx) error) ([]string, error) {
+	var keys []string
+	err := database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `LOCK TABLE nodes IN EXCLUSIVE MODE`); err != nil {
+			return err
+		}
+
+		rows, err := tx.Query(ctx, `
+			WITH RECURSIVE subtree AS (
+				SELECT id FROM nodes WHERE id=$1
+				UNION ALL
+				SELECT n.id FROM nodes n JOIN subtree s ON n.parent_id=s.id
+			)
+			SELECT id FROM subtree`, id)
+		if err != nil {
+			return err
+		}
+		nodeIDs, err := pgx.CollectRows(rows, pgx.RowTo[int64])
+		if err != nil {
+			return err
+		}
+		if len(nodeIDs) == 0 {
+			return apperr.NotFound("节点不存在")
+		}
+		if err := authorize(tx); err != nil {
+			return err
+		}
+
+		rows, err = tx.Query(ctx, `
+			SELECT a.object_key FROM comment_attachments a
+			LEFT JOIN comments c ON c.id=a.comment_id
+			WHERE COALESCE(c.node_id, a.pending_node_id) = ANY($1)
+			ORDER BY a.id`, nodeIDs)
+		if err != nil {
+			return err
+		}
+		keys, err = pgx.CollectRows(rows, pgx.RowTo[string])
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.Exec(ctx, `DELETE FROM nodes WHERE id=$1`, id)
 		return err
-	}
-
-	if tag.RowsAffected() == 0 {
-		return apperr.NotFound("节点不存在")
-	}
-
-	return nil
+	})
+	return keys, err
 }
 
 // ReplaceMembers updates the direct membership set without recreating unchanged rows.
