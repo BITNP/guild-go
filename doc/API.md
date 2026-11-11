@@ -149,7 +149,8 @@ OIDC 回调。校验 state、nonce、issuer、audience、签名和 PKCE。成功
 
 ### `GET /api/overview`
 
-要求登录。返回总览数据：
+要求登录。返回总览数据。可选 `scope=all|related`，默认 `all`；非法值返回 400。
+`scope` 仅筛选 `recentActivities`，根节点和兼容字段 `recentComments` 不受影响。
 
 ```json
 {
@@ -180,6 +181,22 @@ OIDC 回调。校验 state、nonce、issuer、audience、签名和 PKCE。成功
       }
     }
   ],
+  "recentActivities": [
+    {
+      "id": 12,
+      "kind": "node_updated",
+      "nodeId": 13,
+      "nodeTitle": "面试安排",
+      "rootTitle": "技术部",
+      "author": null,
+      "bodyPreview": "",
+      "createdAt": "2026-10-21T16:30:00Z",
+      "dueAt": null,
+      "completedAt": "2026-10-21T16:30:00Z",
+      "reactionSummary": [],
+      "attachmentCount": 0
+    }
+  ],
   "recentComments": [
     {
       "id": 100,
@@ -196,6 +213,22 @@ OIDC 回调。校验 state、nonce、issuer、audience、签名和 PKCE。成功
 ```
 
 `myRelation` 为 `leader`、`member` 或 `null`；leader 优先。`latestComment` 为 `null` 表示暂无评论。
+
+`recentActivities` 在筛选后按 `(createdAt DESC, kind DESC, id DESC)` 取最近 50 条；空列表为 `[]`。
+`related` 包含当前用户创建、有效负责/参与节点的动态，以及当前用户发表的评论，继承规则与节点列表一致。
+按当前树和成员关系筛选，节点路径显示当前标题及根节点。
+
+| `kind` | 含义 |
+| --- | --- |
+| `comment` | 发表评论，包含正文预览、图片数量、表情汇总 |
+| `node_created` | 尚未更新的节点，包含创建者 |
+| `node_updated` | 节点最近有更新，`author` 为 `null`，不推断更新人或具体操作 |
+
+使用 `(kind, id)` 作为动态唯一标识，不同类型的 ID 可能重复。
+每个节点仅提供一条当前活动摘要，时间取现有 `created_at`、`updated_at`、`completed_at` 的最大值；有更新时替换创建摘要，不保留完整操作历史。
+节点摘要包含当前 `dueAt`、`completedAt` 供展示状态，非评论的 `reactionSummary` 为 `[]`，`attachmentCount` 为 0。
+直接查询现有节点与评论数据，不修改数据库结构或节点写入流程。
+`recentComments` 保留原有最近 50 条评论列表，供旧客户端使用。
 
 ## Nodes
 

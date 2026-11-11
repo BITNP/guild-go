@@ -173,6 +173,25 @@ export interface RecentComment {
 export interface Overview {
   roots: RootSummary[]
   recentComments: RecentComment[]
+  recentActivities: RecentActivity[]
+}
+
+export type ActivityScope = 'all' | 'related'
+
+export type RecentActivity =
+  | (RecentComment & { kind: 'comment'; attachmentCount: number })
+  | NodeActivity
+
+export interface NodeActivity {
+  id: number
+  kind: 'node_created' | 'node_updated'
+  nodeId: number
+  nodeTitle: string
+  rootTitle: string
+  author: UserSummary | null
+  createdAt: string
+  dueAt: string | null
+  completedAt: string | null
 }
 
 export interface MemberSource {
@@ -280,8 +299,8 @@ export function logout(): Promise<void> {
   return apiFetch<void>('/api/auth/logout', { method: 'POST' })
 }
 
-export function fetchOverview(): Promise<Overview> {
-  return apiFetch<Overview>('/api/overview', { cache: 'no-store' })
+export function fetchOverview(scope: ActivityScope = 'all'): Promise<Overview> {
+  return apiFetch<Overview>(`/api/overview?scope=${scope}`, { cache: 'no-store' })
 }
 
 export function fetchNodes(): Promise<NodeSummary[]> {

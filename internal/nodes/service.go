@@ -61,8 +61,8 @@ func (s *Service) List(ctx context.Context, session auth.Session) ([]Summary, er
 	return result, nil
 }
 
-// Overview returns roots and the recent-comment feed.
-func (s *Service) Overview(ctx context.Context, session auth.Session) (Overview, error) {
+// Overview returns roots and recent activity from existing node/comment data.
+func (s *Service) Overview(ctx context.Context, session auth.Session, relatedOnly bool) (Overview, error) {
 	roots, err := s.repo.Children(ctx, nil)
 	if err != nil {
 		return Overview{}, err
@@ -111,7 +111,19 @@ func (s *Service) Overview(ctx context.Context, session auth.Session) (Overview,
 	if rootSummaries == nil {
 		rootSummaries = []RootSummary{}
 	}
-	return Overview{Roots: rootSummaries, RecentComments: recentViews}, nil
+	relatedIDs := make([]int64, 0, len(relatedMembers))
+	for id := range relatedMembers {
+		relatedIDs = append(relatedIDs, id)
+	}
+	activityRows, err := s.repo.RecentActivity(ctx, session.Subject, relatedOnly, relatedIDs, 50)
+	if err != nil {
+		return Overview{}, err
+	}
+	activities, err := s.activityViews(ctx, session, activityRows)
+	if err != nil {
+		return Overview{}, err
+	}
+	return Overview{Roots: rootSummaries, RecentComments: recentViews, RecentActivities: activities}, nil
 }
 
 // Get returns the full node view.

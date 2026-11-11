@@ -333,7 +333,7 @@ func TestTreePermissionsCommentsAndAttachments(t *testing.T) {
 	}
 
 	// Overview includes roots and recent comments.
-	overview, err := f.nodes.Overview(ctx, f.alice)
+	overview, err := f.nodes.Overview(ctx, f.alice, false)
 	if err != nil {
 		t.Fatal(err)
 	}

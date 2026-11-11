@@ -136,8 +136,9 @@ type MembersRequest struct {
 
 // Overview is the landing page payload.
 type Overview struct {
-	Roots          []RootSummary     `json:"roots"`
-	RecentComments []comments.Recent `json:"recentComments"`
+	Roots            []RootSummary     `json:"roots"`
+	RecentComments   []comments.Recent `json:"recentComments"`
+	RecentActivities []Activity        `json:"recentActivities"`
 }
 
 // RootSummary is a root node with leaders and latest comment.

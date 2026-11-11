@@ -14,7 +14,12 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
 		return
 	}
-	result, err := s.nodes.Overview(r.Context(), session)
+	scope := r.URL.Query().Get("scope")
+	if scope != "" && scope != "all" && scope != "related" {
+		writeError(w, r, apperr.BadRequest("动态范围必须为 all 或 related"))
+		return
+	}
+	result, err := s.nodes.Overview(r.Context(), session, scope == "related")
 	if err != nil {
 		writeError(w, r, err)
 		return

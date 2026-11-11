@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   NAlert,
@@ -13,16 +13,20 @@ import {
   NListItem,
   NSpace,
   NStatistic,
+  NRadioButton,
+  NRadioGroup,
+  NSpin,
+  NText,
 } from 'naive-ui'
 import AppShell from '@/components/AppShell.vue'
 import NodeListItem from '@/components/NodeListItem.vue'
-import CommentPreview from '@/components/CommentPreview.vue'
+import ActivityPreview from '@/components/ActivityPreview.vue'
 import SectionHeading from '@/components/SectionHeading.vue'
 import NodeFormDialog from '@/components/NodeFormDialog.vue'
 import OrderDialog from '@/components/OrderDialog.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useNodeStore } from '@/composables/useNodeStore'
-import { fetchOverview, type NodeDetail, type Overview } from '@/lib/api'
+import { fetchOverview, type ActivityScope, type NodeDetail, type Overview } from '@/lib/api'
 import { errorMessage, isOverdue } from '@/lib/utils'
 const router = useRouter(),
   { isManager } = useAuth(),
@@ -36,6 +40,8 @@ const overview = ref<Overview | null>(null),
   error = ref<string | null>(null),
   createOpen = ref(false),
   orderOpen = ref(false)
+const activityScope = ref<ActivityScope>('all')
+let loadVersion = 0
 const statistics = computed(() => [
   { label: '全部节点', value: nodes.value.length },
   {
@@ -53,14 +59,16 @@ const statistics = computed(() => [
   },
 ])
 async function load() {
+  const version = ++loadVersion
   loading.value = true
   error.value = null
   try {
-    overview.value = await fetchOverview()
+    const result = await fetchOverview(activityScope.value)
+    if (version === loadVersion) overview.value = result
   } catch (err) {
-    error.value = errorMessage(err, '无法加载总览')
+    if (version === loadVersion) error.value = errorMessage(err, '无法加载总览')
   } finally {
-    loading.value = false
+    if (version === loadVersion) loading.value = false
   }
 }
 async function refresh() {
@@ -76,6 +84,7 @@ async function ordered() {
   await refresh()
 }
 onMounted(load)
+watch(activityScope, load)
 </script>
 <template>
   <AppShell rail-title="最近发布"
@@ -133,27 +142,37 @@ onMounted(load)
       ></NSpace>
     </section>
     <template #rail
-      ><div class="recent-comments">
+      ><div class="recent-activities" :aria-busy="loading">
+        <NRadioGroup v-model:value="activityScope" size="small" aria-label="动态范围">
+          <NRadioButton value="all">全部动态</NRadioButton>
+          <NRadioButton value="related">与我有关</NRadioButton>
+        </NRadioGroup>
+        <NText v-if="activityScope === 'related'" depth="3" class="activity-hint">
+          我创建、负责或参与的节点，以及我的评论
+        </NText>
+        <div v-if="loading" class="activity-loading" role="status" aria-label="正在加载动态">
+          <NSpin size="small" />
+        </div>
         <NAlert
-          v-if="error"
+          v-else-if="error"
           type="error"
-          >进展加载失败 <NButton text @click="load">重试</NButton></NAlert
-        ><NList v-else-if="overview?.recentComments.length"
+          >动态加载失败 <NButton text @click="load">重试</NButton></NAlert
+        ><NList v-else-if="overview?.recentActivities.length"
           ><NListItem
-            v-for="comment in overview.recentComments"
-            :key="comment.id"
-            class="recent-comment"
+            v-for="activity in overview.recentActivities"
+            :key="`${activity.kind}-${activity.id}`"
+            class="recent-activity"
             ><NSpace vertical :size="8"
               ><RouterLink
-                :to="{ name: 'node', params: { id: comment.nodeId } }"
+                :to="{ name: 'node', params: { id: activity.nodeId } }"
                 class="recent-node"
                 >{{
-                  comment.rootTitle === comment.nodeTitle
-                    ? comment.nodeTitle
-                    : `${comment.rootTitle} / ${comment.nodeTitle}`
+                  activity.rootTitle === activity.nodeTitle
+                    ? activity.nodeTitle
+                    : `${activity.rootTitle} / ${activity.nodeTitle}`
                 }}</RouterLink
-              ><CommentPreview :comment="comment" /></NSpace></NListItem></NList
-        ><NEmpty v-else-if="overview" size="small" description="还没有人发布进展" /></div></template
+              ><ActivityPreview :activity="activity" /></NSpace></NListItem></NList
+        ><NEmpty v-else-if="overview" size="small" :description="activityScope === 'related' ? '暂无与我有关的动态' : '暂无动态'" /></div></template
   ></AppShell>
   <NodeFormDialog
     v-model:open="createOpen"
@@ -192,12 +211,24 @@ onMounted(load)
   flex-direction: column;
   gap: 12px;
 }
-.recent-comments {
+.recent-activities {
   padding: 16px;
   font-size: 13px;
 }
-.recent-comment:first-child {
+.recent-activity:first-child {
   padding-top: 0;
+}
+.recent-activities > :deep(.n-radio-group) {
+  margin-bottom: 12px;
+}
+.activity-hint {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+.activity-loading {
+  padding: 24px;
+  text-align: center;
 }
 .recent-node {
   color: inherit;
