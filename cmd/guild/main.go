@@ -15,6 +15,7 @@ import (
 	"git.bitnp.net/BITNP/guild-go/internal/comments"
 	"git.bitnp.net/BITNP/guild-go/internal/config"
 	"git.bitnp.net/BITNP/guild-go/internal/database"
+	"git.bitnp.net/BITNP/guild-go/internal/events"
 	"git.bitnp.net/BITNP/guild-go/internal/httpapi"
 	"git.bitnp.net/BITNP/guild-go/internal/nodes"
 	"git.bitnp.net/BITNP/guild-go/internal/storage"
@@ -81,20 +82,24 @@ func main() {
 		slog.Warn("development authentication bypass enabled; do not use in production", "subject", cfg.DevAuthSubject)
 	}
 
+	eventBroker := events.NewBroker()
+	eventRepo := events.NewRepository(pool)
 	checker := access.New(pool)
-	nodeRepo := nodes.NewRepository(pool)
+	nodeRepo := nodes.NewRepository(pool).WithBroker(eventBroker)
 	nodeService := nodes.NewService(nodeRepo, userService, checker, store)
-	commentRepo := comments.NewRepository(pool)
+	commentRepo := comments.NewRepository(pool).WithBroker(eventBroker)
 	commentService := comments.NewService(commentRepo, userService, checker, store)
 
 	server := httpapi.New(cfg, pool, authService, userService, nodeService, commentService, store)
 
 	if cfg.InternalAPIToken != "" {
+		server.WithInternalFeed(cfg.InternalAPIToken, eventRepo, eventBroker)
+		slog.Info("internal service feed API enabled")
 		if keycloakAdmin.Enabled() {
 			server.WithInternalAPI(cfg.InternalAPIToken, userService)
-			slog.Info("internal service API enabled")
+			slog.Info("internal actor-delegated API enabled")
 		} else {
-			slog.Warn("INTERNAL_API_TOKEN is set but Keycloak Admin API is disabled; /api/internal/* remains disabled")
+			slog.Warn("INTERNAL_API_TOKEN is set but Keycloak Admin API is disabled; actor-delegated /api/internal/* routes remain disabled")
 		}
 	}
 

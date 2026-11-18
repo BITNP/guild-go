@@ -296,7 +296,7 @@ func (s *Service) Move(ctx context.Context, session auth.Session, id int64, req 
 			return Detail{}, err
 		}
 	}
-	if err := s.repo.Move(ctx, id, req.ParentID, func(tx pgx.Tx) error {
+	if err := s.repo.Move(ctx, id, req.ParentID, session.Subject, func(tx pgx.Tx) error {
 		if session.Permissions.SystemAdmin {
 			return nil
 		}
@@ -335,7 +335,7 @@ func (s *Service) Delete(ctx context.Context, session auth.Session, id int64) er
 	if err != nil {
 		return err
 	}
-	if err := s.repo.Delete(ctx, id); err != nil {
+	if err := s.repo.Delete(ctx, id, session.Subject); err != nil {
 		return err
 	}
 	for _, key := range keys {
@@ -380,7 +380,7 @@ func (s *Service) ReplaceMembers(ctx context.Context, session auth.Session, id i
 	if len(leaders) == 0 {
 		return Detail{}, apperr.BadRequest("节点至少需要一个直接负责人")
 	}
-	if err := s.repo.ReplaceMembers(ctx, id, leaders, members); err != nil {
+	if err := s.repo.ReplaceMembers(ctx, id, leaders, members, session.Subject); err != nil {
 		return Detail{}, err
 	}
 	return s.Get(ctx, session, id)

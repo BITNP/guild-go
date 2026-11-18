@@ -9,16 +9,24 @@ import (
 
 	"git.bitnp.net/BITNP/guild-go/internal/apperr"
 	"git.bitnp.net/BITNP/guild-go/internal/database"
+	"git.bitnp.net/BITNP/guild-go/internal/events"
 )
 
 // Repository contains explicit SQL for comments, reactions and attachments.
 type Repository struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	broker *events.Broker
 }
 
 // NewRepository creates a comment repository.
 func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
+}
+
+// WithBroker attaches an event broker notified after comments commit.
+func (r *Repository) WithBroker(broker *events.Broker) *Repository {
+	r.broker = broker
+	return r
 }
 
 // CommentRow is a stored comment.
@@ -41,8 +49,18 @@ type AttachmentRow struct {
 
 // Create publishes a comment and claims its images in the requested order atomically.
 func (r *Repository) Create(ctx context.Context, nodeID int64, author, body string, attachmentIDs []int64) (int64, error) {
-	var id int64
+	var (
+		id      int64
+		eventID int64
+	)
 	err := database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
+		var nodeTitle string
+		if err := tx.QueryRow(ctx, `SELECT title FROM nodes WHERE id=$1`, nodeID).Scan(&nodeTitle); err != nil {
+			if err == pgx.ErrNoRows {
+				return apperr.NotFound("节点不存在")
+			}
+			return err
+		}
 		if err := tx.QueryRow(ctx,
 			`INSERT INTO comments (node_id, author_subject, body) VALUES ($1,$2,$3) RETURNING id`,
 			nodeID, author, body).Scan(&id); err != nil {
@@ -61,9 +79,28 @@ func (r *Repository) Create(ctx context.Context, nodeID int64, author, body stri
 				return apperr.BadRequest("图片不可用或已过期，请移除后重新添加")
 			}
 		}
+		evID, err := events.RecordTx(ctx, tx, events.Input{
+			Kind:         events.KindCommentCreated,
+			NodeID:       &nodeID,
+			ActorSubject: author,
+			Payload: map[string]any{
+				"commentId":       id,
+				"nodeTitle":       nodeTitle,
+				"bodyPreview":     TextPreview(body, 200),
+				"attachmentCount": len(attachmentIDs),
+			},
+		})
+		if err != nil {
+			return err
+		}
+		eventID = evID
 		return nil
 	})
-	return id, err
+	if err != nil {
+		return 0, err
+	}
+	r.broker.Publish(eventID)
+	return id, nil
 }
 
 // Get returns one comment row.

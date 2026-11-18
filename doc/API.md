@@ -617,18 +617,18 @@ thumbs_up, thumbs_down, laugh, hooray, confused, heart, rocket, eyes
 
 ## Internal Service API
 
-供同信任域服务（如 `berry`）代表已绑定身份的成员读取与操作节点，无需浏览器会话 Cookie 或 CSRF 令牌。需同时配置 `INTERNAL_API_TOKEN` 与 `KEYCLOAK_ADMIN_*`；未启用时所有接口返回 `404`。
+供同信任域服务（如 `berry`）读取事件聚合或代表已绑定身份的成员读写节点，无需浏览器会话 Cookie 或 CSRF 令牌。需配置 `INTERNAL_API_TOKEN`；未配置时所有接口返回 `404`。
 
 ### 鉴权头
 
-| 请求头 | 要求 |
+| 接口类别 | 请求头要求 |
 | --- | --- |
-| `Authorization` | 必填，`Bearer <INTERNAL_API_TOKEN>` |
-| `X-Act-As-Subject` | 必填，代理操作的 Keycloak `subject` |
+| 代理操作接口 | 必填 `Authorization: Bearer <INTERNAL_API_TOKEN>` 与 `X-Act-As-Subject: <subject>`，同时需配置 `KEYCLOAK_ADMIN_*` |
+| 服务级事件与聚合接口 | 仅需 `Authorization: Bearer <INTERNAL_API_TOKEN>`（无需 `X-Act-As-Subject`） |
 
-服务端通过 Keycloak Admin API 实时查询该 `subject` 的启用状态与 `realm_access.roles`，按 `bitnp-authz` 计算权限并按节点权限模型校验；禁用或无 `permission-*` 准入角色时返回 `403`。
+代理操作接口由服务端通过 Keycloak Admin API 实时查询 `X-Act-As-Subject` 的启用状态与 `realm_access.roles`，按 `bitnp-authz` 计算权限并按节点权限模型校验；禁用或无 `permission-*` 准入角色时返回 `403`。
 
-### 端点列表
+### 代理操作端点列表
 
 - `GET /api/internal/users`
 - `GET /api/internal/overview`
@@ -636,11 +636,24 @@ thumbs_up, thumbs_down, laugh, hooray, confused, heart, rocket, eyes
 - `GET /api/internal/nodes/{id}`
 - `POST /api/internal/nodes`（写入前会校验并按需预建 `leaderSubjects` / `memberSubjects` 中尚未登录过本系统的合法 Keycloak 成员）
 - `PUT /api/internal/nodes/{id}`
+- `PUT /api/internal/nodes/{id}/move`
+- `DELETE /api/internal/nodes/{id}`
 - `PUT /api/internal/nodes/{id}/members`（同样按需校验并预建新加入的合法成员）
 - `GET /api/internal/nodes/{id}/progress`
 - `POST /api/internal/nodes/{id}/comments`
 
 请求体、响应体与权限规则同对应 `/api/*` 端点。
+
+### 服务级事件与聚合端点
+
+- `GET /api/internal/events?after=0&limit=50`
+  按递增游标 `id > after` 拉取已提交领域事件（`node.created`、`node.updated`、`node.completed`、`node.reopened`、`node.moved`、`node.deleted`、`member.assigned`、`member.removed`、`comment.created`），返回 `{ items, hasMore, nextAfter, latestId, serverTime }`。
+- `GET /api/internal/events/stream?after=<cursor>`
+  Server-Sent Events (`text/event-stream`) 实时推送已提交事件；支持 `after` 查询参数或 `Last-Event-ID` 请求头从断点续传（均省略时从当前最新游标 `latestId` 起推），无事件时每 20 秒发送 `: ping` 心跳。
+- `GET /api/internal/due-nodes`
+  查询未完成且设置了 `dueAt` 的节点及其直接负责人/成员，返回 `{ items, serverTime }`。支持 `since` + `advanceHours` 滑动窗口（`[since + advance, serverTime + advance)`），或显式 `dueAfter` / `dueBefore` / `includeOverdue` / `limit`。
+- `GET /api/internal/activity-summary?start=<RFC3339>&end=<RFC3339>`
+  聚合 `[start, end)` 时间窗内的新增节点、完成节点、评论摘要及当前未完成/逾期统计；省略 `start` 与 `end` 时默认统计 UTC+8 上一自然周。
 
 ## 权限速查
 

@@ -2,6 +2,7 @@ package nodes
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"time"
 
@@ -12,16 +13,24 @@ import (
 	"git.bitnp.net/BITNP/guild-go/internal/apperr"
 	"git.bitnp.net/BITNP/guild-go/internal/comments"
 	"git.bitnp.net/BITNP/guild-go/internal/database"
+	"git.bitnp.net/BITNP/guild-go/internal/events"
 )
 
 // Repository contains explicit SQL for nodes.
 type Repository struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	broker *events.Broker
 }
 
 // NewRepository creates a node repository.
 func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
+}
+
+// WithBroker attaches an event broker notified after mutations commit.
+func (r *Repository) WithBroker(broker *events.Broker) *Repository {
+	r.broker = broker
+	return r
 }
 
 type nodeScan struct {
@@ -260,7 +269,10 @@ func (r *Repository) Members(ctx context.Context, nodeID int64) ([]MemberRow, er
 
 // Create inserts a node and its direct members in one transaction.
 func (r *Repository) Create(ctx context.Context, req CreateRequest, createdBy string, leaders, members []string) (int64, error) {
-	var id int64
+	var (
+		id       int64
+		eventIDs []int64
+	)
 	err := database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
 		err := tx.QueryRow(ctx, `
 			INSERT INTO nodes (parent_id, title, description, due_at, tags, sort_order, created_by)
@@ -294,17 +306,81 @@ func (r *Repository) Create(ctx context.Context, req CreateRequest, createdBy st
 				return err
 			}
 		}
+
+		evID, err := events.RecordTx(ctx, tx, events.Input{
+			Kind:         events.KindNodeCreated,
+			NodeID:       &id,
+			ActorSubject: createdBy,
+			Payload: map[string]any{
+				"title":    req.Title,
+				"parentId": req.ParentID,
+				"dueAt":    req.DueAt,
+				"tags":     nonNilStrings(req.Tags),
+				"leaders":  nonNilStrings(leaders),
+				"members":  nonNilStrings(members),
+			},
+		})
+		if err != nil {
+			return err
+		}
+		eventIDs = append(eventIDs, evID)
+		for _, subject := range leaders {
+			evID, err := events.RecordTx(ctx, tx, events.Input{
+				Kind:         events.KindMemberAssigned,
+				NodeID:       &id,
+				ActorSubject: createdBy,
+				Payload: map[string]any{
+					"subject":   subject,
+					"role":      "leader",
+					"nodeTitle": req.Title,
+					"onCreate":  true,
+				},
+			})
+			if err != nil {
+				return err
+			}
+			eventIDs = append(eventIDs, evID)
+		}
+		for _, subject := range members {
+			evID, err := events.RecordTx(ctx, tx, events.Input{
+				Kind:         events.KindMemberAssigned,
+				NodeID:       &id,
+				ActorSubject: createdBy,
+				Payload: map[string]any{
+					"subject":   subject,
+					"role":      "member",
+					"nodeTitle": req.Title,
+					"onCreate":  true,
+				},
+			})
+			if err != nil {
+				return err
+			}
+			eventIDs = append(eventIDs, evID)
+		}
 		return nil
 	})
-	return id, err
+	if err != nil {
+		return 0, err
+	}
+	r.broker.Publish(eventIDs...)
+	return id, nil
 }
 
 // Update replaces editable fields and toggles real completion time.
 func (r *Repository) Update(ctx context.Context, id int64, req UpdateRequest, subject string) (Node, error) {
 	scan := newScan()
+	var eventIDs []int64
 	err := database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
-		var previous string
-		err := tx.QueryRow(ctx, `SELECT description FROM nodes WHERE id=$1 FOR UPDATE`, id).Scan(&previous)
+		var (
+			oldTitle     string
+			previous     string
+			oldDue       pgtype.Timestamptz
+			oldCompleted pgtype.Timestamptz
+			oldTags      []string
+		)
+		err := tx.QueryRow(ctx, `SELECT title, description, due_at, completed_at, tags FROM nodes WHERE id=$1 FOR UPDATE`, id).
+			Scan(&oldTitle, &previous, &oldDue, &oldCompleted, &oldTags)
 		if err == pgx.ErrNoRows {
 			return apperr.NotFound("节点不存在")
 		}
@@ -325,17 +401,77 @@ func (r *Repository) Update(ctx context.Context, id int64, req UpdateRequest, su
 			id, req.Title, req.Description, req.DueAt, req.Tags, req.Completed).Scan(scan.dest()...); err != nil {
 			return err
 		}
+		updated := scan.value()
 		if previous != req.Description {
-			_, err := tx.Exec(ctx, `
+			if _, err := tx.Exec(ctx, `
 				INSERT INTO node_description_changes (node_id, author_subject, old_description, new_description, created_at)
-				VALUES ($1,$2,$3,$4,$5)`, id, subject, previous, req.Description, scan.node.UpdatedAt)
-			return err
+				VALUES ($1,$2,$3,$4,$5)`, id, subject, previous, req.Description, updated.UpdatedAt); err != nil {
+				return err
+			}
+		}
+
+		changedFields := make([]string, 0, 4)
+		if oldTitle != updated.Title {
+			changedFields = append(changedFields, "title")
+		}
+		if previous != updated.Description {
+			changedFields = append(changedFields, "description")
+		}
+		if !sameTimePtr(timePtr(oldDue), updated.DueAt) {
+			changedFields = append(changedFields, "dueAt")
+		}
+		if !slices.Equal(nonNilStrings(oldTags), updated.Tags) {
+			changedFields = append(changedFields, "tags")
+		}
+		if len(changedFields) > 0 {
+			evID, err := events.RecordTx(ctx, tx, events.Input{
+				Kind:         events.KindNodeUpdated,
+				NodeID:       &id,
+				ActorSubject: subject,
+				Payload: map[string]any{
+					"title":         updated.Title,
+					"changedFields": changedFields,
+				},
+			})
+			if err != nil {
+				return err
+			}
+			eventIDs = append(eventIDs, evID)
+		}
+		if !oldCompleted.Valid && updated.CompletedAt != nil {
+			evID, err := events.RecordTx(ctx, tx, events.Input{
+				Kind:         events.KindNodeCompleted,
+				NodeID:       &id,
+				ActorSubject: subject,
+				Payload: map[string]any{
+					"title":       updated.Title,
+					"completedAt": updated.CompletedAt,
+				},
+			})
+			if err != nil {
+				return err
+			}
+			eventIDs = append(eventIDs, evID)
+		} else if oldCompleted.Valid && updated.CompletedAt == nil {
+			evID, err := events.RecordTx(ctx, tx, events.Input{
+				Kind:         events.KindNodeReopened,
+				NodeID:       &id,
+				ActorSubject: subject,
+				Payload: map[string]any{
+					"title": updated.Title,
+				},
+			})
+			if err != nil {
+				return err
+			}
+			eventIDs = append(eventIDs, evID)
 		}
 		return nil
 	})
 	if err != nil {
 		return Node{}, err
 	}
+	r.broker.Publish(eventIDs...)
 	return scan.value(), nil
 }
 
@@ -343,16 +479,37 @@ func sameParent(a, b *int64) bool {
 	return a == nil && b == nil || a != nil && b != nil && *a == *b
 }
 
+func sameTimePtr(a, b *time.Time) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return a.Equal(*b)
+}
+
+func nonNilStrings(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
+}
+
 // Move changes only the subtree root's parent and appends it to the new siblings.
-func (r *Repository) Move(ctx context.Context, id int64, parentID *int64, authorize func(pgx.Tx) error) error {
-	return database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
+func (r *Repository) Move(ctx context.Context, id int64, parentID *int64, actor string, authorize func(pgx.Tx) error) error {
+	var eventID int64
+	err := database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
 		// Serialize tree writes so concurrent moves cannot create a cycle between
 		// validation and update, and destination ordering stays consistent.
 		if _, err := tx.Exec(ctx, `LOCK TABLE nodes IN SHARE ROW EXCLUSIVE MODE`); err != nil {
 			return err
 		}
-		var previous pgtype.Int8
-		if err := tx.QueryRow(ctx, `SELECT parent_id FROM nodes WHERE id=$1`, id).Scan(&previous); err != nil {
+		var (
+			title    string
+			previous pgtype.Int8
+		)
+		if err := tx.QueryRow(ctx, `SELECT title, parent_id FROM nodes WHERE id=$1`, id).Scan(&title, &previous); err != nil {
 			if err == pgx.ErrNoRows {
 				return apperr.NotFound("节点不存在")
 			}
@@ -361,7 +518,8 @@ func (r *Repository) Move(ctx context.Context, id int64, parentID *int64, author
 		if err := authorize(tx); err != nil {
 			return err
 		}
-		if sameParent(int64Ptr(previous), parentID) {
+		fromParent := int64Ptr(previous)
+		if sameParent(fromParent, parentID) {
 			return nil
 		}
 		if parentID != nil {
@@ -390,33 +548,108 @@ func (r *Repository) Move(ctx context.Context, id int64, parentID *int64, author
 			WHERE id=$1`, id, parentID); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, `UPDATE nodes SET updated_at=clock_timestamp() WHERE id=$1 OR id=$2`, int64Ptr(previous), parentID)
-		return err
+		if _, err := tx.Exec(ctx, `UPDATE nodes SET updated_at=clock_timestamp() WHERE id=$1 OR id=$2`, fromParent, parentID); err != nil {
+			return err
+		}
+		evID, err := events.RecordTx(ctx, tx, events.Input{
+			Kind:         events.KindNodeMoved,
+			NodeID:       &id,
+			ActorSubject: actor,
+			Payload: map[string]any{
+				"title":        title,
+				"fromParentId": fromParent,
+				"toParentId":   parentID,
+			},
+		})
+		if err != nil {
+			return err
+		}
+		eventID = evID
+		return nil
 	})
-}
-
-// Delete removes a node; PostgreSQL cascades to the whole subtree.
-func (r *Repository) Delete(ctx context.Context, id int64) error {
-	tag, err := r.pool.Exec(ctx, `DELETE FROM nodes WHERE id=$1`, id)
 	if err != nil {
 		return err
 	}
-	if tag.RowsAffected() == 0 {
-		return apperr.NotFound("节点不存在")
+	if eventID > 0 {
+		r.broker.Publish(eventID)
 	}
 	return nil
 }
 
-// ReplaceMembers updates the direct membership set without recreating unchanged rows.
-func (r *Repository) ReplaceMembers(ctx context.Context, id int64, leaders, members []string) error {
-	return database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
-		var lockedID int64
-		if err := tx.QueryRow(ctx, `SELECT id FROM nodes WHERE id=$1 FOR UPDATE`, id).Scan(&lockedID); err != nil {
+// Delete removes a node; PostgreSQL cascades to the whole subtree.
+func (r *Repository) Delete(ctx context.Context, id int64, actor string) error {
+	var eventID int64
+	err := database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
+		var (
+			title    string
+			parentID pgtype.Int8
+		)
+		if err := tx.QueryRow(ctx, `SELECT title, parent_id FROM nodes WHERE id=$1`, id).Scan(&title, &parentID); err != nil {
 			if err == pgx.ErrNoRows {
 				return apperr.NotFound("节点不存在")
 			}
 			return err
 		}
+		if _, err := tx.Exec(ctx, `DELETE FROM nodes WHERE id=$1`, id); err != nil {
+			return err
+		}
+		evID, err := events.RecordTx(ctx, tx, events.Input{
+			Kind:         events.KindNodeDeleted,
+			NodeID:       nil,
+			ActorSubject: actor,
+			Payload: map[string]any{
+				"deletedNodeId": id,
+				"title":         title,
+				"parentId":      int64Ptr(parentID),
+			},
+		})
+		if err != nil {
+			return err
+		}
+		eventID = evID
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	r.broker.Publish(eventID)
+	return nil
+}
+
+// ReplaceMembers updates the direct membership set without recreating unchanged rows.
+func (r *Repository) ReplaceMembers(ctx context.Context, id int64, leaders, members []string, actor string) error {
+	var eventIDs []int64
+	err := database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
+		var (
+			lockedID int64
+			title    string
+		)
+		if err := tx.QueryRow(ctx, `SELECT id, title FROM nodes WHERE id=$1 FOR UPDATE`, id).Scan(&lockedID, &title); err != nil {
+			if err == pgx.ErrNoRows {
+				return apperr.NotFound("节点不存在")
+			}
+			return err
+		}
+
+		prevRoles := make(map[string]string)
+		existingRows, err := tx.Query(ctx, `SELECT subject, role FROM node_members WHERE node_id=$1`, id)
+		if err != nil {
+			return err
+		}
+		for existingRows.Next() {
+			var subject, role string
+			if err := existingRows.Scan(&subject, &role); err != nil {
+				existingRows.Close()
+				return err
+			}
+			prevRoles[subject] = role
+		}
+		if err := existingRows.Err(); err != nil {
+			existingRows.Close()
+			return err
+		}
+		existingRows.Close()
+
 		// Keep unchanged (subject, role) pairs; recreate only removed/changed roles.
 		if _, err := tx.Exec(ctx, `DELETE FROM node_members
             WHERE node_id=$1 AND NOT (
@@ -433,9 +666,76 @@ func (r *Repository) ReplaceMembers(ctx context.Context, id int64, leaders, memb
 				}
 			}
 		}
-		_, err := tx.Exec(ctx, `UPDATE nodes SET updated_at=now() WHERE id=$1`, id)
-		return err
+		if _, err := tx.Exec(ctx, `UPDATE nodes SET updated_at=now() WHERE id=$1`, id); err != nil {
+			return err
+		}
+
+		newRoles := make(map[string]string, len(leaders)+len(members))
+		for _, subject := range leaders {
+			newRoles[subject] = "leader"
+		}
+		for _, subject := range members {
+			newRoles[subject] = "member"
+		}
+
+		removed := make([]string, 0)
+		for subject := range prevRoles {
+			if _, ok := newRoles[subject]; !ok {
+				removed = append(removed, subject)
+			}
+		}
+		sort.Strings(removed)
+		for _, subject := range removed {
+			evID, err := events.RecordTx(ctx, tx, events.Input{
+				Kind:         events.KindMemberRemoved,
+				NodeID:       &id,
+				ActorSubject: actor,
+				Payload: map[string]any{
+					"subject":   subject,
+					"role":      prevRoles[subject],
+					"nodeTitle": title,
+				},
+			})
+			if err != nil {
+				return err
+			}
+			eventIDs = append(eventIDs, evID)
+		}
+
+		assigned := make([]string, 0)
+		for subject, role := range newRoles {
+			if oldRole, ok := prevRoles[subject]; !ok || oldRole != role {
+				assigned = append(assigned, subject)
+			}
+		}
+		sort.Strings(assigned)
+		for _, subject := range assigned {
+			payload := map[string]any{
+				"subject":   subject,
+				"role":      newRoles[subject],
+				"nodeTitle": title,
+			}
+			if oldRole, ok := prevRoles[subject]; ok {
+				payload["previousRole"] = oldRole
+			}
+			evID, err := events.RecordTx(ctx, tx, events.Input{
+				Kind:         events.KindMemberAssigned,
+				NodeID:       &id,
+				ActorSubject: actor,
+				Payload:      payload,
+			})
+			if err != nil {
+				return err
+			}
+			eventIDs = append(eventIDs, evID)
+		}
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+	r.broker.Publish(eventIDs...)
+	return nil
 }
 
 // Reorder rewrites sort_order for exactly the direct children of parentID.

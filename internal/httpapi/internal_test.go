@@ -1,6 +1,7 @@
 package httpapi_test
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -8,7 +9,9 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	authz "git.bitnp.net/BITNP/bitnp-authz"
 
@@ -18,6 +21,7 @@ import (
 	"git.bitnp.net/BITNP/guild-go/internal/comments"
 	"git.bitnp.net/BITNP/guild-go/internal/config"
 	"git.bitnp.net/BITNP/guild-go/internal/database"
+	"git.bitnp.net/BITNP/guild-go/internal/events"
 	"git.bitnp.net/BITNP/guild-go/internal/httpapi"
 	"git.bitnp.net/BITNP/guild-go/internal/nodes"
 	"git.bitnp.net/BITNP/guild-go/internal/storage"
@@ -59,9 +63,15 @@ func TestInternalRoutesDisabledWithoutToken(t *testing.T) {
 		"GET /api/internal/nodes/1",
 		"POST /api/internal/nodes",
 		"PUT /api/internal/nodes/1",
+		"PUT /api/internal/nodes/1/move",
+		"DELETE /api/internal/nodes/1",
 		"PUT /api/internal/nodes/1/members",
 		"GET /api/internal/nodes/1/progress",
 		"POST /api/internal/nodes/1/comments",
+		"GET /api/internal/events",
+		"GET /api/internal/events/stream",
+		"GET /api/internal/due-nodes",
+		"GET /api/internal/activity-summary",
 	} {
 		method, path, _ := strings.Cut(route, " ")
 		req := httptest.NewRequest(method, path, nil)
@@ -250,5 +260,307 @@ func TestInternalCreateNodeWithDatabase(t *testing.T) {
 	}
 	if len(detail.DirectMembers) != 1 || detail.DirectMembers[0].Subject != "member-sub" {
 		t.Fatalf("expected member-sub provisioned & attached, got %+v", detail.DirectMembers)
+	}
+}
+
+type stubInternalFeed struct {
+	mu          sync.Mutex
+	events      []events.Event
+	dueQuery    events.DueNodesQuery
+	dueResponse events.DueNodesResponse
+	summary     events.ActivitySummary
+	summarySpan [2]time.Time
+}
+
+func (f *stubInternalFeed) LatestID(_ context.Context) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.events) == 0 {
+		return 0, nil
+	}
+	return f.events[len(f.events)-1].ID, nil
+}
+
+func (f *stubInternalFeed) ListAfter(_ context.Context, after int64, limit int) (events.ListResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	items := make([]events.Event, 0)
+	for _, ev := range f.events {
+		if ev.ID > after {
+			items = append(items, ev)
+		}
+	}
+	hasMore := false
+	if len(items) > limit {
+		hasMore = true
+		items = items[:limit]
+	}
+	nextAfter := after
+	if len(items) > 0 {
+		nextAfter = items[len(items)-1].ID
+	}
+	var latest int64
+	if len(f.events) > 0 {
+		latest = f.events[len(f.events)-1].ID
+	}
+	return events.ListResponse{
+		Items:      items,
+		HasMore:    hasMore,
+		NextAfter:  nextAfter,
+		LatestID:   latest,
+		ServerTime: time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC),
+	}, nil
+}
+
+func (f *stubInternalFeed) ListDueNodes(_ context.Context, query events.DueNodesQuery) (events.DueNodesResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.dueQuery = query
+	return f.dueResponse, nil
+}
+
+func (f *stubInternalFeed) ActivitySummary(_ context.Context, start, end time.Time) (events.ActivitySummary, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.summarySpan = [2]time.Time{start, end}
+	res := f.summary
+	res.Start = start
+	res.End = end
+	return res, nil
+}
+
+func (f *stubInternalFeed) append(ev events.Event) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.events = append(f.events, ev)
+}
+
+func TestInternalServiceFeedAuthAndQueries(t *testing.T) {
+	nodeID := int64(42)
+	feed := &stubInternalFeed{
+		events: []events.Event{
+			{
+				ID:           1,
+				Kind:         events.KindNodeCreated,
+				NodeID:       &nodeID,
+				ActorSubject: "alice",
+				Payload:      json.RawMessage(`{"title":"Task A"}`),
+				CreatedAt:    time.Date(2026, 11, 18, 8, 0, 0, 0, time.UTC),
+			},
+		},
+		dueResponse: events.DueNodesResponse{
+			Items: []events.DueNodeItem{
+				{
+					ID:      nodeID,
+					Title:   "Task A",
+					DueAt:   time.Date(2026, 11, 19, 8, 0, 0, 0, time.UTC),
+					Leaders: []string{"alice"},
+					Members: []string{"bob"},
+				},
+			},
+			ServerTime: time.Date(2026, 11, 18, 8, 5, 0, 0, time.UTC),
+		},
+		summary: events.ActivitySummary{
+			CreatedCount:   1,
+			OpenCount:      2,
+			CreatedNodes:   []events.ActivitySummaryNode{},
+			CompletedNodes: []events.ActivitySummaryNode{},
+			RecentComments: []events.ActivitySummaryComment{},
+			OverdueNodes:   []events.ActivitySummaryNode{},
+		},
+	}
+
+	// Note: WithInternalFeed alone does not require InternalAuthorizer / X-Act-As-Subject.
+	handler := httpapi.New(config.Config{}, nil, &auth.Service{}, nil, nil, nil, nil).
+		WithInternalFeed("service-secret", feed, events.NewBroker()).
+		Handler()
+
+	t.Run("rejects missing bearer token", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/internal/events", nil)
+		res := httptest.NewRecorder()
+		handler.ServeHTTP(res, req)
+		if res.Code != http.StatusUnauthorized {
+			t.Fatalf("expected 401, got %d", res.Code)
+		}
+	})
+
+	t.Run("lists events without X-Act-As-Subject", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/internal/events?after=0&limit=10", nil)
+		req.Header.Set("Authorization", "Bearer service-secret")
+		res := httptest.NewRecorder()
+		handler.ServeHTTP(res, req)
+		if res.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d (%s)", res.Code, res.Body.String())
+		}
+		var out events.ListResponse
+		if err := json.Unmarshal(res.Body.Bytes(), &out); err != nil {
+			t.Fatal(err)
+		}
+		if len(out.Items) != 1 || out.NextAfter != 1 || out.LatestID != 1 {
+			t.Fatalf("unexpected events response: %+v", out)
+		}
+	})
+
+	t.Run("parses due-nodes parameters", func(t *testing.T) {
+		req := httptest.NewRequest(
+			http.MethodGet,
+			"/api/internal/due-nodes?since=2026-11-18T08:00:00Z&advanceHours=24&includeOverdue=true&limit=50",
+			nil,
+		)
+		req.Header.Set("Authorization", "Bearer service-secret")
+		res := httptest.NewRecorder()
+		handler.ServeHTTP(res, req)
+		if res.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d (%s)", res.Code, res.Body.String())
+		}
+		if feed.dueQuery.Since == nil || feed.dueQuery.Advance != 24*time.Hour || !feed.dueQuery.IncludeOverdue || feed.dueQuery.Limit != 50 {
+			t.Fatalf("unexpected parsed due query: %+v", feed.dueQuery)
+		}
+	})
+
+	t.Run("validates activity-summary window", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/internal/activity-summary?start=2026-11-10T00:00:00Z", nil)
+		req.Header.Set("Authorization", "Bearer service-secret")
+		res := httptest.NewRecorder()
+		handler.ServeHTTP(res, req)
+		if res.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 when only start given, got %d", res.Code)
+		}
+
+		req2 := httptest.NewRequest(
+			http.MethodGet,
+			"/api/internal/activity-summary?start=2026-11-09T16:00:00Z&end=2026-11-16T16:00:00Z",
+			nil,
+		)
+		req2.Header.Set("Authorization", "Bearer service-secret")
+		res2 := httptest.NewRecorder()
+		handler.ServeHTTP(res2, req2)
+		if res2.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d (%s)", res2.Code, res2.Body.String())
+		}
+		if !feed.summarySpan[0].Equal(time.Date(2026, 11, 9, 16, 0, 0, 0, time.UTC)) {
+			t.Fatalf("unexpected start passed to ActivitySummary: %v", feed.summarySpan[0])
+		}
+	})
+}
+
+func TestInternalEventsStreamSSELivePush(t *testing.T) {
+	nodeID := int64(7)
+	broker := events.NewBroker()
+	feed := &stubInternalFeed{
+		events: []events.Event{
+			{
+				ID:           1,
+				Kind:         events.KindNodeCreated,
+				NodeID:       &nodeID,
+				ActorSubject: "alice",
+				Payload:      json.RawMessage(`{"title":"Initial"}`),
+				CreatedAt:    time.Now().UTC(),
+			},
+		},
+	}
+
+	handler := httpapi.New(config.Config{}, nil, &auth.Service{}, nil, nil, nil, nil).
+		WithInternalFeed("stream-secret", feed, broker).
+		Handler()
+
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/api/internal/events/stream?after=0", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer stream-secret")
+
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/event-stream") {
+		t.Fatalf("unexpected content-type: %q", ct)
+	}
+
+	type sseFrame struct {
+		id    string
+		event string
+		data  string
+	}
+	frames := make(chan sseFrame, 8)
+	scanErr := make(chan error, 1)
+
+	go func() {
+		scanner := bufio.NewScanner(resp.Body)
+		var cur sseFrame
+		for scanner.Scan() {
+			line := scanner.Text()
+			if line == "" {
+				if cur.data != "" {
+					frames <- cur
+					cur = sseFrame{}
+				}
+				continue
+			}
+			if strings.HasPrefix(line, ":") {
+				continue
+			}
+			if v, ok := strings.CutPrefix(line, "id: "); ok {
+				cur.id = v
+			} else if v, ok := strings.CutPrefix(line, "event: "); ok {
+				cur.event = v
+			} else if v, ok := strings.CutPrefix(line, "data: "); ok {
+				cur.data = v
+			}
+		}
+		scanErr <- scanner.Err()
+	}()
+
+	// Expect initial replay of event 1.
+	select {
+	case first := <-frames:
+		if first.id != "1" || first.event != events.KindNodeCreated {
+			t.Fatalf("unexpected initial frame: %+v", first)
+		}
+	case err := <-scanErr:
+		t.Fatalf("scanner exited early: %v", err)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for initial SSE frame")
+	}
+
+	// Append event 2 and wake subscribers through Broker.
+	feed.append(events.Event{
+		ID:           2,
+		Kind:         events.KindMemberAssigned,
+		NodeID:       &nodeID,
+		ActorSubject: "alice",
+		Payload:      json.RawMessage(`{"subject":"bob","role":"member","nodeTitle":"Initial"}`),
+		CreatedAt:    time.Now().UTC(),
+	})
+	broker.Publish(2)
+
+	select {
+	case second := <-frames:
+		if second.id != "2" || second.event != events.KindMemberAssigned {
+			t.Fatalf("unexpected live frame: %+v", second)
+		}
+		var parsed events.Event
+		if err := json.Unmarshal([]byte(second.data), &parsed); err != nil {
+			t.Fatal(err)
+		}
+		if parsed.ActorSubject != "alice" {
+			t.Fatalf("unexpected parsed actorSubject: %+v", parsed)
+		}
+	case err := <-scanErr:
+		t.Fatalf("scanner exited before live event: %v", err)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for live SSE frame")
 	}
 }
