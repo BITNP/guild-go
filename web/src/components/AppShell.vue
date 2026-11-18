@@ -30,6 +30,7 @@ import UserAvatar from '@/components/UserAvatar.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useNodeStore } from '@/composables/useNodeStore'
 import { useTheme } from '@/composables/useTheme'
+import { errorMessage } from '@/lib/utils'
 const props = withDefaults(
   defineProps<{ railTitle?: string; immersive?: boolean }>(),
   { railTitle: '节点信息', immersive: false },
@@ -115,7 +116,7 @@ async function selectAccount(key: string) {
     await logout()
     await router.replace({ name: 'login' })
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '退出失败，请重试'
+    error.value = errorMessage(err, '退出失败，请重试')
   } finally {
     leaving.value = false
   }

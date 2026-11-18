@@ -37,22 +37,33 @@ function ancestorsOf(nodeId: number): NodeSummary[] {
   return result
 }
 
-function removeSubtree(rootId: number) {
-  const removed = new Set<number>([rootId])
+function ancestorPath(nodeId: number): string {
+  return ancestorsOf(nodeId)
+    .map((node) => node.title)
+    .join(' / ')
+}
+
+function subtreeIds(rootId: number): Set<number> {
+  const collected = new Set<number>([rootId])
   let changed = true
   while (changed) {
     changed = false
     for (const node of nodes.value) {
       if (
         node.parentId != null &&
-        removed.has(node.parentId) &&
-        !removed.has(node.id)
+        collected.has(node.parentId) &&
+        !collected.has(node.id)
       ) {
-        removed.add(node.id)
+        collected.add(node.id)
         changed = true
       }
     }
   }
+  return collected
+}
+
+function removeSubtree(rootId: number) {
+  const removed = subtreeIds(rootId)
   nodes.value = nodes.value.filter((node) => !removed.has(node.id))
 }
 
@@ -97,6 +108,8 @@ export function useNodeStore() {
     reload,
     childrenOf,
     ancestorsOf,
+    ancestorPath,
+    subtreeIds,
     removeSubtree,
   }
 }

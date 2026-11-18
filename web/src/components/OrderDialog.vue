@@ -13,22 +13,22 @@ import { ArrowDown, ArrowUp, GripVertical } from '@lucide/vue'
 import AppModal from '@/components/AppModal.vue'
 import { orderNodes, type ChildNode } from '@/lib/api'
 import { errorMessage } from '@/lib/utils'
+const open = defineModel<boolean>('open', { required: true })
 const props = defineProps<{
-    open: boolean
     parentId: number | null
     parentTitle: string
     children: ChildNode[]
   }>(),
-  emit = defineEmits<{ close: []; saved: [] }>()
+  emit = defineEmits<{ saved: [] }>()
 const items = ref<ChildNode[]>([]),
   saving = ref(false),
   error = ref<string | null>(null),
   draggingIndex = ref<number | null>(null),
   dragOverIndex = ref<number | null>(null)
 watch(
-  () => props.open,
-  (open) => {
-    if (open) {
+  open,
+  (isOpen) => {
+    if (isOpen) {
       items.value = [...props.children].sort(
         (a, b) => a.sortOrder - b.sortOrder || a.id - b.id,
       )
@@ -89,7 +89,7 @@ async function save() {
       items.value.map((item) => item.id),
     )
     emit('saved')
-    emit('close')
+    open.value = false
   } catch (err) {
     error.value = errorMessage(err)
   } finally {
@@ -102,7 +102,7 @@ async function save() {
     :open="open"
     :title="parentId == null ? '调整根节点顺序' : '调整子节点顺序'"
     :busy="saving"
-    @close="emit('close')"
+    @close="open = false"
     ><NSpace vertical :size="16"
       ><NText v-if="parentTitle" depth="3">父节点：{{ parentTitle }}</NText
       ><NList bordered class="order-list"
@@ -145,7 +145,7 @@ async function save() {
         size="small"
       /><NAlert v-if="error" type="error">{{ error }}</NAlert
       ><NSpace justify="end"
-        ><NButton :disabled="saving" @click="emit('close')">取消</NButton
+        ><NButton :disabled="saving" @click="open = false">取消</NButton
         ><NButton
           type="primary"
           :loading="saving"

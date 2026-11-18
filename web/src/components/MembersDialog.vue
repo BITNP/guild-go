@@ -26,8 +26,9 @@ import {
   type NodeDetail,
 } from '@/lib/api'
 import { errorMessage } from '@/lib/utils'
-const props = defineProps<{ open: boolean; node: NodeDetail }>(),
-  emit = defineEmits<{ close: []; saved: [node: NodeDetail] }>()
+const open = defineModel<boolean>('open', { required: true })
+const props = defineProps<{ node: NodeDetail }>(),
+  emit = defineEmits<{ saved: [node: NodeDetail] }>()
 const tab = ref('direct'),
   leaders = ref<string[]>([]),
   members = ref<string[]>([]),
@@ -49,9 +50,9 @@ async function load() {
   }
 }
 watch(
-  () => props.open,
-  (open) => {
-    if (!open) return
+  open,
+  (isOpen) => {
+    if (!isOpen) return
     tab.value = 'direct'
     effective.value = null
     loadError.value = null
@@ -75,7 +76,7 @@ async function save() {
       'saved',
       await saveNodeMembers(props.node.id, leaders.value, members.value),
     )
-    emit('close')
+    open.value = false
   } catch (err) {
     saveError.value = errorMessage(err)
   } finally {
@@ -89,7 +90,7 @@ async function save() {
     title="管理成员"
     :busy="saving"
     wide
-    @close="emit('close')"
+    @close="open = false"
     ><NSpace vertical :size="20"
       ><NTabs v-model:value="tab" type="line"
         ><NTabPane name="direct" tab="直接成员"
@@ -148,7 +149,7 @@ async function save() {
                             ><RouterLink
                               :to="{ name: 'node', params: { id: source.id } }"
                               class="source-link"
-                              @click="emit('close')"
+                              @click="open = false"
                               >{{ source.title }}</RouterLink
                             ></template
                           ></template
@@ -161,7 +162,7 @@ async function save() {
                   description="暂无成员"
                   size="small" /></NGi></NGrid></NSpin></NTabPane></NTabs
       ><NSpace justify="end" class="member-actions"
-        ><NButton :disabled="saving" @click="emit('close')">关闭</NButton
+        ><NButton :disabled="saving" @click="open = false">关闭</NButton
         ><NButton
           v-if="tab === 'direct'"
           type="primary"

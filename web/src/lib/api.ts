@@ -285,10 +285,6 @@ export function fetchAuthStatus(): Promise<AuthStatus> {
   return apiFetch<AuthStatus>('/api/auth/status', { cache: 'no-store' })
 }
 
-export function fetchMe(): Promise<Profile> {
-  return apiFetch<Profile>('/api/auth/me')
-}
-
 export function logout(): Promise<void> {
   return apiFetch<void>('/api/auth/logout', { method: 'POST' })
 }
@@ -316,6 +312,20 @@ export function updateNode(id: number, input: NodeUpdateInput): Promise<NodeDeta
   return apiFetch<NodeDetail>(`/api/nodes/${id}`, {
     method: 'PUT',
     body: JSON.stringify(input),
+  })
+}
+
+export function updateNodeFromDetail(
+  node: NodeDetail,
+  patch: Partial<NodeUpdateInput>,
+): Promise<NodeDetail> {
+  return updateNode(node.id, {
+    title: node.title,
+    description: node.description,
+    dueAt: node.dueAt,
+    tags: node.tags,
+    completed: Boolean(node.completedAt),
+    ...patch,
   })
 }
 
@@ -412,10 +422,6 @@ export function fetchUsers(): Promise<UserSummary[]> {
 
 export function fetchUser(subject: string): Promise<Profile> {
   return apiFetch<Profile>(`/api/users/${encodeURIComponent(subject)}`, { cache: 'no-store' })
-}
-
-export function attachmentUrl(id: number): string {
-  return `/api/attachments/${id}`
 }
 
 export function loginUrl(returnTo: string): string {

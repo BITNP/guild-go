@@ -1,4 +1,10 @@
-import type { Department } from './api'
+import type { Department, ProgressItem } from './api'
+
+export function progressKey(item: ProgressItem): string {
+  return item.kind === 'comment'
+    ? `comment:${item.comment.id}`
+    : `description_change:${item.descriptionChange.id}`
+}
 
 export function departmentLabel(
   department: Department | string | null | undefined,
@@ -29,17 +35,6 @@ export function formatDateTime(value: string | null | undefined): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-  }).format(date)
-}
-
-export function formatDate(value: string | null | undefined): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
-  return new Intl.DateTimeFormat('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
   }).format(date)
 }
 
@@ -156,8 +151,4 @@ export function safeReturnTo(value: unknown): string {
   } catch {
     return '/'
   }
-}
-
-export function formatNumber(value: number): string {
-  return new Intl.NumberFormat('zh-CN').format(value)
 }

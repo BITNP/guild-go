@@ -3,20 +3,14 @@ import { ref, watch } from 'vue'
 import ConfirmAction from '@/components/ConfirmAction.vue'
 import { deleteNode, type NodeDetail } from '@/lib/api'
 import { errorMessage } from '@/lib/utils'
-const props = defineProps<{ open: boolean; node: NodeDetail }>(),
-  emit = defineEmits<{
-    close: []
-    deleted: []
-    'update:open': [open: boolean]
-  }>()
+const open = defineModel<boolean>('open', { required: true })
+const props = defineProps<{ node: NodeDetail }>()
+const emit = defineEmits<{ deleted: [] }>()
 const deleting = ref(false),
   error = ref<string | null>(null)
-watch(
-  () => props.open,
-  () => {
-    error.value = null
-  },
-)
+watch(open, () => {
+  error.value = null
+})
 async function confirm() {
   if (deleting.value) return
   deleting.value = true
@@ -24,17 +18,12 @@ async function confirm() {
   try {
     await deleteNode(props.node.id)
     emit('deleted')
-    emit('close')
+    open.value = false
   } catch (err) {
     error.value = errorMessage(err, '删除节点失败')
   } finally {
     deleting.value = false
   }
-}
-
-function close() {
-  emit('update:open', false)
-  emit('close')
 }
 </script>
 <template>
@@ -45,7 +34,7 @@ function close() {
     :busy="deleting"
     :error="error"
     @confirm="confirm"
-    @close="close"
+    @close="open = false"
     ><p>将删除「{{ node.title }}」及其所有下级节点，共 {{ node.subtreeNodeCount }} 个节点。</p>
     <p>
       这些节点的全部进展记录和 {{ node.subtreeAttachmentCount }} 张图片也会一并删除，操作不可撤销。

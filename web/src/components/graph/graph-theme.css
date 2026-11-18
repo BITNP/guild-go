@@ -1,0 +1,369 @@
+[data-graph-theme] {
+  --graph-bg: #070a0d;
+  --graph-horizon-bg:
+    radial-gradient(circle at 72% 24%, rgba(232, 170, 58, 0.14), transparent 28%),
+    radial-gradient(circle at 46% 48%, rgba(77, 167, 169, 0.08), transparent 38%);
+  --graph-horizon-blend: screen;
+  --graph-vignette-opacity: 1;
+
+  --graph-header-color: #a6b8be;
+  --graph-title-mark-border: rgba(236, 181, 75, 0.72);
+  --graph-title-mark-bg:
+    linear-gradient(135deg, rgba(238, 181, 73, 0.2), transparent 62%),
+    rgba(10, 17, 20, 0.88);
+  --graph-title-mark-shadow:
+    inset 0 0 18px rgba(237, 180, 72, 0.08),
+    0 0 24px rgba(237, 180, 72, 0.08);
+  --graph-title-mark-color: #f0bd57;
+  --graph-heading-color: #f1ede2;
+  --graph-status-color: #9cafb6;
+  --graph-dot-color: #e8b44c;
+  --graph-dot-shadow: 0 0 8px rgba(232, 180, 76, 0.8);
+
+  --graph-toolbar-btn-border: rgba(221, 176, 83, 0.42);
+  --graph-toolbar-btn-bg: rgba(8, 14, 17, 0.78);
+  --graph-toolbar-btn-color: #e6c37b;
+  --graph-toolbar-btn-shadow:
+    inset 0 0 16px rgba(225, 173, 70, 0.04),
+    0 8px 24px rgba(0, 0, 0, 0.2);
+  --graph-toolbar-btn-hover-border: rgba(242, 190, 83, 0.8);
+  --graph-toolbar-btn-hover-bg: rgba(25, 27, 20, 0.9);
+  --graph-toolbar-btn-hover-color: #fff3d1;
+
+  --graph-toast-border: rgba(240, 182, 82, 0.32);
+  --graph-toast-bg: rgba(7, 13, 16, 0.94);
+  --graph-toast-color: #f2c66f;
+  --graph-toast-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  --graph-stage-error-border: rgba(245, 174, 82, 0.36);
+  --graph-stage-error-bg: rgba(11, 16, 18, 0.94);
+  --graph-stage-error-color: #f3c66f;
+
+  --graph-panel-border: rgba(222, 174, 69, 0.34);
+  --graph-panel-bg:
+    linear-gradient(155deg, rgba(25, 24, 17, 0.9), transparent 34%),
+    linear-gradient(180deg, rgba(10, 17, 20, 0.97), rgba(5, 10, 13, 0.98));
+  --graph-panel-shadow:
+    -24px 0 70px rgba(0, 0, 0, 0.42),
+    inset 0 0 50px rgba(225, 173, 70, 0.025);
+  --graph-panel-text: #d9e1e1;
+  --graph-panel-header-bg: rgba(8, 14, 17, 0.58);
+  --graph-panel-divider: rgba(139, 164, 169, 0.16);
+  --graph-panel-divider-subtle: rgba(139, 164, 169, 0.13);
+  --graph-panel-title-color: #f4f0e6;
+  --graph-section-title-color: #e7c47b;
+
+  --graph-close-border: rgba(150, 171, 175, 0.22);
+  --graph-close-bg: rgba(10, 16, 19, 0.72);
+  --graph-close-color: #a5b4b7;
+  --graph-close-hover-border: rgba(238, 185, 77, 0.62);
+  --graph-close-hover-color: #f2c66f;
+
+  --graph-button-border: rgba(221, 176, 75, 0.34);
+  --graph-button-bg: rgba(218, 170, 67, 0.07);
+  --graph-button-color: #e5c47c;
+  --graph-button-hover-border: rgba(240, 187, 78, 0.68);
+  --graph-button-hover-bg: rgba(218, 170, 67, 0.1);
+  --graph-button-hover-color: #f5d38e;
+  --graph-primary-btn-border: rgba(232, 181, 75, 0.62);
+  --graph-primary-btn-bg: rgba(218, 170, 67, 0.12);
+  --graph-primary-btn-color: #f1cb7b;
+  --graph-primary-btn-hover-border: rgba(242, 190, 83, 0.85);
+  --graph-primary-btn-hover-bg: rgba(218, 170, 67, 0.2);
+  --graph-primary-btn-hover-color: #fff3d1;
+  --graph-danger-border: rgba(226, 125, 104, 0.34);
+  --graph-danger-color: #e3a091;
+  --graph-danger-hover-border: rgba(241, 143, 119, 0.7);
+  --graph-danger-hover-bg: rgba(177, 69, 50, 0.12);
+  --graph-danger-hover-color: #ffb9a8;
+  --graph-status-error-color: #ef9c83;
+  --graph-tag-border: rgba(116, 150, 157, 0.28);
+  --graph-tag-color: #9eb2b6;
+
+  --graph-muted-label: #84979b;
+  --graph-meta-label: #72878b;
+  --graph-empty-copy: #71868b;
+  --graph-count-accent: #d8b35f;
+  --graph-link-color: #c6d1d2;
+  --graph-link-border: rgba(221, 176, 75, 0.22);
+  --graph-link-bg: rgba(218, 170, 67, 0.055);
+  --graph-link-hover-border: rgba(238, 185, 77, 0.56);
+  --graph-link-hover-bg: rgba(221, 174, 70, 0.09);
+  --graph-link-hover-color: #f5d38e;
+  --graph-child-icon-color: #84979b;
+  --graph-child-icon-completed: #56c99a;
+  --graph-child-icon-overdue: #e6b85e;
+  --graph-body-color: #cad4d4;
+  --graph-description-color: #aebbbc;
+  --graph-content-link-color: #f0c975;
+  --graph-inherited-color: #788c90;
+
+  --graph-panel-muted-color: #91a4a8;
+  --graph-panel-error-text: #e0b661;
+  --graph-panel-error-border: rgba(230, 180, 75, 0.35);
+  --graph-panel-error-btn-color: #e5c077;
+  --graph-panel-error-btn-hover-border: rgba(240, 187, 78, 0.68);
+  --graph-panel-error-btn-hover-bg: transparent;
+  --graph-panel-error-btn-hover-color: #ffe0a2;
+  --graph-panel-footer-border: rgba(222, 174, 69, 0.22);
+  --graph-panel-footer-bg: rgba(7, 12, 15, 0.92);
+  --graph-page-link-border: rgba(231, 181, 76, 0.52);
+  --graph-page-link-bg:
+    linear-gradient(90deg, rgba(231, 181, 76, 0.16), transparent),
+    rgba(24, 23, 17, 0.8);
+  --graph-page-link-color: #f0ca79;
+  --graph-page-link-hover-border: rgba(246, 198, 92, 0.86);
+  --graph-page-link-hover-bg:
+    linear-gradient(90deg, rgba(231, 181, 76, 0.24), transparent),
+    rgba(24, 23, 17, 0.9);
+  --graph-page-link-hover-color: #f5d38e;
+
+  --graph-backdrop-bg: rgba(2, 7, 9, 0.42);
+  --graph-detail-border: rgba(226, 178, 76, 0.42);
+  --graph-detail-edge: rgba(240, 188, 79, 0.82);
+  --graph-detail-bg:
+    linear-gradient(135deg, rgba(232, 181, 75, 0.09), transparent 32%),
+    linear-gradient(180deg, rgba(9, 17, 20, 0.98), rgba(4, 10, 13, 0.99));
+  --graph-detail-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.6),
+    inset 0 0 44px rgba(77, 177, 175, 0.025);
+  --graph-detail-text: #e7eeeb;
+  --graph-detail-mark-border: rgba(231, 181, 76, 0.44);
+  --graph-detail-mark-color: #edc469;
+  --graph-detail-kicker: rgba(120, 222, 198, 0.8);
+  --graph-detail-title: #f2eee3;
+  --graph-detail-meta: #8fa4a7;
+  --graph-detail-user-name: #e7eeeb;
+  --graph-detail-body: #e5ebe7;
+  --graph-detail-empty: #8fa4a7;
+  --graph-detail-change-action: #b7c8c9;
+  --graph-reaction-btn-border: rgba(107, 142, 147, 0.3);
+  --graph-reaction-btn-bg: rgba(16, 25, 27, 0.74);
+  --graph-reaction-btn-color: #e3e9e4;
+  --graph-reaction-btn-hover-border: rgba(239, 188, 80, 0.52);
+  --graph-reaction-btn-hover-bg: rgba(16, 25, 27, 0.86);
+  --graph-reaction-count-color: #9bb1b2;
+  --graph-reaction-active-border: rgba(239, 188, 80, 0.7);
+  --graph-reaction-active-bg: rgba(221, 170, 61, 0.16);
+
+  --graph-composer-bg:
+    linear-gradient(135deg, rgba(232, 181, 75, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(9, 17, 20, 0.94), rgba(5, 11, 14, 0.97));
+  --graph-composer-shadow:
+    0 26px 70px rgba(0, 0, 0, 0.48),
+    inset 0 0 38px rgba(81, 178, 176, 0.025);
+  --graph-composer-text: #dce5e4;
+  --graph-composer-input-border: rgba(108, 148, 155, 0.34);
+  --graph-composer-input-bg:
+    linear-gradient(90deg, rgba(80, 183, 181, 0.05), transparent 34%),
+    rgba(2, 9, 12, 0.58);
+  --graph-composer-input-color: #eef2ec;
+  --graph-composer-caret: #f0bd58;
+  --graph-composer-placeholder: rgba(150, 174, 178, 0.58);
+  --graph-composer-focus-border: rgba(239, 188, 80, 0.72);
+  --graph-composer-focus-bg: rgba(6, 14, 17, 0.78);
+  --graph-composer-focus-shadow: 0 0 0 2px rgba(232, 181, 75, 0.08);
+  --graph-slot-border: rgba(108, 148, 155, 0.34);
+  --graph-slot-bg: #0b1418;
+  --graph-slot-overlay-bg: rgba(3, 10, 13, 0.76);
+  --graph-slot-overlay-color: #d7e4e2;
+  --graph-slot-remove-border: rgba(218, 185, 119, 0.3);
+  --graph-slot-remove-bg: rgba(4, 10, 12, 0.84);
+  --graph-slot-remove-color: #cad7d5;
+  --graph-attach-border: rgba(113, 148, 154, 0.34);
+  --graph-attach-bg: rgba(10, 19, 22, 0.58);
+  --graph-attach-color: #adbec0;
+  --graph-send-border: rgba(239, 188, 80, 0.66);
+  --graph-send-bg:
+    linear-gradient(135deg, rgba(239, 188, 80, 0.2), transparent),
+    rgba(37, 31, 15, 0.76);
+  --graph-send-color: #f6d58f;
+  --graph-composer-error: #f2a18c;
+  --graph-drop-border: rgba(240, 188, 79, 0.82);
+  --graph-drop-bg: rgba(4, 11, 14, 0.9);
+  --graph-drop-color: #f5d28b;
+}
+
+[data-graph-theme='light'] {
+  --graph-bg: #eef3f5;
+  --graph-horizon-bg:
+    radial-gradient(circle at 72% 24%, rgba(188, 126, 24, 0.12), transparent 30%),
+    radial-gradient(circle at 46% 48%, rgba(44, 132, 137, 0.09), transparent 40%);
+  --graph-horizon-blend: multiply;
+  --graph-vignette-opacity: 0;
+
+  --graph-header-color: #526572;
+  --graph-title-mark-border: rgba(163, 104, 17, 0.62);
+  --graph-title-mark-bg:
+    linear-gradient(135deg, rgba(192, 133, 40, 0.15), transparent 62%),
+    rgba(255, 255, 255, 0.88);
+  --graph-title-mark-shadow:
+    inset 0 0 18px rgba(173, 113, 22, 0.06),
+    0 0 24px rgba(173, 113, 22, 0.08);
+  --graph-title-mark-color: #9d6411;
+  --graph-heading-color: #1c2932;
+  --graph-status-color: #637784;
+  --graph-dot-color: #a96c12;
+  --graph-dot-shadow: 0 0 8px rgba(169, 108, 18, 0.45);
+
+  --graph-toolbar-btn-border: rgba(159, 103, 18, 0.32);
+  --graph-toolbar-btn-bg: rgba(255, 255, 255, 0.8);
+  --graph-toolbar-btn-color: #8c5b12;
+  --graph-toolbar-btn-shadow:
+    inset 0 0 16px rgba(225, 173, 70, 0.04),
+    0 8px 24px rgba(40, 52, 61, 0.1);
+  --graph-toolbar-btn-hover-border: rgba(142, 89, 10, 0.62);
+  --graph-toolbar-btn-hover-bg: rgba(255, 250, 239, 0.96);
+  --graph-toolbar-btn-hover-color: #734707;
+
+  --graph-toast-border: rgba(157, 100, 18, 0.28);
+  --graph-toast-bg: rgba(255, 255, 255, 0.95);
+  --graph-toast-color: #85570f;
+  --graph-toast-shadow: 0 20px 50px rgba(47, 61, 70, 0.16);
+  --graph-stage-error-border: rgba(157, 100, 18, 0.32);
+  --graph-stage-error-bg: rgba(255, 255, 255, 0.94);
+  --graph-stage-error-color: #8c5a0d;
+
+  --graph-panel-border: rgba(157, 105, 25, 0.28);
+  --graph-panel-bg:
+    linear-gradient(155deg, rgba(255, 249, 235, 0.92), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(246, 249, 250, 0.98));
+  --graph-panel-shadow:
+    -24px 0 70px rgba(51, 66, 75, 0.16),
+    inset 0 0 50px rgba(167, 107, 17, 0.02);
+  --graph-panel-text: #263640;
+  --graph-panel-header-bg: rgba(255, 255, 255, 0.62);
+  --graph-panel-divider: rgba(81, 105, 116, 0.15);
+  --graph-panel-divider-subtle: rgba(82, 105, 116, 0.13);
+  --graph-panel-title-color: #17242d;
+  --graph-section-title-color: #8e590d;
+
+  --graph-close-border: rgba(84, 107, 117, 0.22);
+  --graph-close-bg: rgba(255, 255, 255, 0.76);
+  --graph-close-color: #5c7079;
+  --graph-close-hover-border: rgba(155, 101, 17, 0.55);
+  --graph-close-hover-color: #7c4d09;
+
+  --graph-button-border: rgba(155, 101, 17, 0.3);
+  --graph-button-bg: rgba(184, 119, 21, 0.06);
+  --graph-button-color: #80510d;
+  --graph-button-hover-border: rgba(142, 89, 10, 0.62);
+  --graph-button-hover-bg: rgba(184, 119, 21, 0.12);
+  --graph-button-hover-color: #633d06;
+  --graph-primary-btn-border: rgba(155, 101, 17, 0.52);
+  --graph-primary-btn-bg: rgba(184, 119, 21, 0.12);
+  --graph-primary-btn-color: #6e4406;
+  --graph-primary-btn-hover-border: rgba(135, 83, 8, 0.78);
+  --graph-primary-btn-hover-bg: rgba(184, 119, 21, 0.2);
+  --graph-primary-btn-hover-color: #4f3003;
+  --graph-danger-border: rgba(194, 59, 59, 0.34);
+  --graph-danger-color: #b03030;
+  --graph-danger-hover-border: rgba(194, 59, 59, 0.68);
+  --graph-danger-hover-bg: rgba(194, 59, 59, 0.08);
+  --graph-danger-hover-color: #8c1d1d;
+  --graph-status-error-color: #b03030;
+  --graph-tag-border: rgba(87, 119, 132, 0.26);
+  --graph-tag-color: #607783;
+
+  --graph-muted-label: #607580;
+  --graph-meta-label: #607580;
+  --graph-empty-copy: #758993;
+  --graph-count-accent: #936013;
+  --graph-link-color: #344650;
+  --graph-link-border: rgba(157, 104, 21, 0.22);
+  --graph-link-bg: rgba(183, 120, 24, 0.05);
+  --graph-link-hover-border: rgba(157, 100, 17, 0.48);
+  --graph-link-hover-bg: rgba(183, 120, 24, 0.08);
+  --graph-link-hover-color: #714707;
+  --graph-child-icon-color: #607580;
+  --graph-child-icon-completed: #157347;
+  --graph-child-icon-overdue: #966200;
+  --graph-body-color: #344650;
+  --graph-description-color: #344650;
+  --graph-content-link-color: var(--guild-primary);
+  --graph-inherited-color: #70848e;
+
+  --graph-panel-muted-color: #627781;
+  --graph-panel-error-text: #8d590d;
+  --graph-panel-error-border: rgba(156, 101, 17, 0.34);
+  --graph-panel-error-btn-color: #7f500b;
+  --graph-panel-error-btn-hover-border: rgba(142, 89, 10, 0.62);
+  --graph-panel-error-btn-hover-bg: rgba(184, 119, 21, 0.1);
+  --graph-panel-error-btn-hover-color: #5e3904;
+  --graph-panel-footer-border: rgba(157, 105, 22, 0.2);
+  --graph-panel-footer-bg: rgba(255, 255, 255, 0.9);
+  --graph-page-link-border: rgba(157, 102, 18, 0.38);
+  --graph-page-link-bg:
+    linear-gradient(90deg, rgba(190, 127, 29, 0.1), transparent),
+    rgba(255, 252, 246, 0.86);
+  --graph-page-link-color: #81510b;
+  --graph-page-link-hover-border: rgba(142, 89, 10, 0.68);
+  --graph-page-link-hover-bg:
+    linear-gradient(90deg, rgba(190, 127, 29, 0.18), transparent),
+    rgba(255, 248, 232, 0.96);
+  --graph-page-link-hover-color: #5e3904;
+
+  --graph-backdrop-bg: rgba(220, 228, 232, 0.42);
+  --graph-detail-border: rgba(158, 103, 18, 0.3);
+  --graph-detail-edge: rgba(151, 94, 12, 0.62);
+  --graph-detail-bg:
+    linear-gradient(135deg, rgba(193, 128, 29, 0.07), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(245, 248, 249, 0.99));
+  --graph-detail-shadow:
+    0 30px 90px rgba(45, 60, 69, 0.24),
+    inset 0 0 44px rgba(55, 137, 135, 0.02);
+  --graph-detail-text: #273740;
+  --graph-detail-mark-border: rgba(153, 99, 16, 0.36);
+  --graph-detail-mark-color: #8b5a10;
+  --graph-detail-kicker: #207a63;
+  --graph-detail-title: #17242c;
+  --graph-detail-meta: #667b85;
+  --graph-detail-user-name: #17242c;
+  --graph-detail-body: #24343d;
+  --graph-detail-empty: #667b85;
+  --graph-detail-change-action: #4f6470;
+  --graph-reaction-btn-border: rgba(82, 108, 120, 0.24);
+  --graph-reaction-btn-bg: rgba(255, 255, 255, 0.76);
+  --graph-reaction-btn-color: #283942;
+  --graph-reaction-btn-hover-border: rgba(156, 100, 16, 0.52);
+  --graph-reaction-btn-hover-bg: rgba(255, 250, 239, 0.96);
+  --graph-reaction-count-color: #556a75;
+  --graph-reaction-active-border: rgba(156, 100, 16, 0.52);
+  --graph-reaction-active-bg: rgba(190, 126, 29, 0.1);
+
+  --graph-composer-bg:
+    linear-gradient(135deg, rgba(193, 128, 29, 0.08), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(246, 249, 250, 0.98));
+  --graph-composer-shadow:
+    0 26px 70px rgba(48, 63, 72, 0.2),
+    inset 0 0 38px rgba(55, 137, 135, 0.02);
+  --graph-composer-text: #2a3942;
+  --graph-composer-input-border: rgba(79, 108, 120, 0.28);
+  --graph-composer-input-bg:
+    linear-gradient(90deg, rgba(58, 143, 142, 0.04), transparent 34%),
+    rgba(255, 255, 255, 0.84);
+  --graph-composer-input-color: #17242c;
+  --graph-composer-caret: #9a620e;
+  --graph-composer-placeholder: rgba(73, 94, 106, 0.58);
+  --graph-composer-focus-border: rgba(158, 101, 16, 0.58);
+  --graph-composer-focus-bg: rgba(255, 255, 255, 0.98);
+  --graph-composer-focus-shadow: 0 0 0 2px rgba(178, 116, 22, 0.07);
+  --graph-slot-border: rgba(80, 108, 120, 0.26);
+  --graph-slot-bg: #eef3f5;
+  --graph-slot-overlay-bg: rgba(238, 244, 246, 0.86);
+  --graph-slot-overlay-color: #455b66;
+  --graph-slot-remove-border: rgba(121, 91, 47, 0.28);
+  --graph-slot-remove-bg: rgba(255, 255, 255, 0.9);
+  --graph-slot-remove-color: #506570;
+  --graph-attach-border: rgba(78, 109, 121, 0.28);
+  --graph-attach-bg: rgba(255, 255, 255, 0.72);
+  --graph-attach-color: #536a75;
+  --graph-send-border: rgba(157, 101, 18, 0.48);
+  --graph-send-bg:
+    linear-gradient(135deg, rgba(189, 124, 27, 0.14), transparent),
+    rgba(255, 249, 236, 0.88);
+  --graph-send-color: #7f4f0a;
+  --graph-composer-error: #a33f36;
+  --graph-drop-border: rgba(147, 90, 8, 0.62);
+  --graph-drop-bg: rgba(250, 246, 237, 0.94);
+  --graph-drop-color: #7f4f0a;
+}

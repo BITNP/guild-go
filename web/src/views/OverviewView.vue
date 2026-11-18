@@ -190,11 +190,10 @@ watch(activityScope, load)
     @saved="created"
   />
   <OrderDialog
-    :open="orderOpen"
+    v-model:open="orderOpen"
     :parent-id="null"
     parent-title=""
     :children="overview?.roots ?? []"
-    @close="orderOpen = false"
     @saved="ordered"
   />
 </template>

@@ -1,13 +1,8 @@
 <script setup lang="ts">
-import {
-  computed,
-  ref,
-  watch,
-} from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
   ArrowUpDown,
-  CalendarClock,
   Check,
   ChevronRight,
   Circle,
@@ -20,16 +15,11 @@ import {
 } from '@lucide/vue'
 import MembersDialog from '@/components/MembersDialog.vue'
 import NodeStatusTag from '@/components/NodeStatusTag.vue'
-import UserIdentity from '@/components/UserIdentity.vue'
+import GraphNodeMetaSection from '@/components/graph/GraphNodeMetaSection.vue'
+import GraphNodePeopleSection from '@/components/graph/GraphNodePeopleSection.vue'
 import type { GraphNode } from '@/graph/types'
-import { updateNode, type NodeDetail } from '@/lib/api'
-import {
-  errorMessage,
-  formatDateTime,
-  isOverdue,
-  linkify,
-  timeAgo,
-} from '@/lib/utils'
+import { updateNodeFromDetail, type NodeDetail } from '@/lib/api'
+import { errorMessage, isOverdue, linkify } from '@/lib/utils'
 
 const props = defineProps<{
   selected: GraphNode
@@ -85,21 +75,13 @@ function createNode() {
 
 async function toggleCompletion() {
   const node = props.detail
-  if (
-    !node ||
-    !node.permissions.canEdit ||
-    savingStatus.value
-  ) {
+  if (!node || !node.permissions.canEdit || savingStatus.value) {
     return
   }
   savingStatus.value = true
   statusError.value = null
   try {
-    const updated = await updateNode(node.id, {
-      title: node.title,
-      description: node.description,
-      dueAt: node.dueAt,
-      tags: node.tags,
+    const updated = await updateNodeFromDetail(node, {
       completed: !node.completedAt,
     })
     emit('updated', updated)
@@ -308,92 +290,13 @@ async function toggleCompletion() {
           <p v-else class="panel-empty-copy">暂无节点描述</p>
         </section>
 
-        <section
+        <GraphNodeMetaSection v-if="!isVirtualRoot" :detail="detail" />
+
+        <GraphNodePeopleSection
           v-if="!isVirtualRoot"
-          class="panel-section"
-          aria-labelledby="panel-meta-title"
-        >
-          <h3 id="panel-meta-title">节点信息</h3>
-          <dl class="panel-meta-grid">
-            <div>
-              <dt><CalendarClock :size="13" />预期完成</dt>
-              <dd>{{ detail.dueAt ? formatDateTime(detail.dueAt) : '未设置' }}</dd>
-            </div>
-            <div v-if="detail.completedAt">
-              <dt>实际完成</dt>
-              <dd>{{ formatDateTime(detail.completedAt) }}</dd>
-            </div>
-            <div>
-              <dt>创建时间</dt>
-              <dd>{{ formatDateTime(detail.createdAt) }}</dd>
-            </div>
-            <div>
-              <dt>最近更新</dt>
-              <dd :title="formatDateTime(detail.updatedAt)">
-                {{ timeAgo(detail.updatedAt) }}
-              </dd>
-            </div>
-            <div>
-              <dt>包含节点</dt>
-              <dd>{{ detail.subtreeNodeCount }}</dd>
-            </div>
-            <div>
-              <dt>有效成员</dt>
-              <dd>{{ detail.effectiveMemberCount }}</dd>
-            </div>
-            <div>
-              <dt>图片附件</dt>
-              <dd>{{ detail.subtreeAttachmentCount }}</dd>
-            </div>
-          </dl>
-        </section>
-
-        <section
-          v-if="!isVirtualRoot"
-          class="panel-section panel-people"
-          aria-labelledby="panel-people-title"
-        >
-          <div class="people-heading">
-            <h3 id="panel-people-title">参与人员</h3>
-            <button
-              v-if="detail.permissions.canManageMembers"
-              type="button"
-              class="panel-edit-button"
-              @click="membersOpen = true"
-            >
-              <Pencil :size="12" />
-              管理成员
-            </button>
-          </div>
-
-          <div class="people-group">
-            <h4>直接负责人</h4>
-            <ul v-if="detail.directLeaders.length" class="people-list">
-              <li v-for="person in detail.directLeaders" :key="person.subject">
-                <UserIdentity :user="person" :size="24" />
-              </li>
-            </ul>
-            <p v-else class="panel-empty-copy">暂无直接负责人</p>
-          </div>
-
-          <div class="people-group">
-            <h4>直接成员</h4>
-            <ul v-if="detail.directMembers.length" class="people-list">
-              <li v-for="person in detail.directMembers" :key="person.subject">
-                <UserIdentity :user="person" :size="24" />
-              </li>
-            </ul>
-            <p v-else class="panel-empty-copy">暂无直接成员</p>
-          </div>
-
-          <p
-            v-if="detail.inheritedLeaderCount || detail.inheritedMemberCount"
-            class="inherited-count"
-          >
-            另有 {{ detail.inheritedLeaderCount }} 位上级负责人、
-            {{ detail.inheritedMemberCount }} 位继承成员。
-          </p>
-        </section>
+          :detail="detail"
+          @manage="membersOpen = true"
+        />
       </template>
     </div>
 
@@ -409,9 +312,8 @@ async function toggleCompletion() {
 
     <MembersDialog
       v-if="detail && !isVirtualRoot"
-      :open="membersOpen"
+      v-model:open="membersOpen"
       :node="detail"
-      @close="membersOpen = false"
       @saved="onMembersSaved"
     />
   </aside>
@@ -429,15 +331,11 @@ async function toggleCompletion() {
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(222, 174, 69, 0.34);
+  border: 1px solid var(--graph-panel-border);
   border-radius: 8px;
-  background:
-    linear-gradient(155deg, rgba(25, 24, 17, 0.9), transparent 34%),
-    linear-gradient(180deg, rgba(10, 17, 20, 0.97), rgba(5, 10, 13, 0.98));
-  box-shadow:
-    -24px 0 70px rgba(0, 0, 0, 0.42),
-    inset 0 0 50px rgba(225, 173, 70, 0.025);
-  color: #d9e1e1;
+  background: var(--graph-panel-bg);
+  box-shadow: var(--graph-panel-shadow);
+  color: var(--graph-panel-text);
   pointer-events: auto;
   backdrop-filter: blur(22px);
   will-change: transform, opacity;
@@ -471,8 +369,8 @@ async function toggleCompletion() {
   position: relative;
   flex: none;
   padding: 22px 24px 18px;
-  border-bottom: 1px solid rgba(139, 164, 169, 0.16);
-  background: rgba(8, 14, 17, 0.58);
+  border-bottom: 1px solid var(--graph-panel-divider);
+  background: var(--graph-panel-header-bg);
 }
 
 .panel-close {
@@ -483,21 +381,21 @@ async function toggleCompletion() {
   width: 30px;
   height: 30px;
   place-items: center;
-  border: 1px solid rgba(150, 171, 175, 0.22);
+  border: 1px solid var(--graph-close-border);
   border-radius: 4px;
-  background: rgba(10, 16, 19, 0.72);
-  color: #a5b4b7;
+  background: var(--graph-close-bg);
+  color: var(--graph-close-color);
   cursor: pointer;
 }
 
 .panel-close:hover {
-  border-color: rgba(238, 185, 77, 0.62);
-  color: #f2c66f;
+  border-color: var(--graph-close-hover-border);
+  color: var(--graph-close-hover-color);
 }
 
 .panel-header h2 {
   margin: 0 40px 0 0;
-  color: #f4f0e6;
+  color: var(--graph-panel-title-color);
   font-size: clamp(22px, 1.7vw, 28px);
   font-weight: 650;
   line-height: 1.35;
@@ -518,17 +416,18 @@ async function toggleCompletion() {
 
 .status-toggle {
   padding: 3px 8px;
-  border: 1px solid rgba(221, 176, 75, 0.34);
+  border: 1px solid var(--graph-button-border);
   border-radius: 4px;
-  background: rgba(218, 170, 67, 0.07);
-  color: #e5c47c;
+  background: var(--graph-button-bg);
+  color: var(--graph-button-color);
   font-size: 13px;
   cursor: pointer;
 }
 
 .status-toggle:hover {
-  border-color: rgba(241, 190, 80, 0.72);
-  color: #ffe2a3;
+  border-color: var(--graph-button-hover-border);
+  background: var(--graph-button-hover-bg);
+  color: var(--graph-button-hover-color);
 }
 
 .status-toggle:disabled {
@@ -538,7 +437,7 @@ async function toggleCompletion() {
 
 .status-error {
   margin: 8px 0 0;
-  color: #ef9c83;
+  color: var(--graph-status-error-color);
   font-size: 13px;
 }
 
@@ -551,9 +450,9 @@ async function toggleCompletion() {
 
 .panel-tag {
   padding: 2px 7px;
-  border: 1px solid rgba(116, 150, 157, 0.28);
+  border: 1px solid var(--graph-tag-border);
   border-radius: 4px;
-  color: #9eb2b6;
+  color: var(--graph-tag-color);
   font-size: 13px;
 }
 
@@ -583,13 +482,12 @@ async function toggleCompletion() {
 
 .panel-section {
   padding: 19px 24px;
-  border-bottom: 1px solid rgba(139, 164, 169, 0.13);
+  border-bottom: 1px solid var(--graph-panel-divider-subtle);
 }
 
-.panel-section h3,
-.people-heading h3 {
+.panel-section h3 {
   margin: 0 0 13px;
-  color: #e7c47b;
+  color: var(--graph-section-title-color);
   font-size: 15px;
   font-weight: 700;
 }
@@ -602,7 +500,7 @@ async function toggleCompletion() {
 }
 
 .relation-label {
-  color: #84979b;
+  color: var(--graph-muted-label);
   font-size: 13px;
 }
 
@@ -610,7 +508,7 @@ async function toggleCompletion() {
 .child-link {
   border: 0;
   background: transparent;
-  color: inherit;
+  color: var(--graph-link-color);
   cursor: pointer;
 }
 
@@ -621,9 +519,9 @@ async function toggleCompletion() {
   justify-content: space-between;
   gap: 8px;
   padding: 8px 10px;
-  border: 1px solid rgba(221, 176, 75, 0.22);
+  border: 1px solid var(--graph-link-border);
   border-radius: 4px;
-  background: rgba(218, 170, 67, 0.055);
+  background: var(--graph-link-bg);
   font-size: 14px;
   text-align: left;
 }
@@ -636,15 +534,15 @@ async function toggleCompletion() {
 
 .relation-link:hover,
 .child-link:hover {
-  border-color: rgba(238, 185, 77, 0.56);
-  background: rgba(221, 174, 70, 0.09);
-  color: #f5d38e;
+  border-color: var(--graph-link-hover-border);
+  background: var(--graph-link-hover-bg);
+  color: var(--graph-link-hover-color);
 }
 
 .relation-empty,
 .panel-empty-copy {
   margin: 0;
-  color: #71868b;
+  color: var(--graph-empty-copy);
   font-size: 14px;
 }
 
@@ -657,12 +555,12 @@ async function toggleCompletion() {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 7px;
-  color: #84979b;
+  color: var(--graph-muted-label);
   font-size: 13px;
 }
 
 .children-heading span:last-child {
-  color: #d8b35f;
+  color: var(--graph-count-accent);
   font-variant-numeric: tabular-nums;
 }
 
@@ -680,21 +578,20 @@ async function toggleCompletion() {
   padding: 8px 9px;
   border: 1px solid transparent;
   border-radius: 4px;
-  color: #c6d1d2;
   font-size: 15px;
   text-align: left;
 }
 
 .child-icon {
-  color: #84979b;
+  color: var(--graph-child-icon-color);
 }
 
 .child-icon.is-completed {
-  color: #56c99a;
+  color: var(--graph-child-icon-completed);
 }
 
 .child-icon.is-overdue {
-  color: #e6b85e;
+  color: var(--graph-child-icon-overdue);
 }
 
 .child-title {
@@ -704,7 +601,7 @@ async function toggleCompletion() {
 }
 
 .child-count {
-  color: #70858a;
+  color: var(--graph-empty-copy);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -712,7 +609,7 @@ async function toggleCompletion() {
 
 .panel-description {
   margin: 0;
-  color: #aebbbc;
+  color: var(--graph-description-color);
   font-size: 15px;
   line-height: 1.8;
   overflow-wrap: anywhere;
@@ -720,49 +617,9 @@ async function toggleCompletion() {
 }
 
 .panel-description a {
-  color: #f0c975;
+  color: var(--graph-content-link-color);
   text-decoration: underline;
   text-underline-offset: 3px;
-}
-
-.panel-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 13px 18px;
-  margin: 0;
-}
-
-.panel-meta-grid div {
-  min-width: 0;
-}
-
-.panel-meta-grid dt {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-bottom: 4px;
-  color: #72878b;
-  font-size: 13px;
-}
-
-.panel-meta-grid dd {
-  margin: 0;
-  color: #cad4d4;
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
-
-.people-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 13px;
-}
-
-.people-heading h3 {
-  margin: 0;
 }
 
 .panel-edit-button {
@@ -770,23 +627,30 @@ async function toggleCompletion() {
   align-items: center;
   gap: 5px;
   padding: 5px 9px;
-  border: 1px solid rgba(221, 176, 75, 0.3);
+  border: 1px solid var(--graph-button-border);
   border-radius: 4px;
-  background: transparent;
-  color: #d9b96f;
+  background: var(--graph-button-bg);
+  color: var(--graph-button-color);
   font-size: 13px;
   cursor: pointer;
 }
 
 .panel-edit-button:hover {
-  border-color: rgba(240, 187, 78, 0.68);
-  color: #ffe0a2;
+  border-color: var(--graph-button-hover-border);
+  background: var(--graph-button-hover-bg);
+  color: var(--graph-button-hover-color);
 }
 
 .panel-edit-button.is-primary {
-  border-color: rgba(232, 181, 75, 0.58);
-  background: rgba(218, 170, 67, 0.1);
-  color: #f0cb7e;
+  border-color: var(--graph-primary-btn-border);
+  background: var(--graph-primary-btn-bg);
+  color: var(--graph-primary-btn-color);
+}
+
+.panel-edit-button.is-primary:hover {
+  border-color: var(--graph-primary-btn-hover-border);
+  background: var(--graph-primary-btn-hover-bg);
+  color: var(--graph-primary-btn-hover-color);
 }
 
 .panel-delete-button {
@@ -794,51 +658,23 @@ async function toggleCompletion() {
   align-items: center;
   gap: 5px;
   padding: 5px 9px;
-  border: 1px solid rgba(226, 125, 104, 0.34);
+  border: 1px solid var(--graph-danger-border);
   border-radius: 4px;
   background: transparent;
-  color: #e3a091;
+  color: var(--graph-danger-color);
   font-size: 13px;
   cursor: pointer;
 }
 
 .panel-delete-button:hover {
-  border-color: rgba(241, 143, 119, 0.7);
-  background: rgba(177, 69, 50, 0.12);
-  color: #ffb9a8;
+  border-color: var(--graph-danger-hover-border);
+  background: var(--graph-danger-hover-bg);
+  color: var(--graph-danger-hover-color);
 }
 
 .panel-edit-button:disabled {
   cursor: wait;
   opacity: 0.55;
-}
-
-.people-group + .people-group {
-  margin-top: 15px;
-}
-
-.people-group h4 {
-  margin: 0 0 7px;
-  color: #7e9296;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.people-list {
-  display: grid;
-  gap: 7px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: #c8d2d2;
-  font-size: 15px;
-}
-
-.inherited-count {
-  margin: 15px 0 0;
-  color: #788c90;
-  font-size: 13px;
-  line-height: 1.6;
 }
 
 .panel-loading,
@@ -848,7 +684,7 @@ async function toggleCompletion() {
   place-content: center;
   gap: 13px;
   padding: 24px;
-  color: #91a5a8;
+  color: var(--graph-panel-muted-color);
   text-align: center;
   font-size: 15px;
 }
@@ -865,31 +701,32 @@ async function toggleCompletion() {
 
 .panel-error p {
   margin: 0;
-  color: #e0b661;
+  color: var(--graph-panel-error-text);
 }
 
 .panel-error button {
   justify-self: center;
   min-height: 32px;
   padding: 6px 12px;
-  border: 1px solid rgba(230, 180, 75, 0.35);
+  border: 1px solid var(--graph-panel-error-border);
   border-radius: 4px;
   background: transparent;
-  color: #e5c077;
+  color: var(--graph-panel-error-btn-color);
   font-size: 13px;
   cursor: pointer;
 }
 
 .panel-error button:hover {
-  border-color: rgba(240, 187, 78, 0.68);
-  color: #ffe0a2;
+  border-color: var(--graph-panel-error-btn-hover-border);
+  background: var(--graph-panel-error-btn-hover-bg);
+  color: var(--graph-panel-error-btn-hover-color);
 }
 
 .panel-footer {
   flex: none;
   padding: 14px 18px 13px;
-  border-top: 1px solid rgba(222, 174, 69, 0.22);
-  background: rgba(7, 12, 15, 0.92);
+  border-top: 1px solid var(--graph-panel-footer-border);
+  background: var(--graph-panel-footer-bg);
 }
 
 .panel-page-link {
@@ -898,210 +735,19 @@ async function toggleCompletion() {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px solid rgba(231, 181, 76, 0.52);
+  border: 1px solid var(--graph-page-link-border);
   border-radius: 6px;
-  background:
-    linear-gradient(90deg, rgba(231, 181, 76, 0.16), transparent),
-    rgba(24, 23, 17, 0.8);
-  color: #f0ca79;
+  background: var(--graph-page-link-bg);
+  color: var(--graph-page-link-color);
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
 }
 
 .panel-page-link:hover {
-  border-color: rgba(246, 198, 92, 0.86);
-  color: #fff0c7;
-}
-
-:global([data-theme='light'] .node-control-panel) {
-  border-color: rgba(157, 105, 25, 0.28);
-  background:
-    linear-gradient(155deg, rgba(255, 249, 235, 0.92), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(246, 249, 250, 0.98));
-  box-shadow:
-    -24px 0 70px rgba(51, 66, 75, 0.16),
-    inset 0 0 50px rgba(167, 107, 17, 0.02);
-  color: #263640;
-}
-
-:global([data-theme='light'] .panel-header) {
-  border-bottom-color: rgba(81, 105, 116, 0.15);
-  background: rgba(255, 255, 255, 0.62);
-}
-
-:global([data-theme='light'] .panel-header h2) {
-  color: #17242d;
-}
-
-:global([data-theme='light'] .panel-close) {
-  border-color: rgba(84, 107, 117, 0.22);
-  background: rgba(255, 255, 255, 0.76);
-  color: #5c7079;
-}
-
-:global([data-theme='light'] .panel-close:hover) {
-  border-color: rgba(155, 101, 17, 0.55);
-  color: #7c4d09;
-}
-
-:global([data-theme='light'] .status-toggle),
-:global([data-theme='light'] .panel-edit-button) {
-  border-color: rgba(155, 101, 17, 0.3);
-  background: rgba(184, 119, 21, 0.06);
-  color: #80510d;
-}
-
-:global([data-theme='light'] .status-toggle:hover),
-:global([data-theme='light'] .panel-edit-button:hover) {
-  border-color: rgba(142, 89, 10, 0.62);
-  background: rgba(184, 119, 21, 0.12);
-  color: #633d06;
-}
-
-:global([data-theme='light'] .panel-edit-button.is-primary) {
-  border-color: rgba(155, 101, 17, 0.52);
-  background: rgba(184, 119, 21, 0.12);
-  color: #6e4406;
-}
-
-:global([data-theme='light'] .panel-edit-button.is-primary:hover) {
-  border-color: rgba(135, 83, 8, 0.78);
-  background: rgba(184, 119, 21, 0.2);
-  color: #4f3003;
-}
-
-:global([data-theme='light'] .panel-delete-button) {
-  border-color: rgba(194, 59, 59, 0.34);
-  color: #b03030;
-}
-
-:global([data-theme='light'] .panel-delete-button:hover) {
-  border-color: rgba(194, 59, 59, 0.68);
-  background: rgba(194, 59, 59, 0.08);
-  color: #8c1d1d;
-}
-
-:global([data-theme='light'] .status-error) {
-  color: #b03030;
-}
-
-:global([data-theme='light'] .panel-tag) {
-  border-color: rgba(87, 119, 132, 0.26);
-  color: #607783;
-}
-
-:global([data-theme='light'] .panel-section) {
-  border-bottom-color: rgba(82, 105, 116, 0.13);
-}
-
-:global([data-theme='light'] .panel-section h3),
-:global([data-theme='light'] .people-heading h3) {
-  color: #8e590d;
-}
-
-:global([data-theme='light'] .relation-label),
-:global([data-theme='light'] .children-heading),
-:global([data-theme='light'] .people-group h4),
-:global([data-theme='light'] .panel-meta-grid dt) {
-  color: #607580;
-}
-
-:global([data-theme='light'] .relation-link),
-:global([data-theme='light'] .child-link) {
-  color: #344650;
-}
-
-:global([data-theme='light'] .relation-link) {
-  border-color: rgba(157, 104, 21, 0.22);
-  background: rgba(183, 120, 24, 0.05);
-}
-
-:global([data-theme='light'] .relation-link:hover),
-:global([data-theme='light'] .child-link:hover) {
-  border-color: rgba(157, 100, 17, 0.48);
-  background: rgba(183, 120, 24, 0.08);
-  color: #714707;
-}
-
-:global([data-theme='light'] .relation-empty),
-:global([data-theme='light'] .panel-empty-copy) {
-  color: #758993;
-}
-
-:global([data-theme='light'] .children-heading span:last-child) {
-  color: #936013;
-}
-
-:global([data-theme='light'] .child-count) {
-  color: #758993;
-}
-
-:global([data-theme='light'] .panel-description),
-:global([data-theme='light'] .panel-meta-grid dd),
-:global([data-theme='light'] .people-list) {
-  color: #344650;
-}
-
-:global([data-theme='light'] .panel-description a) {
-  color: var(--guild-primary);
-}
-
-:global([data-theme='light'] .child-icon) {
-  color: #607580;
-}
-
-:global([data-theme='light'] .child-icon.is-completed) {
-  color: #157347;
-}
-
-:global([data-theme='light'] .child-icon.is-overdue) {
-  color: #966200;
-}
-
-:global([data-theme='light'] .inherited-count) {
-  color: #70848e;
-}
-
-:global([data-theme='light'] .panel-loading),
-:global([data-theme='light'] .panel-error) {
-  color: #627781;
-}
-
-:global([data-theme='light'] .panel-error p) {
-  color: #8d590d;
-}
-
-:global([data-theme='light'] .panel-error button) {
-  border-color: rgba(156, 101, 17, 0.34);
-  color: #7f500b;
-}
-
-:global([data-theme='light'] .panel-error button:hover) {
-  border-color: rgba(142, 89, 10, 0.62);
-  background: rgba(184, 119, 21, 0.1);
-  color: #5e3904;
-}
-
-:global([data-theme='light'] .panel-footer) {
-  border-top-color: rgba(157, 105, 22, 0.2);
-  background: rgba(255, 255, 255, 0.9);
-}
-
-:global([data-theme='light'] .panel-page-link) {
-  border-color: rgba(157, 102, 18, 0.38);
-  background:
-    linear-gradient(90deg, rgba(190, 127, 29, 0.1), transparent),
-    rgba(255, 252, 246, 0.86);
-  color: #81510b;
-}
-
-:global([data-theme='light'] .panel-page-link:hover) {
-  border-color: rgba(142, 89, 10, 0.68);
-  background:
-    linear-gradient(90deg, rgba(190, 127, 29, 0.18), transparent),
-    rgba(255, 248, 232, 0.96);
-  color: #5e3904;
+  border-color: var(--graph-page-link-hover-border);
+  background: var(--graph-page-link-hover-bg);
+  color: var(--graph-page-link-hover-color);
 }
 
 @keyframes panel-spin {
@@ -1128,10 +774,6 @@ async function toggleCompletion() {
   .panel-section {
     padding-right: 18px;
     padding-left: 18px;
-  }
-
-  .panel-meta-grid {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 

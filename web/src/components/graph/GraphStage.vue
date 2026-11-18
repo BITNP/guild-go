@@ -110,7 +110,7 @@ defineExpose({ fitView, scrollProgress })
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #070a0d;
+  background: var(--graph-bg);
 }
 
 .graph-canvas {
@@ -126,13 +126,12 @@ defineExpose({ fitView, scrollProgress })
 }
 
 .graph-horizon {
-  background:
-    radial-gradient(circle at 72% 24%, rgba(232, 170, 58, 0.14), transparent 28%),
-    radial-gradient(circle at 46% 48%, rgba(77, 167, 169, 0.08), transparent 38%);
-  mix-blend-mode: screen;
+  background: var(--graph-horizon-bg);
+  mix-blend-mode: var(--graph-horizon-blend);
 }
 
 .graph-vignette {
+  opacity: var(--graph-vignette-opacity);
   background: radial-gradient(
     ellipse at 50% 43%,
     transparent 20%,
@@ -153,31 +152,10 @@ defineExpose({ fitView, scrollProgress })
   max-width: 28rem;
   margin: 0;
   padding: 12px 16px;
-  border: 1px solid rgba(245, 174, 82, 0.36);
+  border: 1px solid var(--graph-stage-error-border);
   border-radius: 8px;
-  background: rgba(11, 16, 18, 0.94);
-  color: #f3c66f;
+  background: var(--graph-stage-error-bg);
+  color: var(--graph-stage-error-color);
   font-size: 14px;
-}
-
-:global([data-theme='light'] .graph-stage) {
-  background: #eef3f5;
-}
-
-:global([data-theme='light'] .graph-horizon) {
-  background:
-    radial-gradient(circle at 72% 24%, rgba(188, 126, 24, 0.12), transparent 30%),
-    radial-gradient(circle at 46% 48%, rgba(44, 132, 137, 0.09), transparent 40%);
-  mix-blend-mode: multiply;
-}
-
-:global([data-theme='light'] .graph-vignette) {
-  display: none;
-}
-
-:global([data-theme='light'] .graph-stage-error-card) {
-  border-color: rgba(157, 100, 18, 0.32);
-  background: rgba(255, 255, 255, 0.94);
-  color: #8c5a0d;
 }
 </style>

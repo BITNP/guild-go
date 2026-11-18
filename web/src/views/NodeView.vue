@@ -27,7 +27,7 @@ import MoveNodeDialog from '@/components/MoveNodeDialog.vue'
 import OrderDialog from '@/components/OrderDialog.vue'
 import DeleteNodeDialog from '@/components/DeleteNodeDialog.vue'
 import { useNodeStore } from '@/composables/useNodeStore'
-import { fetchNode, updateNode, type NodeDetail } from '@/lib/api'
+import { fetchNode, updateNodeFromDetail, type NodeDetail } from '@/lib/api'
 import { errorMessage, formatDateTime, linkify } from '@/lib/utils'
 const route = useRoute(),
   router = useRouter()
@@ -76,11 +76,7 @@ async function toggleComplete() {
   toggling.value = true
   actionError.value = null
   try {
-    const updated = await updateNode(node.id, {
-      title: node.title,
-      description: node.description,
-      dueAt: node.dueAt,
-      tags: node.tags,
+    const updated = await updateNodeFromDetail(node, {
       completed: !node.completedAt,
     })
     if (node.id === nodeId.value) detail.value = updated
@@ -319,29 +315,25 @@ watch(
       @saved="onCreated"
     />
     <MembersDialog
-      :open="membersOpen"
+      v-model:open="membersOpen"
       :node="detail"
-      @close="membersOpen = false"
       @saved="onSaved"
     />
     <MoveNodeDialog
-      :open="moveOpen"
+      v-model:open="moveOpen"
       :node="detail"
-      @close="moveOpen = false"
       @saved="onSaved"
     />
     <OrderDialog
-      :open="orderOpen"
+      v-model:open="orderOpen"
       :parent-id="detail.id"
       :parent-title="detail.title"
       :children="detail.children"
-      @close="orderOpen = false"
       @saved="onOrdered"
     />
     <DeleteNodeDialog
-      :open="deleteOpen"
+      v-model:open="deleteOpen"
       :node="detail"
-      @close="deleteOpen = false"
       @deleted="onDeleted"
     />
   </template>

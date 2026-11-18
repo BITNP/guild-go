@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, useId, watch } from 'vue'
+import { ref, useId } from 'vue'
 import {
   NAlert,
   NButton,
@@ -10,100 +10,37 @@ import {
 import { ImagePlus } from '@lucide/vue'
 import ImageUploadPreview from '@/components/ImageUploadPreview.vue'
 import ImageGallery from '@/components/ImageGallery.vue'
+import { useCommentComposer } from '@/composables/useCommentComposer'
 import {
   COMMENT_IMAGE_ACCEPT,
   COMMENT_IMAGE_LIMIT,
-  filesFromClipboard,
-  filesFromDataTransfer,
-  hasFileDrag,
-  useCommentImageDrafts,
 } from '@/composables/useCommentImageDrafts'
-import { createComment, type Comment } from '@/lib/api'
-import { errorMessage } from '@/lib/utils'
+import type { Comment } from '@/lib/api'
 
 const props = defineProps<{ nodeId: number }>()
 const emit = defineEmits<{ created: [comment: Comment] }>()
-const body = ref('')
-const submitting = ref(false)
-const error = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
-const dragging = ref(false)
 const hintId = useId()
-const { images, pending, addFiles, retry, remove, clear, dispose } =
-  useCommentImageDrafts(() => props.nodeId)
-let dragDepth = 0
-
-function acceptFiles(files: File[]) {
-  error.value = null
-  error.value = addFiles(files)
-}
-
-function selectFiles(event: Event) {
-  const input = event.target as HTMLInputElement
-  const selected = [...(input.files ?? [])]
-  input.value = ''
-  acceptFiles(selected)
-}
-
-function pasteImages(event: ClipboardEvent) {
-  const files = filesFromClipboard(event.clipboardData)
-  if (!files.length) return
-  event.preventDefault()
-  acceptFiles(files)
-}
-
-function dragEnter(event: DragEvent) {
-  if (submitting.value || !hasFileDrag(event.dataTransfer)) return
-  event.preventDefault()
-  dragDepth += 1
-  dragging.value = true
-}
-
-function dragOver(event: DragEvent) {
-  if (submitting.value || !hasFileDrag(event.dataTransfer)) return
-  event.preventDefault()
-  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
-  dragging.value = true
-}
-
-function dragLeave(event: DragEvent) {
-  if (!dragging.value) return
-  event.preventDefault()
-  dragDepth = Math.max(0, dragDepth - 1)
-  if (dragDepth === 0) dragging.value = false
-}
-
-function dropFiles(event: DragEvent) {
-  const files = filesFromDataTransfer(event.dataTransfer)
-  if (!files.length) return
-  event.preventDefault()
-  dragDepth = 0
-  dragging.value = false
-  if (!submitting.value) acceptFiles(files)
-}
-
-async function submit() {
-  if (submitting.value || pending.value) return
-  error.value = null
-  if (!body.value.trim() && !images.value.length) {
-    error.value = '请输入进展或添加图片'
-    return
-  }
-  submitting.value = true
-  try {
-    const ids = images.value.flatMap((image) =>
-      image.status.state === 'uploaded' ? [image.status.id] : [],
-    )
-    const comment = await createComment(props.nodeId, body.value, ids)
-    body.value = ''
-    clear(false)
-    emit('created', comment)
-  } catch (err) {
-    error.value = errorMessage(err)
-  } finally {
-    submitting.value = false
-  }
-}
+const {
+  body,
+  submitting,
+  error,
+  dragging,
+  images,
+  pending,
+  retry,
+  remove,
+  selectFiles,
+  pasteImages,
+  dragEnter,
+  dragOver,
+  dragLeave,
+  dropFiles,
+  submit,
+} = useCommentComposer(() => props.nodeId, {
+  emptyMessage: '请输入进展或添加图片',
+  onCreated: (comment) => emit('created', comment),
+})
 
 function shortcut(event: KeyboardEvent) {
   if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
@@ -111,12 +48,6 @@ function shortcut(event: KeyboardEvent) {
     void submit()
   }
 }
-
-watch(body, () => {
-  if (error.value && body.value.trim()) error.value = null
-})
-
-onBeforeUnmount(() => dispose(!submitting.value))
 </script>
 <template>
   <div

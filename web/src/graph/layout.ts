@@ -47,9 +47,11 @@ export function layoutGraph(nodes: GraphNode[]): GraphLayout {
   const actualNodes = nodes.filter((node) => node.id !== VIRTUAL_ROOT_ID)
   const byId = new Map(actualNodes.map((node) => [node.id, node]))
   const children = new Map<number, GraphNode[]>()
+  const parentIds = new Map<number, number>()
 
   for (const node of actualNodes) {
     const parentId = safeParentId(node, byId)
+    parentIds.set(node.id, parentId)
     const siblings = children.get(parentId) ?? []
     siblings.push(node)
     children.set(parentId, siblings)
@@ -162,7 +164,7 @@ export function layoutGraph(nodes: GraphNode[]): GraphLayout {
 
   const edges: GraphEdgeLayout[] = []
   for (const node of actualNodes) {
-    const parentId = safeParentId(node, byId)
+    const parentId = parentIds.get(node.id) ?? VIRTUAL_ROOT_ID
     edges.push({ id: `${parentId}:${node.id}`, parentId, childId: node.id })
   }
 

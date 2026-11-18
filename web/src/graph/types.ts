@@ -18,3 +18,11 @@ export interface GraphNeighborhood {
   parent: GraphNode | null
   children: GraphNode[]
 }
+
+export interface SceneCallbacks {
+  onSelect: (id: number) => void
+  onBlank: () => void
+  onReaction: (commentId: number, emoji: string) => void
+  onProgressOpen: (key: string) => void
+  onProgressNeedOlder: () => void
+}

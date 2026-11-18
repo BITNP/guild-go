@@ -6,13 +6,7 @@ import {
   type ProgressItem,
   type Reaction,
 } from '@/lib/api'
-import { errorMessage } from '@/lib/utils'
-
-function progressKey(item: ProgressItem): string {
-  return item.kind === 'comment'
-    ? `comment:${item.comment.id}`
-    : `description_change:${item.descriptionChange.id}`
-}
+import { errorMessage, progressKey } from '@/lib/utils'
 
 export function useGraphProgress() {
   const items = ref<ProgressItem[]>([])
