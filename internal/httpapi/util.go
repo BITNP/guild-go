@@ -1,18 +1,11 @@
 package httpapi
 
 import (
-	"context"
 	"net/http"
 	"strconv"
-	"time"
 
 	"git.bitnp.net/BITNP/guild-go/internal/apperr"
-	"git.bitnp.net/BITNP/guild-go/internal/auth"
 )
-
-func contextWithTimeout(r *http.Request, timeout time.Duration) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(r.Context(), timeout)
-}
 
 func parseID(r *http.Request, name string) (int64, error) {
 	value := r.PathValue(name)
@@ -48,8 +41,4 @@ func parseLimit(r *http.Request) (int, error) {
 		parsed = 100
 	}
 	return parsed, nil
-}
-
-func currentSession(r *http.Request) (auth.Session, bool) {
-	return auth.SessionFrom(r.Context())
 }

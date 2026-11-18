@@ -2,7 +2,6 @@ package nodes
 
 import (
 	"context"
-	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -10,7 +9,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"git.bitnp.net/BITNP/guild-go/internal/apperr"
-	"git.bitnp.net/BITNP/guild-go/internal/comments"
 	"git.bitnp.net/BITNP/guild-go/internal/database"
 )
 
@@ -94,23 +92,6 @@ type ChildRow struct {
 	ChildCount   int
 	CommentCount int
 	Latest       *LatestRow
-}
-
-// MemberRow is a direct member row.
-type MemberRow struct {
-	Subject string
-	Role    string
-}
-
-// RecentRow is one recent comment across the whole site.
-type RecentRow struct {
-	ID        int64
-	NodeID    int64
-	NodeTitle string
-	RootTitle string
-	Body      string
-	CreatedAt time.Time
-	Author    string
 }
 
 // Get returns one node.
@@ -226,36 +207,11 @@ func (r *Repository) Breadcrumb(ctx context.Context, id int64) ([]Breadcrumb, er
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var result []Breadcrumb
-	for rows.Next() {
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Breadcrumb, error) {
 		var item Breadcrumb
-		if err := rows.Scan(&item.ID, &item.Title); err != nil {
-			return nil, err
-		}
-		result = append(result, item)
-	}
-	return result, rows.Err()
-}
-
-// Members returns direct leaders and members.
-func (r *Repository) Members(ctx context.Context, nodeID int64) ([]MemberRow, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT subject, role FROM node_members WHERE node_id=$1
-		ORDER BY CASE role WHEN 'leader' THEN 0 ELSE 1 END, created_at, subject`, nodeID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var result []MemberRow
-	for rows.Next() {
-		var member MemberRow
-		if err := rows.Scan(&member.Subject, &member.Role); err != nil {
-			return nil, err
-		}
-		result = append(result, member)
-	}
-	return result, rows.Err()
+		err := row.Scan(&item.ID, &item.Title)
+		return item, err
+	})
 }
 
 // Create inserts a node and its direct members in one transaction.
@@ -407,37 +363,6 @@ func (r *Repository) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// ReplaceMembers updates the direct membership set without recreating unchanged rows.
-func (r *Repository) ReplaceMembers(ctx context.Context, id int64, leaders, members []string) error {
-	return database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
-		var lockedID int64
-		if err := tx.QueryRow(ctx, `SELECT id FROM nodes WHERE id=$1 FOR UPDATE`, id).Scan(&lockedID); err != nil {
-			if err == pgx.ErrNoRows {
-				return apperr.NotFound("节点不存在")
-			}
-			return err
-		}
-		// Keep unchanged (subject, role) pairs; recreate only removed/changed roles.
-		if _, err := tx.Exec(ctx, `DELETE FROM node_members
-            WHERE node_id=$1 AND NOT (
-                (role='leader' AND subject = ANY(COALESCE($2::text[], '{}'))) OR
-                (role='member' AND subject = ANY(COALESCE($3::text[], '{}')))
-            )`, id, leaders, members); err != nil {
-			return err
-		}
-		for role, subjects := range map[string][]string{"leader": leaders, "member": members} {
-			for _, subject := range subjects {
-				if _, err := tx.Exec(ctx, `INSERT INTO node_members (node_id, subject, role)
-                    VALUES ($1,$2,$3) ON CONFLICT (node_id, subject) DO NOTHING`, id, subject, role); err != nil {
-					return err
-				}
-			}
-		}
-		_, err := tx.Exec(ctx, `UPDATE nodes SET updated_at=now() WHERE id=$1`, id)
-		return err
-	})
-}
-
 // Reorder rewrites sort_order for exactly the direct children of parentID.
 // A nil parentID means root nodes.
 func (r *Repository) Reorder(ctx context.Context, parentID *int64, ids []int64) error {
@@ -449,17 +374,8 @@ func (r *Repository) Reorder(ctx context.Context, parentID *int64, ids []int64) 
 		if err != nil {
 			return err
 		}
-		var current []int64
-		for rows.Next() {
-			var id int64
-			if err := rows.Scan(&id); err != nil {
-				rows.Close()
-				return err
-			}
-			current = append(current, id)
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
+		current, err := pgx.CollectRows(rows, pgx.RowTo[int64])
+		if err != nil {
 			return err
 		}
 		if !sameIDSet(current, ids) {
@@ -496,104 +412,4 @@ func sameIDSet(current, requested []int64) bool {
 		}
 	}
 	return true
-}
-
-// RootLeaders returns direct leader subjects for root nodes.
-func (r *Repository) RootLeaders(ctx context.Context, rootIDs []int64) (map[int64][]string, error) {
-	result := make(map[int64][]string, len(rootIDs))
-	if len(rootIDs) == 0 {
-		return result, nil
-	}
-	rows, err := r.pool.Query(ctx, `
-		SELECT node_id, subject FROM node_members
-		WHERE node_id = ANY($1) AND role='leader'
-		ORDER BY node_id, created_at, subject`, rootIDs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var nodeID int64
-		var subject string
-		if err := rows.Scan(&nodeID, &subject); err != nil {
-			return nil, err
-		}
-		result[nodeID] = append(result[nodeID], subject)
-	}
-	return result, rows.Err()
-}
-
-// ReactionsForComments returns aggregated reactions for a set of comments.
-func (r *Repository) ReactionsForComments(ctx context.Context, commentIDs []int64, viewer string) (map[int64][]comments.Reaction, error) {
-	result := make(map[int64][]comments.Reaction)
-	if len(commentIDs) == 0 {
-		return result, nil
-	}
-	rows, err := r.pool.Query(ctx, `
-		SELECT comment_id, emoji, count(*)::int, bool_or(subject=$2)
-		FROM comment_reactions
-		WHERE comment_id = ANY($1)
-		GROUP BY comment_id, emoji`, commentIDs, viewer)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var commentID int64
-		var reaction comments.Reaction
-		if err := rows.Scan(&commentID, &reaction.Emoji, &reaction.Count, &reaction.ReactedByMe); err != nil {
-			return nil, err
-		}
-		result[commentID] = append(result[commentID], reaction)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	for id := range result {
-		sortReactions(result[id])
-	}
-	return result, nil
-}
-
-// RecentComments returns the newest comments across all nodes.
-func (r *Repository) RecentComments(ctx context.Context, limit int) ([]RecentRow, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT c.id, c.node_id, n.title, c.body, c.created_at, c.author_subject,
-		       COALESCE(root.title, n.title) AS root_title
-		FROM comments c
-		JOIN nodes n ON n.id = c.node_id
-		LEFT JOIN LATERAL (
-			WITH RECURSIVE chain AS (
-				SELECT id, parent_id, title FROM nodes WHERE id = n.id
-				UNION ALL
-				SELECT p.id, p.parent_id, p.title
-				FROM nodes p JOIN chain ch ON p.id = ch.parent_id
-			)
-			SELECT title FROM chain WHERE parent_id IS NULL LIMIT 1
-		) root ON true
-		ORDER BY c.created_at DESC, c.id DESC
-		LIMIT $1`, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var result []RecentRow
-	for rows.Next() {
-		var row RecentRow
-		if err := rows.Scan(&row.ID, &row.NodeID, &row.NodeTitle, &row.Body, &row.CreatedAt, &row.Author, &row.RootTitle); err != nil {
-			return nil, err
-		}
-		result = append(result, row)
-	}
-	return result, rows.Err()
-}
-
-func sortReactions(reactions []comments.Reaction) {
-	order := make(map[string]int, len(comments.EmojiKeys))
-	for index, key := range comments.EmojiKeys {
-		order[key] = index
-	}
-	sort.SliceStable(reactions, func(i, j int) bool {
-		return order[reactions[i].Emoji] < order[reactions[j].Emoji]
-	})
 }

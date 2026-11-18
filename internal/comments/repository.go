@@ -1,7 +1,9 @@
 package comments
 
 import (
+	"cmp"
 	"context"
+	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -19,6 +21,10 @@ type Repository struct {
 // NewRepository creates a comment repository.
 func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
+}
+
+type queryer interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
 }
 
 // CommentRow is a stored comment.
@@ -96,16 +102,12 @@ func (r *Repository) List(ctx context.Context, nodeID int64, before *int64, limi
 	if err != nil {
 		return nil, false, err
 	}
-	defer rows.Close()
-	var result []CommentRow
-	for rows.Next() {
-		var row CommentRow
-		if err := rows.Scan(&row.ID, &row.NodeID, &row.Author, &row.Body, &row.CreatedAt); err != nil {
-			return nil, false, err
-		}
-		result = append(result, row)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (CommentRow, error) {
+		var item CommentRow
+		err := row.Scan(&item.ID, &item.NodeID, &item.Author, &item.Body, &item.CreatedAt)
+		return item, err
+	})
+	if err != nil {
 		return nil, false, err
 	}
 	hasMore := len(result) > limit
@@ -179,11 +181,15 @@ func (r *Repository) AttachmentByID(ctx context.Context, id int64) (AttachmentRo
 
 // ReactionsForComments returns aggregated reactions grouped by comment id.
 func (r *Repository) ReactionsForComments(ctx context.Context, commentIDs []int64, viewer string) (map[int64][]Reaction, error) {
+	return queryReactions(ctx, r.pool, commentIDs, viewer)
+}
+
+func queryReactions(ctx context.Context, q queryer, commentIDs []int64, viewer string) (map[int64][]Reaction, error) {
 	result := make(map[int64][]Reaction)
 	if len(commentIDs) == 0 {
 		return result, nil
 	}
-	rows, err := r.pool.Query(ctx, `
+	rows, err := q.Query(ctx, `
 		SELECT comment_id, emoji, count(*)::int, bool_or(subject=$2)
 		FROM comment_reactions
 		WHERE comment_id = ANY($1)
@@ -223,7 +229,7 @@ func (r *Repository) ReactionSubjects(ctx context.Context, commentID int64, emoj
 
 // ToggleReaction toggles one emoji for one user and returns the new summary.
 func (r *Repository) ToggleReaction(ctx context.Context, commentID int64, subject, emoji string) ([]Reaction, error) {
-	result := make([]Reaction, 0)
+	var reactions []Reaction
 	err := database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
 		tag, err := tx.Exec(ctx, `
 			DELETE FROM comment_reactions
@@ -238,28 +244,17 @@ func (r *Repository) ToggleReaction(ctx context.Context, commentID int64, subjec
 				return err
 			}
 		}
-		rows, err := tx.Query(ctx, `
-			SELECT emoji, count(*)::int, bool_or(subject=$2)
-			FROM comment_reactions WHERE comment_id=$1
-			GROUP BY emoji`, commentID, subject)
+		grouped, err := queryReactions(ctx, tx, []int64{commentID}, subject)
 		if err != nil {
 			return err
 		}
-		defer rows.Close()
-		for rows.Next() {
-			var reaction Reaction
-			if err := rows.Scan(&reaction.Emoji, &reaction.Count, &reaction.ReactedByMe); err != nil {
-				return err
-			}
-			result = append(result, reaction)
-		}
-		if err := rows.Err(); err != nil {
-			return err
-		}
-		sortReactions(result)
+		reactions = grouped[commentID]
 		return nil
 	})
-	return result, err
+	if reactions == nil {
+		reactions = []Reaction{}
+	}
+	return reactions, err
 }
 
 // Delete removes a comment and returns its attachment keys.
@@ -270,17 +265,10 @@ func (r *Repository) Delete(ctx context.Context, id int64) ([]string, error) {
 		if err != nil {
 			return err
 		}
-		for rows.Next() {
-			var key string
-			if err := rows.Scan(&key); err != nil {
-				rows.Close()
-				return err
-			}
-			keys = append(keys, key)
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return err
+		var errCollect error
+		keys, errCollect = pgx.CollectRows(rows, pgx.RowTo[string])
+		if errCollect != nil {
+			return errCollect
 		}
 		_, err = tx.Exec(ctx, `DELETE FROM comments WHERE id=$1`, id)
 		return err
@@ -289,13 +277,7 @@ func (r *Repository) Delete(ctx context.Context, id int64) ([]string, error) {
 }
 
 func sortReactions(reactions []Reaction) {
-	order := make(map[string]int, len(EmojiKeys))
-	for index, key := range EmojiKeys {
-		order[key] = index
-	}
-	for i := 1; i < len(reactions); i++ {
-		for j := i; j > 0 && order[reactions[j].Emoji] < order[reactions[j-1].Emoji]; j-- {
-			reactions[j], reactions[j-1] = reactions[j-1], reactions[j]
-		}
-	}
+	slices.SortStableFunc(reactions, func(a, b Reaction) int {
+		return cmp.Compare(emojiOrder[a.Emoji], emojiOrder[b.Emoji])
+	})
 }

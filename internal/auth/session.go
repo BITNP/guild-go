@@ -34,11 +34,6 @@ func NewStore(timeout time.Duration) *Store {
 	return &Store{sessions: make(map[string]Session), timeout: timeout}
 }
 
-// Timeout returns the sliding session lifetime.
-func (s *Store) Timeout() time.Duration {
-	return s.timeout
-}
-
 // Create stores a new session and returns its identifier and CSRF token.
 func (s *Store) Create(subject, name, email, picture string, permissions authz.SitePermissions) (string, string, error) {
 	id, err := RandomToken(32)
@@ -107,14 +102,18 @@ func (s *Store) Cleanup() {
 
 // StartCleanup runs periodic cleanup until ctx is cancelled.
 func (s *Store) StartCleanup(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Minute)
+	runPeriodicCleanup(ctx, 5*time.Minute, s.Cleanup)
+}
+
+func runPeriodicCleanup(ctx context.Context, interval time.Duration, cleanup func()) {
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			s.Cleanup()
+			cleanup()
 		}
 	}
 }

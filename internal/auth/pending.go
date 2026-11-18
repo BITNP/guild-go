@@ -63,14 +63,5 @@ func (p *PendingStore) Cleanup() {
 
 // StartCleanup periodically removes expired pending logins.
 func (p *PendingStore) StartCleanup(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			p.Cleanup()
-		}
-	}
+	runPeriodicCleanup(ctx, 5*time.Minute, p.Cleanup)
 }

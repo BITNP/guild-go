@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -34,16 +35,7 @@ func (r *Repository) ListSubjects(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var subjects []string
-	for rows.Next() {
-		var subject string
-		if err := rows.Scan(&subject); err != nil {
-			return nil, err
-		}
-		subjects = append(subjects, subject)
-	}
-	return subjects, rows.Err()
+	return pgx.CollectRows(rows, pgx.RowTo[string])
 }
 
 // Exists reports whether a subject is known.

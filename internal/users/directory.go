@@ -3,12 +3,12 @@ package users
 import (
 	"context"
 	"log/slog"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
 
 	authz "git.bitnp.net/BITNP/bitnp-authz"
+	"git.bitnp.net/BITNP/guild-go/internal/auth"
 )
 
 const (
@@ -128,23 +128,11 @@ func avatarURL(user map[string]any) *string {
 		value = list[0]
 	}
 	text, _ := value.(string)
-	normalized := normalizePicture(text)
+	normalized := auth.SafePictureURL(text)
 	if normalized == "" {
 		return nil
 	}
 	return &normalized
-}
-
-func normalizePicture(value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" || len(value) > 2048 {
-		return ""
-	}
-	parsed, err := url.Parse(value)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return ""
-	}
-	return parsed.String()
 }
 
 func stringValue(value any) string {
