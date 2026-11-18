@@ -41,7 +41,7 @@ func Load() (Config, error) {
 	cfg := Config{
 		Addr:                      env("APP_ADDR", ":8080"),
 		SecureCookie:              envBool("APP_SECURE_COOKIE", false),
-		SessionTimeout:            envDuration("APP_SESSION_TIMEOUT", 30*time.Minute),
+		SessionTimeout:            envDuration("APP_SESSION_TIMEOUT", 24*time.Hour),
 		DatabaseURL:               env("DATABASE_URL", ""),
 		OIDCIssuer:                strings.TrimRight(env("OIDC_ISSUER", ""), "/"),
 		OIDCClientID:              env("OIDC_CLIENT_ID", ""),

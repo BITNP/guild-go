@@ -37,6 +37,7 @@ cp .env.example .env
 | --- | --- |
 | `APP_PUBLIC_URL` | 对外 HTTPS 源，例如 `https://guild.example.com` |
 | `APP_SECURE_COOKIE` | 生产为 `true` |
+| `APP_SESSION_TIMEOUT` | 会话空闲超时，默认 `24h` |
 | `DATABASE_URL` | PostgreSQL DSN |
 | `OIDC_ISSUER` | Keycloak realm issuer |
 | `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | confidential client |
@@ -194,7 +195,7 @@ service account 需要 `realm-management`（本部署中为 `master-realm`）的
 
 ## 会话与单实例
 
-会话保存在进程内内存中，默认 30 分钟滑动过期。重启服务会让所有用户重新登录；当前设计面向单实例部署，不引入 Redis 或会话表。CSRF token 存在会话中，所有写请求需要 `X-CSRF-Token`。
+会话保存在进程内存中，每次携带有效会话的请求都会重置空闲计时。服务重启后，用户需要重新登录。当前设计面向单实例部署，不引入 Redis 或会话表。CSRF token 存在会话中，所有写请求需要 `X-CSRF-Token`。
 
 ## 测试
 
