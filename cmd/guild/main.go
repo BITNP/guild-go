@@ -89,6 +89,15 @@ func main() {
 
 	server := httpapi.New(cfg, pool, authService, userService, nodeService, commentService, store)
 
+	if cfg.InternalAPIToken != "" {
+		if keycloakAdmin.Enabled() {
+			server.WithInternalAPI(cfg.InternalAPIToken, userService)
+			slog.Info("internal service API enabled")
+		} else {
+			slog.Warn("INTERNAL_API_TOKEN is set but Keycloak Admin API is disabled; /api/internal/* remains disabled")
+		}
+	}
+
 	go sessions.StartCleanup(ctx)
 	go pending.StartCleanup(ctx)
 	go commentService.StartUploadCleanup(ctx)

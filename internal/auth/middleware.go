@@ -68,6 +68,11 @@ func RequireSystemAdmin(next http.Handler) http.Handler {
 	})
 }
 
+// WithSession returns a child context carrying session.
+func WithSession(ctx context.Context, session Session) context.Context {
+	return context.WithValue(ctx, sessionContextKey, session)
+}
+
 // SessionFrom returns the session stored by RequireSession.
 func SessionFrom(ctx context.Context) (Session, bool) {
 	session, ok := ctx.Value(sessionContextKey).(Session)

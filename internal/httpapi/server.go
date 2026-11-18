@@ -2,6 +2,7 @@
 package httpapi
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -19,15 +20,24 @@ import (
 	"git.bitnp.net/BITNP/guild-go/internal/web"
 )
 
+// InternalAuthorizer resolves an acting user session and provisions known
+// subjects on behalf of an authenticated internal service.
+type InternalAuthorizer interface {
+	ResolveActorSession(ctx context.Context, subject string) (auth.Session, error)
+	EnsureSubjects(ctx context.Context, subjects []string) error
+}
+
 // Server owns the HTTP dependencies.
 type Server struct {
-	cfg      config.Config
-	pool     *pgxpool.Pool
-	auth     *auth.Service
-	users    *users.Service
-	nodes    *nodes.Service
-	comments *comments.Service
-	store    storage.Store
+	cfg           config.Config
+	pool          *pgxpool.Pool
+	auth          *auth.Service
+	users         *users.Service
+	nodes         *nodes.Service
+	comments      *comments.Service
+	store         storage.Store
+	internalToken string
+	internalAuthz InternalAuthorizer
 }
 
 // New creates an HTTP server.
@@ -41,6 +51,15 @@ func New(cfg config.Config, pool *pgxpool.Pool, authService *auth.Service, userS
 		comments: commentService,
 		store:    store,
 	}
+}
+
+// WithInternalAPI enables the /api/internal/* service endpoints using a shared
+// bearer token and Keycloak-backed actor resolution.
+func (s *Server) WithInternalAPI(token string, authorizer InternalAuthorizer) *Server {
+	s.internalToken = strings.TrimSpace(token)
+	s.internalAuthz = authorizer
+
+	return s
 }
 
 // Handler returns the complete HTTP handler.
@@ -77,6 +96,16 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/comments/{id}/reactions/{emoji}", s.auth.RequireSession(http.HandlerFunc(s.reactionUsers)))
 	mux.Handle("PUT /api/comments/{id}/reactions/{emoji}", s.auth.RequireSession(s.auth.RequireCSRF(http.HandlerFunc(s.toggleReaction))))
 	mux.Handle("GET /api/attachments/{id}", s.auth.RequireSession(http.HandlerFunc(s.getAttachment)))
+
+	mux.Handle("GET /api/internal/users", s.internalAuth(http.HandlerFunc(s.listUsers)))
+	mux.Handle("GET /api/internal/overview", s.internalAuth(http.HandlerFunc(s.overview)))
+	mux.Handle("GET /api/internal/nodes", s.internalAuth(http.HandlerFunc(s.listNodes)))
+	mux.Handle("GET /api/internal/nodes/{id}", s.internalAuth(http.HandlerFunc(s.getNode)))
+	mux.Handle("POST /api/internal/nodes", s.internalAuth(http.HandlerFunc(s.createNodeInternal)))
+	mux.Handle("PUT /api/internal/nodes/{id}", s.internalAuth(http.HandlerFunc(s.updateNode)))
+	mux.Handle("PUT /api/internal/nodes/{id}/members", s.internalAuth(http.HandlerFunc(s.replaceMembersInternal)))
+	mux.Handle("GET /api/internal/nodes/{id}/progress", s.internalAuth(http.HandlerFunc(s.listProgress)))
+	mux.Handle("POST /api/internal/nodes/{id}/comments", s.internalAuth(http.HandlerFunc(s.createComment)))
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Status: 404, Error: "NOT_FOUND", Message: "接口不存在"})

@@ -615,6 +615,33 @@ thumbs_up, thumbs_down, laugh, hooray, confused, heart, rocket, eyes
 
 不可达时 503。
 
+## Internal Service API
+
+供同信任域服务（如 `berry`）代表已绑定身份的成员读取与操作节点，无需浏览器会话 Cookie 或 CSRF 令牌。需同时配置 `INTERNAL_API_TOKEN` 与 `KEYCLOAK_ADMIN_*`；未启用时所有接口返回 `404`。
+
+### 鉴权头
+
+| 请求头 | 要求 |
+| --- | --- |
+| `Authorization` | 必填，`Bearer <INTERNAL_API_TOKEN>` |
+| `X-Act-As-Subject` | 必填，代理操作的 Keycloak `subject` |
+
+服务端通过 Keycloak Admin API 实时查询该 `subject` 的启用状态与 `realm_access.roles`，按 `bitnp-authz` 计算权限并按节点权限模型校验；禁用或无 `permission-*` 准入角色时返回 `403`。
+
+### 端点列表
+
+- `GET /api/internal/users`
+- `GET /api/internal/overview`
+- `GET /api/internal/nodes`
+- `GET /api/internal/nodes/{id}`
+- `POST /api/internal/nodes`（写入前会校验并按需预建 `leaderSubjects` / `memberSubjects` 中尚未登录过本系统的合法 Keycloak 成员）
+- `PUT /api/internal/nodes/{id}`
+- `PUT /api/internal/nodes/{id}/members`（同样按需校验并预建新加入的合法成员）
+- `GET /api/internal/nodes/{id}/progress`
+- `POST /api/internal/nodes/{id}/comments`
+
+请求体、响应体与权限规则同对应 `/api/*` 端点。
+
 ## 权限速查
 
 | 操作 | 条件 |
