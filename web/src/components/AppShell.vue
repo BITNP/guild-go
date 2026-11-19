@@ -147,7 +147,7 @@ onMounted(() => {
           ><Menu :size="18" /></NButton
         ><RouterLink class="brand" :to="{ name: 'home' }"
           ><NAvatar :size="28" color="#1f5fbf" class="brand-mark">公</NAvatar
-          ><strong class="brand-name">公会</strong></RouterLink
+          ><strong class="brand-name">开拓者公会</strong></RouterLink
         ><NMenu
           class="main-menu"
           mode="horizontal"

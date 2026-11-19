@@ -18,10 +18,195 @@ const error = computed(() => {
   if (code === 'provider_unavailable' || code === 'unavailable')
     return '登录服务暂时不可用，请稍后重试。'
   if (code === 'not_member')
-    return '此账号暂无公会访问权限，请联系部门管理员开通。'
+    return '此账号暂无开拓者公会访问权限，请联系部门管理员开通。'
   if (code === 'no_roles') return '此账号尚未分配网协角色，请联系管理员。'
   if (code) return '登录已取消或无法完成，请重试。'
   return connectionError.value ? '无法连接登录服务，请稍后重试。' : ''
+})
+
+interface GraphPoint {
+  id: string
+  x: number
+  y: number
+  r: number
+  kind: 'root' | 'primary' | 'secondary' | 'leaf'
+  tone: 'default' | 'focus' | 'done'
+}
+
+interface GraphEdge {
+  id: string
+  d: string
+  focus: boolean
+}
+
+const CX = 320
+const CY = 320
+const RINGS = [104, 202, 286] as const
+
+function polar(angleDeg: number, radius: number) {
+  const rad = (angleDeg * Math.PI) / 180
+  return {
+    x: Number((CX + radius * Math.cos(rad)).toFixed(1)),
+    y: Number((CY + radius * Math.sin(rad)).toFixed(1)),
+  }
+}
+
+function curveBetween(
+  fromAngle: number,
+  fromRadius: number,
+  toAngle: number,
+  toRadius: number,
+) {
+  const p1 = polar(fromAngle, fromRadius)
+  const p2 = polar(toAngle, toRadius)
+  const midR = (fromRadius + toRadius) * 0.52
+  const ctrl = polar(fromAngle, midR)
+  return `M ${p1.x} ${p1.y} Q ${ctrl.x} ${ctrl.y} ${p2.x} ${p2.y}`
+}
+
+interface LeafSpec {
+  angle: number
+  tone?: 'default' | 'focus' | 'done'
+}
+interface SecondarySpec {
+  angle: number
+  tone?: 'default' | 'focus' | 'done'
+  leaves?: LeafSpec[]
+}
+interface PrimarySpec {
+  angle: number
+  tone?: 'default' | 'focus' | 'done'
+  children: SecondarySpec[]
+}
+
+const topologySpec: PrimarySpec[] = [
+  {
+    angle: -46,
+    tone: 'focus',
+    children: [
+      {
+        angle: -74,
+        leaves: [{ angle: -86 }, { angle: -64, tone: 'done' }],
+      },
+      {
+        angle: -38,
+        tone: 'focus',
+        leaves: [
+          { angle: -46, tone: 'focus' },
+          { angle: -26 },
+        ],
+      },
+      {
+        angle: -14,
+        tone: 'done',
+        leaves: [{ angle: -6, tone: 'done' }],
+      },
+    ],
+  },
+  {
+    angle: 38,
+    children: [
+      {
+        angle: 18,
+        leaves: [{ angle: 10 }, { angle: 26, tone: 'done' }],
+      },
+      {
+        angle: 52,
+        tone: 'done',
+        leaves: [{ angle: 42 }, { angle: 64 }],
+      },
+    ],
+  },
+  {
+    angle: 136,
+    children: [
+      {
+        angle: 108,
+        leaves: [{ angle: 96 }, { angle: 118, tone: 'done' }],
+      },
+      {
+        angle: 144,
+        leaves: [{ angle: 134 }, { angle: 156 }],
+      },
+      {
+        angle: 168,
+        tone: 'done',
+      },
+    ],
+  },
+  {
+    angle: -140,
+    children: [
+      {
+        angle: -162,
+        leaves: [{ angle: -172 }, { angle: -152 }],
+      },
+      {
+        angle: -122,
+        tone: 'done',
+        leaves: [{ angle: -134 }, { angle: -112, tone: 'done' }],
+      },
+    ],
+  },
+]
+
+const graphPoints: GraphPoint[] = [
+  { id: 'origin', x: CX, y: CY, r: 7, kind: 'root', tone: 'focus' },
+]
+const graphEdges: GraphEdge[] = []
+
+topologySpec.forEach((primary, pi) => {
+  const p = polar(primary.angle, RINGS[0])
+  const primaryFocus = primary.tone === 'focus'
+  graphEdges.push({
+    id: `e-p-${pi}`,
+    d: `M ${CX} ${CY} L ${p.x} ${p.y}`,
+    focus: primaryFocus,
+  })
+  graphPoints.push({
+    id: `p-${pi}`,
+    x: p.x,
+    y: p.y,
+    r: 5.5,
+    kind: 'primary',
+    tone: primary.tone ?? 'default',
+  })
+
+  primary.children.forEach((sec, si) => {
+    const s = polar(sec.angle, RINGS[1])
+    const secFocus = primaryFocus && sec.tone === 'focus'
+    graphEdges.push({
+      id: `e-s-${pi}-${si}`,
+      d: curveBetween(primary.angle, RINGS[0], sec.angle, RINGS[1]),
+      focus: secFocus,
+    })
+    graphPoints.push({
+      id: `s-${pi}-${si}`,
+      x: s.x,
+      y: s.y,
+      r: 4.2,
+      kind: 'secondary',
+      tone: sec.tone ?? 'default',
+    })
+
+    sec.leaves?.forEach((leaf, li) => {
+      const l = polar(leaf.angle, RINGS[2])
+      const leafFocus = secFocus && leaf.tone === 'focus'
+      graphEdges.push({
+        id: `e-l-${pi}-${si}-${li}`,
+        d: curveBetween(sec.angle, RINGS[1], leaf.angle, RINGS[2]),
+        focus: leafFocus,
+      })
+      graphPoints.push({
+        id: `l-${pi}-${si}-${li}`,
+        x: l.x,
+        y: l.y,
+        r: 3,
+        kind: 'leaf',
+        tone: leaf.tone ?? 'default',
+      })
+    })
+  })
 })
 
 onMounted(async () => {
@@ -30,105 +215,140 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="login-stage" :class="{ 'is-dark': isDark }">
-    <button
-      type="button"
-      class="theme-toggle"
-      :aria-label="isDark ? '切换到浅色主题' : '切换到深色主题'"
-      :aria-pressed="isDark"
-      :title="isDark ? '切换到浅色主题' : '切换到深色主题'"
-      @click="toggleTheme"
-    >
-      <Sun v-if="isDark" :size="17" aria-hidden="true" />
-      <Moon v-else :size="17" aria-hidden="true" />
-    </button>
-
-    <div class="login-stack">
-      <div class="guild-emblem" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 2.6L16.2 6.8L12 11L7.8 6.8L12 2.6Z" fill="currentColor" />
-          <path
-            d="M6.8 7.8L11 12L6.8 16.2L2.6 12L6.8 7.8Z"
-            fill="currentColor"
-            fill-opacity="0.72"
-          />
-          <path
-            d="M17.2 7.8L21.4 12L17.2 16.2L13 12L17.2 7.8Z"
-            fill="currentColor"
-            fill-opacity="0.72"
-          />
-          <path
-            d="M12 13L16.2 17.2L12 21.4L7.8 17.2L12 13Z"
-            fill="currentColor"
-            fill-opacity="0.46"
-          />
-        </svg>
-      </div>
-
-      <h1 class="login-title">公会</h1>
-      <p class="login-org">网络开拓者协会</p>
-
-      <NAlert v-if="error" type="error" :show-icon="false" class="login-alert">
-        {{ error }}
-      </NAlert>
-
+  <main class="login-page" :class="{ 'is-dark': isDark }">
+    <header class="login-header">
+      <span class="org-name">北京理工大学网络开拓者协会</span>
       <button
         type="button"
-        class="login-button"
-        :disabled="state === 'active'"
-        @click="login(returnTo)"
+        class="theme-toggle"
+        :aria-label="isDark ? '切换到浅色主题' : '切换到深色主题'"
+        :aria-pressed="isDark"
+        :title="isDark ? '切换到浅色主题' : '切换到深色主题'"
+        @click="toggleTheme"
       >
-        使用网协通行证登录
+        <Sun v-if="isDark" :size="17" aria-hidden="true" />
+        <Moon v-else :size="17" aria-hidden="true" />
       </button>
+    </header>
+
+    <div class="login-grid">
+      <section class="login-editorial">
+        <div class="editorial-main">
+          <h1 class="login-title">开拓者公会</h1>
+          <p class="login-english">Guild of Pioneers</p>
+          <p class="login-lead">网协的工作协作空间，按节点树组织事务与进展。</p>
+
+          <NAlert v-if="error" type="error" class="login-alert">
+            {{ error }}
+          </NAlert>
+
+          <div class="login-actions">
+            <button
+              type="button"
+              class="login-button"
+              :disabled="state === 'active'"
+              @click="login(returnTo)"
+            >
+              使用网协通行证登录
+            </button>
+          </div>
+        </div>
+
+        <p class="login-note">仅限网协在册成员登录。</p>
+      </section>
+
+      <aside class="login-figure" aria-hidden="true">
+        <svg
+          viewBox="0 0 640 640"
+          class="radial-svg"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <g class="figure-axes">
+            <line x1="24" y1="320" x2="616" y2="320" />
+            <line x1="320" y1="24" x2="320" y2="616" />
+          </g>
+
+          <g class="figure-rings">
+            <circle :cx="CX" :cy="CY" :r="RINGS[0]" class="ring" />
+            <circle :cx="CX" :cy="CY" :r="RINGS[1]" class="ring" />
+            <circle :cx="CX" :cy="CY" :r="RINGS[2]" class="ring is-outer" />
+          </g>
+
+          <g class="figure-edges">
+            <path
+              v-for="edge in graphEdges"
+              :key="edge.id"
+              :d="edge.d"
+              :class="['edge', { 'is-focus': edge.focus }]"
+            />
+          </g>
+
+          <g class="figure-nodes">
+            <circle
+              v-for="pt in graphPoints"
+              :key="pt.id"
+              :cx="pt.x"
+              :cy="pt.y"
+              :r="pt.r"
+              :class="['node', `is-${pt.kind}`, `tone-${pt.tone}`]"
+            />
+            <circle :cx="CX" :cy="CY" r="2.6" class="origin-core" />
+          </g>
+        </svg>
+      </aside>
     </div>
   </main>
 </template>
 
 <style scoped>
-.login-stage {
-  --stage-bg: #f4f6f9;
-  --stage-wash: rgba(255, 255, 255, 0.92);
-  --emblem-bg: linear-gradient(180deg, #ffffff 0%, #f5f7fb 100%);
-  --emblem-border: rgba(23, 32, 43, 0.1);
-  --emblem-shadow:
-    0 8px 20px rgba(23, 32, 43, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  --emblem-fg: #1f5fbf;
-  --toggle-hover: rgba(23, 32, 43, 0.06);
+.login-page {
+  --figure-bg: var(--guild-surface-subtle);
+  --axis-stroke: #dfe5ed;
+  --ring-stroke: #d7dfe9;
+  --edge-stroke: #c4cfdd;
+  --btn-bg: #1f5fbf;
+  --btn-hover: #184e9e;
+  --btn-active: #144185;
 
-  position: relative;
   min-height: 100dvh;
   display: grid;
-  place-items: center;
-  padding: 24px 20px calc(24px + 6vh);
-  background-color: var(--stage-bg);
-  background-image: radial-gradient(
-    ellipse 68% 42% at 50% 0%,
-    var(--stage-wash),
-    transparent 70%
-  );
+  grid-template-rows: 52px minmax(0, 1fr);
+  background: var(--guild-surface);
   color: var(--guild-text);
 }
 
-.login-stage.is-dark {
-  --stage-bg: #0e141b;
-  --stage-wash: rgba(88, 142, 230, 0.075);
-  --emblem-bg: linear-gradient(180deg, #1b2531 0%, #131b24 100%);
-  --emblem-border: rgba(255, 255, 255, 0.09);
-  --emblem-shadow:
-    0 12px 28px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --emblem-fg: #dde6f0;
-  --toggle-hover: rgba(255, 255, 255, 0.06);
+.login-page.is-dark {
+  --figure-bg: #111820;
+  --axis-stroke: #1d2834;
+  --ring-stroke: #22303e;
+  --edge-stroke: #324457;
+  --btn-bg: #2563cc;
+  --btn-hover: #2d6fdb;
+  --btn-active: #1d52ad;
+}
+
+.login-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px 0 24px;
+  border-bottom: 1px solid var(--guild-border);
+  background: var(--guild-surface);
+}
+
+.org-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--guild-muted);
 }
 
 .theme-toggle {
-  position: absolute;
-  top: 20px;
-  right: 20px;
   width: 34px;
   height: 34px;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--guild-muted);
   display: inline-flex;
@@ -136,102 +356,195 @@ onMounted(async () => {
   justify-content: center;
   cursor: pointer;
   transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
+    background-color 0.14s ease,
+    color 0.14s ease;
 }
 
 .theme-toggle:hover {
-  background: var(--toggle-hover);
+  background: var(--guild-surface-subtle);
   color: var(--guild-text);
 }
 
-.login-stack {
-  width: min(304px, 100%);
+.login-grid {
+  display: grid;
+  grid-template-columns: minmax(380px, 1fr) minmax(380px, 1.08fr);
+  min-height: 0;
+}
+
+.login-editorial {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
+  justify-content: space-between;
+  padding: clamp(32px, 5vw, 64px) clamp(24px, 6vw, 80px) 28px;
 }
 
-.guild-emblem {
-  width: 52px;
-  height: 52px;
-  border-radius: 13px;
-  background: var(--emblem-bg);
-  border: 1px solid var(--emblem-border);
-  box-shadow: var(--emblem-shadow);
-  color: var(--emblem-fg);
-  display: grid;
-  place-items: center;
-}
-
-.guild-emblem svg {
-  width: 24px;
-  height: 24px;
+.editorial-main {
+  margin: auto 0;
+  max-width: 380px;
+  padding-bottom: 4vh;
 }
 
 .login-title {
-  margin: 22px 0 0;
-  font-size: 24px;
-  line-height: 30px;
-  font-weight: 650;
-  letter-spacing: -0.015em;
+  margin: 0;
+  font-size: clamp(34px, 3.6vw, 48px);
+  line-height: 1.14;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--guild-text);
 }
 
-.login-org {
-  margin: 6px 0 0;
-  font-size: 13.5px;
+.login-english {
+  margin: 8px 0 0;
+  font-size: 14px;
   line-height: 20px;
   color: var(--guild-muted);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
+}
+
+.login-lead {
+  margin: 24px 0 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--guild-text);
+  opacity: 0.86;
 }
 
 .login-alert {
-  width: 100%;
   margin-top: 20px;
-  text-align: left;
+}
+
+.login-actions {
+  margin-top: 32px;
 }
 
 .login-button {
-  width: 100%;
-  height: 42px;
-  margin-top: 28px;
-  padding: 0 16px;
-  border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: linear-gradient(180deg, #2966d4 0%, #1f56b8 100%);
+  min-width: 224px;
+  height: 44px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--btn-bg);
   color: #ffffff;
   font: inherit;
-  font-size: 14px;
-  font-weight: 560;
-  letter-spacing: 0.01em;
+  font-size: 14.5px;
+  font-weight: 550;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow:
-    0 2px 6px rgba(23, 56, 117, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  transition:
-    background 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.1s ease;
+  transition: background-color 0.14s ease;
 }
 
 .login-button:hover:not(:disabled) {
-  background: linear-gradient(180deg, #3170e0 0%, #235ec4 100%);
-  box-shadow:
-    0 4px 12px rgba(23, 56, 117, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  background: var(--btn-hover);
 }
 
 .login-button:active:not(:disabled) {
-  background: #1b4da6;
-  transform: translateY(0.5px);
+  background: var(--btn-active);
 }
 
 .login-button:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
+}
+
+.login-note {
+  margin: 24px 0 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--guild-muted);
+}
+
+.login-figure {
+  display: grid;
+  place-items: center;
+  padding: clamp(24px, 4vw, 56px);
+  border-left: 1px solid var(--guild-border);
+  background: var(--figure-bg);
+  overflow: hidden;
+}
+
+.radial-svg {
+  width: min(100%, 560px);
+  max-height: calc(100dvh - 120px);
+  height: auto;
+  display: block;
+}
+
+.figure-axes line {
+  stroke: var(--axis-stroke);
+  stroke-width: 1;
+}
+
+.ring {
+  stroke: var(--ring-stroke);
+  stroke-width: 1;
+}
+
+.ring.is-outer {
+  stroke-dasharray: 3 6;
+}
+
+.edge {
+  stroke: var(--edge-stroke);
+  stroke-width: 1.25;
+}
+
+.edge.is-focus {
+  stroke: var(--guild-primary);
+  stroke-width: 1.6;
+}
+
+.node {
+  fill: var(--figure-bg);
+  stroke: var(--edge-stroke);
+  stroke-width: 1.4;
+}
+
+.node.is-root {
+  stroke: var(--guild-primary);
+  stroke-width: 1.6;
+}
+
+.node.tone-focus {
+  stroke: var(--guild-primary);
+}
+
+.node.is-leaf.tone-focus {
+  fill: var(--guild-primary);
+}
+
+.node.tone-done {
+  stroke: var(--guild-success);
+}
+
+.node.is-leaf.tone-done {
+  fill: var(--guild-success);
+}
+
+.origin-core {
+  fill: var(--guild-primary);
+}
+
+@media (max-width: 859px) {
+  .login-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .login-figure {
+    display: none;
+  }
+
+  .login-editorial {
+    padding: 36px 24px 24px;
+  }
+
+  .editorial-main {
+    max-width: none;
+  }
+
+  .login-button {
+    width: 100%;
+  }
 }
 </style>
