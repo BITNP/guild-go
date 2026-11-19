@@ -236,7 +236,7 @@ onMounted(async () => {
         <div class="editorial-main">
           <h1 class="login-title">开拓者公会</h1>
           <p class="login-english">Guild of Pioneers</p>
-          <p class="login-lead">网协的工作协作空间，按节点树组织事务与进展。</p>
+          <p class="login-lead">网协的工作协作空间</p>
 
           <NAlert v-if="error" type="error" class="login-alert">
             {{ error }}
@@ -253,8 +253,6 @@ onMounted(async () => {
             </button>
           </div>
         </div>
-
-        <p class="login-note">仅限网协在册成员登录。</p>
       </section>
 
       <aside class="login-figure" aria-hidden="true">
@@ -446,13 +444,6 @@ onMounted(async () => {
 .login-button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-}
-
-.login-note {
-  margin: 24px 0 0;
-  font-size: 12.5px;
-  line-height: 18px;
-  color: var(--guild-muted);
 }
 
 .login-figure {
