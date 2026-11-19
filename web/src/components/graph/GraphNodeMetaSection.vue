@@ -1,18 +1,22 @@
 <script setup lang="ts">
-import { CalendarClock } from '@lucide/vue'
-import type { NodeDetail } from '@/lib/api'
-import { formatDateTime, timeAgo } from '@/lib/utils'
+import { CalendarClock } from "@lucide/vue";
 
-defineProps<{ detail: NodeDetail }>()
+import type { NodeDetail } from "@/lib/api";
+import { formatDateTime, timeAgo } from "@/lib/utils";
+
+defineProps<{ detail: NodeDetail }>();
 </script>
 
 <template>
-  <section class="panel-section" aria-labelledby="panel-meta-title">
+  <section aria-labelledby="panel-meta-title" class="panel-section">
     <h3 id="panel-meta-title">节点信息</h3>
     <dl class="panel-meta-grid">
       <div>
-        <dt><CalendarClock :size="13" />预期完成</dt>
-        <dd>{{ detail.dueAt ? formatDateTime(detail.dueAt) : '未设置' }}</dd>
+        <dt>
+          <CalendarClock :size="13" />
+          预期完成
+        </dt>
+        <dd>{{ detail.dueAt ? formatDateTime(detail.dueAt) : "未设置" }}</dd>
       </div>
       <div v-if="detail.completedAt">
         <dt>实际完成</dt>

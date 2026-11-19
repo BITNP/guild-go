@@ -1,24 +1,26 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Focus, Loader2, Network } from '@lucide/vue'
-import AppShell from '@/components/AppShell.vue'
-import DeleteNodeDialog from '@/components/DeleteNodeDialog.vue'
-import GraphNodePanel from '@/components/graph/GraphNodePanel.vue'
-import GraphProgressDetail from '@/components/graph/GraphProgressDetail.vue'
-import GraphStage from '@/components/graph/GraphStage.vue'
-import '@/components/graph/graph-theme.css'
-import NodeFormDialog from '@/components/NodeFormDialog.vue'
-import OrderDialog from '@/components/OrderDialog.vue'
-import MoveNodeDialog from '@/components/MoveNodeDialog.vue'
-import { useGraphSelection } from '@/composables/useGraphSelection'
-import { useNodeStore } from '@/composables/useNodeStore'
-import { useTheme } from '@/composables/useTheme'
-import { VIRTUAL_ROOT_ID } from '@/graph/layout'
-import type { NodeDetail } from '@/lib/api'
+import { Focus, Loader2, Network } from "@lucide/vue";
+import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+
+import AppShell from "@/components/AppShell.vue";
+import DeleteNodeDialog from "@/components/DeleteNodeDialog.vue";
+import MoveNodeDialog from "@/components/MoveNodeDialog.vue";
+import NodeFormDialog from "@/components/NodeFormDialog.vue";
+import OrderDialog from "@/components/OrderDialog.vue";
+import GraphNodePanel from "@/components/graph/GraphNodePanel.vue";
+import GraphProgressDetail from "@/components/graph/GraphProgressDetail.vue";
+import GraphStage from "@/components/graph/GraphStage.vue";
+import { useGraphSelection } from "@/composables/useGraphSelection";
+import { useNodeStore } from "@/composables/useNodeStore";
+import { useTheme } from "@/composables/useTheme";
+import { VIRTUAL_ROOT_ID } from "@/graph/layout";
+import type { NodeDetail } from "@/lib/api";
+
+import "@/components/graph/graph-theme.css";
 
 interface GraphStageExpose {
-  fitView: () => void
-  scrollProgress: (delta: number) => void
+  fitView: () => void;
+  scrollProgress: (delta: number) => void;
 }
 
 const {
@@ -28,8 +30,8 @@ const {
   load,
   reload,
   removeSubtree,
-} = useNodeStore()
-const { mode: themeMode } = useTheme()
+} = useNodeStore();
+const { mode: themeMode } = useTheme();
 const {
   active,
   detail,
@@ -53,95 +55,101 @@ const {
   onCommentCreated,
   onCommentDeleted,
   reactToComment,
-} = useGraphSelection()
+} = useGraphSelection();
 
-const stage = ref<GraphStageExpose | null>(null)
-const editOpen = ref(false)
-const createOpen = ref(false)
-const createParentId = ref<number | null>(null)
-const createParentTitle = ref('')
-const deleteOpen = ref(false)
-const deleteTarget = ref<NodeDetail | null>(null)
-const orderOpen = ref(false)
-const moveOpen = ref(false)
+const stage = ref<GraphStageExpose | null>(null);
+const editOpen = ref(false);
+const createOpen = ref(false);
+const createParentId = ref<number | null>(null);
+const createParentTitle = ref("");
+const deleteOpen = ref(false);
+const deleteTarget = ref<NodeDetail | null>(null);
+const orderOpen = ref(false);
+const moveOpen = ref(false);
 
 function openProgress(key: string) {
-  expandedProgressKey.value = key
+  expandedProgressKey.value = key;
 }
 
 function onDetailUpdated(node: NodeDetail) {
-  syncUpdatedNode(node)
-  void reload()
+  syncUpdatedNode(node);
+  void reload();
 }
 
 function openCreateRoot() {
-  createParentId.value = null
-  createParentTitle.value = ''
-  createOpen.value = true
+  createParentId.value = null;
+  createParentTitle.value = "";
+  createOpen.value = true;
 }
 
 function openCreateChild() {
-  if (!detail.value) return
-  createParentId.value = detail.value.id
-  createParentTitle.value = detail.value.title
-  createOpen.value = true
+  if (!detail.value) {
+    return;
+  }
+  createParentId.value = detail.value.id;
+  createParentTitle.value = detail.value.title;
+  createOpen.value = true;
 }
 
 function openDelete() {
-  if (!detail.value?.permissions.canDelete) return
-  deleteTarget.value = detail.value
-  deleteOpen.value = true
+  if (!detail.value?.permissions.canDelete) {
+    return;
+  }
+  deleteTarget.value = detail.value;
+  deleteOpen.value = true;
 }
 
 async function onNodeSaved(node: NodeDetail) {
-  editOpen.value = false
-  syncUpdatedNode(node)
-  await reload()
+  editOpen.value = false;
+  syncUpdatedNode(node);
+  await reload();
   if (active.value?.node.id === node.id) {
-    await loadProgress(node.id)
+    await loadProgress(node.id);
   }
 }
 
 async function onNodeCreated(node: NodeDetail) {
-  createOpen.value = false
-  await reload()
-  selectNode(node.id)
+  createOpen.value = false;
+  await reload();
+  selectNode(node.id);
 }
 
 async function onNodeMoved(node: NodeDetail) {
-  moveOpen.value = false
-  await reload()
+  moveOpen.value = false;
+  await reload();
   if (active.value?.node.id === node.id) {
-    selectNode(node.id)
-    syncUpdatedNode(node)
-    await loadProgress(node.id)
+    selectNode(node.id);
+    syncUpdatedNode(node);
+    await loadProgress(node.id);
   }
 }
 
 async function onNodeDeleted() {
-  const deletedId = deleteTarget.value?.id
-  const parentId = deleteTarget.value?.parentId ?? null
-  deleteOpen.value = false
-  deleteTarget.value = null
-  if (deletedId != null) removeSubtree(deletedId)
-  clearSelection()
-  await reload()
-  selectNode(parentId ?? VIRTUAL_ROOT_ID)
+  const deletedId = deleteTarget.value?.id;
+  const parentId = deleteTarget.value?.parentId ?? null;
+  deleteOpen.value = false;
+  deleteTarget.value = null;
+  if (deletedId != null) {
+    removeSubtree(deletedId);
+  }
+  clearSelection();
+  await reload();
+  selectNode(parentId ?? VIRTUAL_ROOT_ID);
 }
 
 async function onNodesOrdered() {
-  orderOpen.value = false
-  await reload()
+  orderOpen.value = false;
+  await reload();
   if (active.value?.node.id === VIRTUAL_ROOT_ID) {
-    selectNode(VIRTUAL_ROOT_ID)
+    selectNode(VIRTUAL_ROOT_ID);
   } else {
-    await loadDetail()
+    await loadDetail();
   }
 }
 
 function onProgressCommentDeleted(commentId: number) {
-  onCommentDeleted(commentId)
-  void reload()
+  onCommentDeleted(commentId);
+  void reload();
 }
 
 function onWheel(event: WheelEvent) {
@@ -150,30 +158,30 @@ function onWheel(event: WheelEvent) {
     active.value.node.id === VIRTUAL_ROOT_ID ||
     expandedProgress.value
   ) {
-    return
+    return;
   }
   if (
     event.target instanceof Element &&
     event.target.closest(
-      '[data-graph-node-panel], [data-graph-comment-composer], [data-graph-progress-detail]',
+      "[data-graph-node-panel], [data-graph-comment-composer], [data-graph-progress-detail]",
     )
   ) {
-    return
+    return;
   }
-  event.preventDefault()
-  event.stopPropagation()
-  stage.value?.scrollProgress(event.deltaY)
+  event.preventDefault();
+  event.stopPropagation();
+  stage.value?.scrollProgress(event.deltaY);
 }
 
 function onWindowKeydown(event: KeyboardEvent) {
   if (
-    event.key !== 'Escape' ||
+    event.key !== "Escape" ||
     event.defaultPrevented ||
     event.isComposing ||
     event.keyCode === 229 ||
     !active.value
   ) {
-    return
+    return;
   }
   if (
     editOpen.value ||
@@ -183,34 +191,34 @@ function onWindowKeydown(event: KeyboardEvent) {
     orderOpen.value ||
     expandedProgress.value ||
     document.querySelector(
-      '.n-modal-container, .n-image-preview-container, .n-drawer-container, .n-dropdown-menu',
+      ".n-modal-container, .n-image-preview-container, .n-drawer-container, .n-dropdown-menu",
     )
   ) {
-    return
+    return;
   }
-  clearSelection()
+  clearSelection();
 }
 
 onMounted(() => {
-  window.addEventListener('keydown', onWindowKeydown)
-  void load()
-})
+  window.addEventListener("keydown", onWindowKeydown);
+  void load();
+});
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onWindowKeydown)
-})
+  window.removeEventListener("keydown", onWindowKeydown);
+});
 
 watch(
   () => active.value?.node.id ?? null,
   () => {
-    editOpen.value = false
-    createOpen.value = false
-    deleteOpen.value = false
-    orderOpen.value = false
-    deleteTarget.value = null
-    moveOpen.value = false
+    editOpen.value = false;
+    createOpen.value = false;
+    deleteOpen.value = false;
+    orderOpen.value = false;
+    deleteTarget.value = null;
+    moveOpen.value = false;
   },
-)
+);
 </script>
 
 <template>
@@ -222,11 +230,6 @@ watch(
     >
       <GraphStage
         ref="stage"
-        :nodes="nodes"
-        :focus="active"
-        :progress="progress"
-        :progress-loading="progressLoading"
-        :theme="themeMode"
         :can-comment="
           !!(
             active &&
@@ -234,49 +237,54 @@ watch(
             detail.permissions.canComment
           )
         "
-        @select="selectNode"
+        :focus="active"
+        :nodes
+        :progress
+        :progress-loading
+        :theme="themeMode"
         @blank="clearSelection"
-        @reaction="reactToComment"
         @comment-created="onCommentCreated"
-        @progress-open="openProgress"
         @progress-edge="loadOlderProgress"
+        @progress-open="openProgress"
+        @reaction="reactToComment"
+        @select="selectNode"
       />
 
       <Transition name="progress-detail">
         <GraphProgressDetail
           v-if="expandedProgress"
-          :item="expandedProgress"
-          :node-title="active?.node.title ?? ''"
           :busy="
             expandedProgress.kind === 'comment' &&
             reacting.has(expandedProgress.comment.id)
           "
+          :item="expandedProgress"
+          :node-title="active?.node.title ?? ''"
           @close="expandedProgressKey = null"
-          @reaction="reactToComment"
           @deleted="onProgressCommentDeleted"
+          @reaction="reactToComment"
         />
       </Transition>
 
       <Transition name="node-panel">
         <GraphNodePanel
           v-if="active"
-          :selected="active.node"
           :detail="detail?.id === active.node.id ? detail : null"
-          :parent-id="active.parent?.id ?? null"
-          :parent-title="active.parent?.title ?? null"
-          :loading="detailLoading"
           :error="detailError"
           :is-virtual-root="active.node.id === VIRTUAL_ROOT_ID"
+          :loading="detailLoading"
+          :parent-id="active.parent?.id ?? null"
+          :parent-title="active.parent?.title ?? null"
+          :selected="active.node"
           @close="clearSelection"
-          @navigate="selectNode"
-          @retry="loadDetail"
-          @updated="onDetailUpdated"
-          @edit="editOpen = true"
-          @move="moveOpen = true"
-          @remove="openDelete"
           @create-child="openCreateChild"
           @create-root="openCreateRoot"
+          @edit="editOpen = true"
+          @move="moveOpen = true"
+          @navigate="selectNode"
+          @remove="openDelete"
           @reorder="orderOpen = true"
+          @retry="loadDetail"
+          @updated="onDetailUpdated"
         />
       </Transition>
 
@@ -292,32 +300,36 @@ watch(
           >
             <span class="graph-dot" />
             <span v-if="loading" class="graph-inline">
-              <Loader2 :size="12" class="graph-spin" /> 正在加载
+              <Loader2 class="graph-spin" :size="12" />
+              正在加载
             </span>
             <span v-else-if="selectionLoading" class="graph-inline">
-              <Loader2 :size="12" class="graph-spin" /> 正在加载进展
+              <Loader2 class="graph-spin" :size="12" />
+              正在加载进展
             </span>
             <span v-else>
-              {{ progress.length }}{{ progressHaveMore ? '+' : '' }} 条进展
+              {{ progress.length }}{{ progressHaveMore ? "+" : "" }} 条进展
             </span>
           </template>
         </div>
         <div class="graph-toolbar">
           <button
             v-if="active"
-            type="button"
             class="graph-button"
+            type="button"
             @click="clearSelection"
           >
-            <Focus :size="14" aria-hidden="true" /> 返回全图
+            <Focus aria-hidden="true" :size="14" />
+            返回全图
           </button>
           <button
             v-else
-            type="button"
             class="graph-button"
+            type="button"
             @click="stage?.fitView()"
           >
-            <Focus :size="14" aria-hidden="true" /> 重置视角
+            <Focus aria-hidden="true" :size="14" />
+            重置视角
           </button>
         </div>
       </header>
@@ -325,17 +337,13 @@ watch(
       <div v-if="dataError" class="graph-error-overlay">
         <div class="graph-error-card">
           <p>{{ dataError }}</p>
-          <button type="button" class="graph-error-action" @click="reload">
+          <button class="graph-error-action" type="button" @click="reload">
             重新加载图谱
           </button>
         </div>
       </div>
 
-      <p
-        v-if="progressError || reactionError"
-        class="graph-toast"
-        role="alert"
-      >
+      <p v-if="progressError || reactionError" class="graph-toast" role="alert">
         {{ progressError || reactionError }}
       </p>
     </div>
@@ -369,11 +377,11 @@ watch(
     <OrderDialog
       v-if="detail"
       v-model:open="orderOpen"
+      :children="detail.children"
       :parent-id="active?.node.id === VIRTUAL_ROOT_ID ? null : detail.id"
       :parent-title="
         active?.node.id === VIRTUAL_ROOT_ID ? '开拓者公会' : detail.title
       "
-      :children="detail.children"
       @saved="onNodesOrdered"
     />
   </AppShell>

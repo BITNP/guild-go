@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
 import {
   ArrowUpDown,
   Check,
@@ -12,98 +10,102 @@ import {
   Plus,
   Trash2,
   X,
-} from '@lucide/vue'
-import MembersDialog from '@/components/MembersDialog.vue'
-import NodeStatusTag from '@/components/NodeStatusTag.vue'
-import GraphNodeMetaSection from '@/components/graph/GraphNodeMetaSection.vue'
-import GraphNodePeopleSection from '@/components/graph/GraphNodePeopleSection.vue'
-import type { GraphNode } from '@/graph/types'
-import { updateNodeFromDetail, type NodeDetail } from '@/lib/api'
-import { errorMessage, isOverdue, linkify } from '@/lib/utils'
+} from "@lucide/vue";
+import { computed, ref, watch } from "vue";
+import { RouterLink } from "vue-router";
 
-const props = defineProps<{
-  selected: GraphNode
-  detail: NodeDetail | null
-  parentId: number | null
-  parentTitle: string | null
-  loading: boolean
-  error: string | null
-  isVirtualRoot: boolean
-}>()
+import MembersDialog from "@/components/MembersDialog.vue";
+import NodeStatusTag from "@/components/NodeStatusTag.vue";
+import GraphNodeMetaSection from "@/components/graph/GraphNodeMetaSection.vue";
+import GraphNodePeopleSection from "@/components/graph/GraphNodePeopleSection.vue";
+import type { GraphNode } from "@/graph/types";
+import type { NodeDetail } from "@/lib/api";
+import { updateNodeFromDetail } from "@/lib/api";
+import { errorMessage, isOverdue, linkify } from "@/lib/utils";
 
 const emit = defineEmits<{
-  close: []
-  navigate: [id: number]
-  retry: []
-  updated: [node: NodeDetail]
-  edit: []
-  move: []
-  createChild: []
-  createRoot: []
-  remove: []
-  reorder: []
-}>()
+  close: [];
+  navigate: [id: number];
+  retry: [];
+  updated: [node: NodeDetail];
+  edit: [];
+  move: [];
+  createChild: [];
+  createRoot: [];
+  remove: [];
+  reorder: [];
+}>();
 
-const membersOpen = ref(false)
-const savingStatus = ref(false)
-const statusError = ref<string | null>(null)
-const title = computed(() => props.detail?.title ?? props.selected.title)
+const props = defineProps<{
+  selected: GraphNode;
+  detail: NodeDetail | null;
+  parentId: number | null;
+  parentTitle: string | null;
+  loading: boolean;
+  error: string | null;
+  isVirtualRoot: boolean;
+}>();
+
+const membersOpen = ref(false);
+const savingStatus = ref(false);
+const statusError = ref<string | null>(null);
+const title = computed(() => props.detail?.title ?? props.selected.title);
 const descriptionSegments = computed(() =>
-  linkify(props.detail?.description ?? ''),
-)
+  linkify(props.detail?.description ?? ""),
+);
 
 watch(
   () => props.selected.id,
   () => {
-    membersOpen.value = false
-    statusError.value = null
+    membersOpen.value = false;
+    statusError.value = null;
   },
-)
+);
 
 function onMembersSaved(node: NodeDetail) {
-  membersOpen.value = false
-  emit('updated', node)
+  membersOpen.value = false;
+  emit("updated", node);
 }
 
 function createNode() {
   if (props.isVirtualRoot) {
-    emit('createRoot')
+    emit("createRoot");
   } else {
-    emit('createChild')
+    emit("createChild");
   }
 }
 
 async function toggleCompletion() {
-  const node = props.detail
+  const node = props.detail;
   if (!node || !node.permissions.canEdit || savingStatus.value) {
-    return
+    return;
   }
-  savingStatus.value = true
-  statusError.value = null
+  savingStatus.value = true;
+  statusError.value = null;
   try {
     const updated = await updateNodeFromDetail(node, {
       completed: !node.completedAt,
-    })
-    emit('updated', updated)
+    });
+    emit("updated", updated);
   } catch (err) {
-    statusError.value = errorMessage(err, '更新完成状态失败')
+    statusError.value = errorMessage(err, "更新完成状态失败");
   } finally {
-    savingStatus.value = false
+    savingStatus.value = false;
   }
 }
 </script>
 
 <template>
   <aside
+    aria-label="节点控制面板"
     class="node-control-panel"
     data-graph-node-panel
-    aria-label="节点控制面板"
   >
     <header class="panel-header">
       <button
-        type="button"
-        class="panel-close"
         aria-label="关闭节点面板"
+        class="panel-close"
+        type="button"
         @click="emit('close')"
       >
         <X :size="17" />
@@ -111,23 +113,23 @@ async function toggleCompletion() {
       <h2>{{ title }}</h2>
       <div v-if="detail && !isVirtualRoot" class="panel-status-row">
         <NodeStatusTag
-          :due-at="detail.dueAt"
           :completed-at="detail.completedAt"
+          :due-at="detail.dueAt"
         />
         <button
           v-if="detail.permissions.canEdit"
-          type="button"
+          :aria-pressed="!!detail.completedAt"
           class="status-toggle"
           :disabled="savingStatus"
-          :aria-pressed="!!detail.completedAt"
+          type="button"
           @click="toggleCompletion"
         >
           {{
             savingStatus
-              ? '正在更新…'
+              ? "正在更新…"
               : detail.completedAt
-                ? '标记为未完成'
-                : '标记为已完成'
+                ? "标记为未完成"
+                : "标记为已完成"
           }}
         </button>
       </div>
@@ -142,8 +144,8 @@ async function toggleCompletion() {
       <div v-if="detail && !isVirtualRoot" class="panel-node-actions">
         <button
           v-if="detail.permissions.canEdit"
-          type="button"
           class="panel-edit-button"
+          type="button"
           @click="emit('edit')"
         >
           <Pencil :size="12" />
@@ -151,8 +153,8 @@ async function toggleCompletion() {
         </button>
         <button
           v-if="detail.permissions.canEdit"
-          type="button"
           class="panel-edit-button"
+          type="button"
           @click="emit('move')"
         >
           <FolderInput :size="12" />
@@ -160,8 +162,8 @@ async function toggleCompletion() {
         </button>
         <button
           v-if="detail.permissions.canDelete"
-          type="button"
           class="panel-delete-button"
+          type="button"
           @click="emit('remove')"
         >
           <Trash2 :size="12" />
@@ -173,8 +175,8 @@ async function toggleCompletion() {
     <div class="panel-scroll">
       <div
         v-if="!detail && (loading || !error)"
-        class="panel-loading"
         aria-live="polite"
+        class="panel-loading"
       >
         <span class="panel-loading-mark" />
         正在加载节点…
@@ -186,16 +188,16 @@ async function toggleCompletion() {
       </div>
 
       <template v-else-if="detail">
-        <section class="panel-section" aria-labelledby="panel-structure-title">
+        <section aria-labelledby="panel-structure-title" class="panel-section">
           <h3 id="panel-structure-title">
-            {{ isVirtualRoot ? '全部根节点' : '层级关系' }}
+            {{ isVirtualRoot ? "全部根节点" : "层级关系" }}
           </h3>
           <div v-if="!isVirtualRoot" class="panel-relation">
             <span class="relation-label">父节点</span>
             <button
               v-if="parentId != null"
-              type="button"
               class="relation-link"
+              type="button"
               @click="emit('navigate', parentId)"
             >
               <span>{{ parentTitle ?? `节点 #${parentId}` }}</span>
@@ -206,7 +208,7 @@ async function toggleCompletion() {
 
           <div class="panel-children">
             <div class="children-heading">
-              <span>{{ isVirtualRoot ? '根节点' : '子节点' }}</span>
+              <span>{{ isVirtualRoot ? "根节点" : "子节点" }}</span>
               <span>{{ detail.children.length }}</span>
             </div>
             <div class="children-actions">
@@ -215,86 +217,89 @@ async function toggleCompletion() {
                   detail.permissions.canReorderChildren &&
                   detail.children.length > 1
                 "
-                type="button"
                 class="panel-edit-button"
+                type="button"
                 @click="emit('reorder')"
               >
                 <ArrowUpDown :size="12" />
-                {{ isVirtualRoot ? '调整根节点顺序' : '调整子节点顺序' }}
+                {{ isVirtualRoot ? "调整根节点顺序" : "调整子节点顺序" }}
               </button>
               <button
                 v-if="detail.permissions.canAddChild"
-                type="button"
                 class="panel-edit-button is-primary"
+                type="button"
                 @click="createNode"
               >
                 <Plus :size="12" />
-                {{ isVirtualRoot ? '新建根节点' : '新建子节点' }}
+                {{ isVirtualRoot ? "新建根节点" : "新建子节点" }}
               </button>
             </div>
-            <div v-if="detail.children.length" class="children-list">
+            <div v-if="detail.children.length > 0" class="children-list">
               <button
                 v-for="child in detail.children"
                 :key="child.id"
-                type="button"
                 class="child-link"
+                type="button"
                 @click="emit('navigate', child.id)"
               >
                 <Check
                   v-if="child.completedAt"
-                  :size="14"
-                  class="child-icon is-completed"
                   aria-label="已完成"
+                  class="child-icon is-completed"
+                  :size="14"
                 />
                 <Circle
                   v-else
-                  :size="14"
+                  aria-label="未完成"
+                  class="child-icon"
                   :class="[
-                    'child-icon',
                     { 'is-overdue': isOverdue(child.dueAt, child.completedAt) },
                   ]"
-                  aria-label="未完成"
+                  :size="14"
                 />
                 <span class="child-title">{{ child.title }}</span>
-                <span v-if="child.childCount" class="child-count"
-                  >{{ child.childCount }} 个子节点</span
-                >
+                <span v-if="child.childCount" class="child-count">
+                  {{ child.childCount }} 个子节点
+                </span>
                 <ChevronRight :size="13" />
               </button>
             </div>
             <p v-else class="relation-empty">
-              {{ isVirtualRoot ? '暂无根节点' : '暂无子节点' }}
+              {{ isVirtualRoot ? "暂无根节点" : "暂无子节点" }}
             </p>
           </div>
         </section>
 
         <section
           v-if="!isVirtualRoot"
-          class="panel-section"
           aria-labelledby="panel-description-title"
+          class="panel-section"
         >
           <h3 id="panel-description-title">节点描述</h3>
           <p v-if="detail.description" class="panel-description">
             <template
               v-for="(segment, index) in descriptionSegments"
               :key="index"
-              ><a
+            >
+              <a
                 v-if="segment.type === 'link'"
                 :href="segment.href"
-                target="_blank"
                 rel="noopener noreferrer"
-                >{{ segment.value }}</a
-              ><template v-else>{{ segment.value }}</template></template
-            >
+                target="_blank"
+              >
+                {{ segment.value }}
+              </a>
+              <template v-else>{{ segment.value }}</template>
+            </template>
           </p>
           <p v-else class="panel-empty-copy">暂无节点描述</p>
         </section>
 
-        <GraphNodeMetaSection v-if="!isVirtualRoot" :detail="detail" />
+        <GraphNodeMetaSection v-if="!isVirtualRoot" :detail />
 
         <GraphNodePeopleSection
           v-if="!isVirtualRoot"
-          :detail="detail"
+          :detail
           @manage="membersOpen = true"
         />
       </template>
@@ -302,11 +307,11 @@ async function toggleCompletion() {
 
     <footer v-if="!isVirtualRoot" class="panel-footer">
       <RouterLink
-        :to="{ name: 'node', params: { id: selected.id } }"
         class="panel-page-link"
+        :to="{ name: 'node', params: { id: selected.id } }"
       >
         <span>打开节点页面</span>
-        <ExternalLink :size="15" aria-hidden="true" />
+        <ExternalLink aria-hidden="true" :size="15" />
       </RouterLink>
     </footer>
 

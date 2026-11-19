@@ -3,8 +3,12 @@
 .env.*
 !.env.example
 *.secert
+.devenv/
+.direnv/
+data/
 
 # frontend dependencies and build cache
+node_modules/
 web/node_modules/
 web/.vite/
 web/*.tsbuildinfo

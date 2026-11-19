@@ -1,116 +1,127 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { FileText, MessageSquare, Trash2, X } from '@lucide/vue'
-import ConfirmAction from '@/components/ConfirmAction.vue'
-import DescriptionDiff from '@/components/DescriptionDiff.vue'
-import ImageGallery from '@/components/ImageGallery.vue'
-import PreviewImage from '@/components/PreviewImage.vue'
-import UserIdentity from '@/components/UserIdentity.vue'
-import { deleteComment, type ProgressItem } from '@/lib/api'
+import { FileText, MessageSquare, Trash2, X } from "@lucide/vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+
+import ConfirmAction from "@/components/ConfirmAction.vue";
+import DescriptionDiff from "@/components/DescriptionDiff.vue";
+import ImageGallery from "@/components/ImageGallery.vue";
+import PreviewImage from "@/components/PreviewImage.vue";
+import UserIdentity from "@/components/UserIdentity.vue";
+import type { ProgressItem } from "@/lib/api";
+import { deleteComment } from "@/lib/api";
 import {
   errorMessage,
   formatDateTime,
   linkify,
   reactionEmoji,
   reactionKeys,
-} from '@/lib/utils'
-
-const props = defineProps<{
-  item: ProgressItem
-  nodeTitle: string
-  busy: boolean
-}>()
+} from "@/lib/utils";
 
 const emit = defineEmits<{
-  close: []
-  reaction: [commentId: number, emoji: string]
-  deleted: [commentId: number]
-}>()
+  close: [];
+  reaction: [commentId: number, emoji: string];
+  deleted: [commentId: number];
+}>();
 
-const deleteOpen = ref(false)
-const deleting = ref(false)
-const deleteError = ref<string | null>(null)
+const props = defineProps<{
+  item: ProgressItem;
+  nodeTitle: string;
+  busy: boolean;
+}>();
+
+const deleteOpen = ref(false);
+const deleting = ref(false);
+const deleteError = ref<string | null>(null);
 
 const comment = computed(() =>
-  props.item.kind === 'comment' ? props.item.comment : null,
-)
+  props.item.kind === "comment" ? props.item.comment : null,
+);
 const change = computed(() =>
-  props.item.kind === 'description_change'
+  props.item.kind === "description_change"
     ? props.item.descriptionChange
     : null,
-)
-const author = computed(() => comment.value?.author ?? change.value?.author)
+);
+const author = computed(() => comment.value?.author ?? change.value?.author);
 const createdAt = computed(
-  () => comment.value?.createdAt ?? change.value?.createdAt ?? '',
-)
-const commentSegments = computed(() => linkify(comment.value?.body ?? ''))
+  () => comment.value?.createdAt ?? change.value?.createdAt ?? "",
+);
+const commentSegments = computed(() => linkify(comment.value?.body ?? ""));
 const changeAction = computed(() => {
-  if (!change.value) return ''
-  if (!change.value.before) return '添加了节点描述'
-  if (!change.value.after) return '清空了节点描述'
-  return '修改了节点描述'
-})
+  if (!change.value) {
+    return "";
+  }
+  if (!change.value.before) {
+    return "添加了节点描述";
+  }
+  if (!change.value.after) {
+    return "清空了节点描述";
+  }
+
+  return "修改了节点描述";
+});
 
 function askDelete() {
-  deleteError.value = null
-  deleteOpen.value = true
+  deleteError.value = null;
+  deleteOpen.value = true;
 }
 
 async function confirmDelete() {
-  if (!comment.value || deleting.value) return
-  deleting.value = true
-  deleteError.value = null
+  if (!comment.value || deleting.value) {
+    return;
+  }
+  deleting.value = true;
+  deleteError.value = null;
   try {
-    await deleteComment(comment.value.id)
-    deleteOpen.value = false
-    emit('deleted', comment.value.id)
+    await deleteComment(comment.value.id);
+    deleteOpen.value = false;
+    emit("deleted", comment.value.id);
   } catch (err) {
-    deleteError.value = errorMessage(err, '删除进展失败')
+    deleteError.value = errorMessage(err, "删除进展失败");
   } finally {
-    deleting.value = false
+    deleting.value = false;
   }
 }
 
 function onKeydown(event: KeyboardEvent) {
   if (
-    event.key !== 'Escape' ||
+    event.key !== "Escape" ||
     event.defaultPrevented ||
     deleteOpen.value ||
-    document.querySelector('.n-modal-container, .n-image-preview-container')
+    document.querySelector(".n-modal-container, .n-image-preview-container")
   ) {
-    return
+    return;
   }
-  emit('close')
+  emit("close");
 }
 
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+onMounted(() => window.addEventListener("keydown", onKeydown));
+onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 </script>
 
 <template>
   <div class="progress-detail-backdrop" @click.self="emit('close')">
     <article
+      aria-labelledby="progress-detail-title"
+      aria-modal="true"
       class="progress-detail"
       data-graph-progress-detail
       role="dialog"
-      aria-modal="true"
-      aria-labelledby="progress-detail-title"
     >
       <header class="progress-detail-header">
-        <span class="progress-detail-mark" aria-hidden="true">
+        <span aria-hidden="true" class="progress-detail-mark">
           <MessageSquare v-if="comment" :size="17" />
           <FileText v-else :size="17" />
         </span>
         <div>
           <span class="progress-detail-kicker">
-            {{ comment ? '进展' : '描述变更' }}
+            {{ comment ? "进展" : "描述变更" }}
           </span>
           <strong id="progress-detail-title">{{ nodeTitle }}</strong>
         </div>
         <button
-          type="button"
-          class="progress-detail-close"
           aria-label="关闭进展详情"
+          class="progress-detail-close"
+          type="button"
           @click="emit('close')"
         >
           <X :size="17" />
@@ -118,19 +129,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       </header>
 
       <div class="progress-detail-meta">
-        <UserIdentity v-if="author" :user="author" :size="24" show-position />
+        <UserIdentity v-if="author" show-position :size="24" :user="author" />
         <div class="progress-detail-meta-right">
           <time :datetime="createdAt" :title="formatDateTime(createdAt)">
             {{ formatDateTime(createdAt) }}
           </time>
           <button
             v-if="comment?.canDelete"
-            type="button"
             class="progress-detail-delete"
             :disabled="busy || deleting"
+            type="button"
             @click="askDelete"
           >
-            <Trash2 :size="14" aria-hidden="true" />
+            <Trash2 aria-hidden="true" :size="14" />
             <span>删除</span>
           </button>
         </div>
@@ -139,36 +150,39 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       <div class="progress-detail-body">
         <template v-if="comment">
           <p v-if="comment.body.trim()">
-            <template
-              v-for="(segment, index) in commentSegments"
-              :key="index"
-              ><a
+            <template v-for="(segment, index) in commentSegments" :key="index">
+              <a
                 v-if="segment.type === 'link'"
                 :href="segment.href"
-                target="_blank"
                 rel="noopener noreferrer"
-                >{{ segment.value }}</a
-              ><template v-else>{{ segment.value }}</template></template
-            >
+                target="_blank"
+              >
+                {{ segment.value }}
+              </a>
+              <template v-else>{{ segment.value }}</template>
+            </template>
           </p>
-          <p v-else-if="!comment.attachments.length" class="progress-detail-empty">
+          <p
+            v-else-if="comment.attachments.length === 0"
+            class="progress-detail-empty"
+          >
             无正文
           </p>
 
           <ImageGallery
-            v-if="comment.attachments.length"
+            v-if="comment.attachments.length > 0"
             class="progress-detail-gallery"
           >
             <div class="progress-detail-images">
               <PreviewImage
                 v-for="(image, index) in comment.attachments"
                 :key="image.id"
-                :src="image.url"
                 :alt="`进展图片 ${index + 1}`"
-                :width="132"
+                class="progress-detail-image"
                 :height="100"
                 lazy
-                class="progress-detail-image"
+                :src="image.url"
+                :width="132"
               />
             </div>
           </ImageGallery>
@@ -177,8 +191,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <template v-else-if="change">
           <p class="progress-change-action">{{ changeAction }}</p>
           <DescriptionDiff
-            :before="change.before"
             :after="change.after"
+            :before="change.before"
             class="progress-change-diff"
           />
         </template>
@@ -189,14 +203,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <button
           v-for="emoji in reactionKeys"
           :key="emoji"
-          type="button"
+          :aria-label="reactionEmoji[emoji]?.label"
           :class="{
             active: comment.reactions.some(
               (reaction) => reaction.emoji === emoji && reaction.reactedByMe,
             ),
           }"
           :disabled="busy"
-          :aria-label="reactionEmoji[emoji]?.label"
+          type="button"
           @click="emit('reaction', comment.id, emoji)"
         >
           {{ reactionEmoji[emoji]?.symbol }}
@@ -211,13 +225,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
     </article>
 
     <ConfirmAction
+      :busy="deleting"
+      confirm-text="删除进展"
+      :error="deleteError"
       :open="deleteOpen"
       title="删除进展"
-      confirm-text="删除进展"
-      :busy="deleting"
-      :error="deleteError"
-      @confirm="confirmDelete"
       @close="deleteOpen = false"
+      @confirm="confirmDelete"
     >
       <p>图片附件也会一并删除，操作不可撤销。</p>
       <p v-if="comment?.body" class="delete-preview">

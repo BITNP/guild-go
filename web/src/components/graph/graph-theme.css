@@ -1,8 +1,16 @@
 [data-graph-theme] {
   --graph-bg: #070a0d;
   --graph-horizon-bg:
-    radial-gradient(circle at 72% 24%, rgba(232, 170, 58, 0.14), transparent 28%),
-    radial-gradient(circle at 46% 48%, rgba(77, 167, 169, 0.08), transparent 38%);
+    radial-gradient(
+      circle at 72% 24%,
+      rgba(232, 170, 58, 0.14),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 46% 48%,
+      rgba(77, 167, 169, 0.08),
+      transparent 38%
+    );
   --graph-horizon-blend: screen;
   --graph-vignette-opacity: 1;
 
@@ -12,8 +20,7 @@
     linear-gradient(135deg, rgba(238, 181, 73, 0.2), transparent 62%),
     rgba(10, 17, 20, 0.88);
   --graph-title-mark-shadow:
-    inset 0 0 18px rgba(237, 180, 72, 0.08),
-    0 0 24px rgba(237, 180, 72, 0.08);
+    inset 0 0 18px rgba(237, 180, 72, 0.08), 0 0 24px rgba(237, 180, 72, 0.08);
   --graph-title-mark-color: #f0bd57;
   --graph-heading-color: #f1ede2;
   --graph-status-color: #9cafb6;
@@ -24,8 +31,7 @@
   --graph-toolbar-btn-bg: rgba(8, 14, 17, 0.78);
   --graph-toolbar-btn-color: #e6c37b;
   --graph-toolbar-btn-shadow:
-    inset 0 0 16px rgba(225, 173, 70, 0.04),
-    0 8px 24px rgba(0, 0, 0, 0.2);
+    inset 0 0 16px rgba(225, 173, 70, 0.04), 0 8px 24px rgba(0, 0, 0, 0.2);
   --graph-toolbar-btn-hover-border: rgba(242, 190, 83, 0.8);
   --graph-toolbar-btn-hover-bg: rgba(25, 27, 20, 0.9);
   --graph-toolbar-btn-hover-color: #fff3d1;
@@ -43,8 +49,7 @@
     linear-gradient(155deg, rgba(25, 24, 17, 0.9), transparent 34%),
     linear-gradient(180deg, rgba(10, 17, 20, 0.97), rgba(5, 10, 13, 0.98));
   --graph-panel-shadow:
-    -24px 0 70px rgba(0, 0, 0, 0.42),
-    inset 0 0 50px rgba(225, 173, 70, 0.025);
+    -24px 0 70px rgba(0, 0, 0, 0.42), inset 0 0 50px rgba(225, 173, 70, 0.025);
   --graph-panel-text: #d9e1e1;
   --graph-panel-header-bg: rgba(8, 14, 17, 0.58);
   --graph-panel-divider: rgba(139, 164, 169, 0.16);
@@ -124,8 +129,7 @@
     linear-gradient(135deg, rgba(232, 181, 75, 0.09), transparent 32%),
     linear-gradient(180deg, rgba(9, 17, 20, 0.98), rgba(4, 10, 13, 0.99));
   --graph-detail-shadow:
-    0 30px 90px rgba(0, 0, 0, 0.6),
-    inset 0 0 44px rgba(77, 177, 175, 0.025);
+    0 30px 90px rgba(0, 0, 0, 0.6), inset 0 0 44px rgba(77, 177, 175, 0.025);
   --graph-detail-text: #e7eeeb;
   --graph-detail-mark-border: rgba(231, 181, 76, 0.44);
   --graph-detail-mark-color: #edc469;
@@ -149,8 +153,7 @@
     linear-gradient(135deg, rgba(232, 181, 75, 0.1), transparent 34%),
     linear-gradient(180deg, rgba(9, 17, 20, 0.94), rgba(5, 11, 14, 0.97));
   --graph-composer-shadow:
-    0 26px 70px rgba(0, 0, 0, 0.48),
-    inset 0 0 38px rgba(81, 178, 176, 0.025);
+    0 26px 70px rgba(0, 0, 0, 0.48), inset 0 0 38px rgba(81, 178, 176, 0.025);
   --graph-composer-text: #dce5e4;
   --graph-composer-input-border: rgba(108, 148, 155, 0.34);
   --graph-composer-input-bg:
@@ -183,11 +186,19 @@
   --graph-drop-color: #f5d28b;
 }
 
-[data-graph-theme='light'] {
+[data-graph-theme="light"] {
   --graph-bg: #eef3f5;
   --graph-horizon-bg:
-    radial-gradient(circle at 72% 24%, rgba(188, 126, 24, 0.12), transparent 30%),
-    radial-gradient(circle at 46% 48%, rgba(44, 132, 137, 0.09), transparent 40%);
+    radial-gradient(
+      circle at 72% 24%,
+      rgba(188, 126, 24, 0.12),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 46% 48%,
+      rgba(44, 132, 137, 0.09),
+      transparent 40%
+    );
   --graph-horizon-blend: multiply;
   --graph-vignette-opacity: 0;
 
@@ -197,8 +208,7 @@
     linear-gradient(135deg, rgba(192, 133, 40, 0.15), transparent 62%),
     rgba(255, 255, 255, 0.88);
   --graph-title-mark-shadow:
-    inset 0 0 18px rgba(173, 113, 22, 0.06),
-    0 0 24px rgba(173, 113, 22, 0.08);
+    inset 0 0 18px rgba(173, 113, 22, 0.06), 0 0 24px rgba(173, 113, 22, 0.08);
   --graph-title-mark-color: #9d6411;
   --graph-heading-color: #1c2932;
   --graph-status-color: #637784;
@@ -209,8 +219,7 @@
   --graph-toolbar-btn-bg: rgba(255, 255, 255, 0.8);
   --graph-toolbar-btn-color: #8c5b12;
   --graph-toolbar-btn-shadow:
-    inset 0 0 16px rgba(225, 173, 70, 0.04),
-    0 8px 24px rgba(40, 52, 61, 0.1);
+    inset 0 0 16px rgba(225, 173, 70, 0.04), 0 8px 24px rgba(40, 52, 61, 0.1);
   --graph-toolbar-btn-hover-border: rgba(142, 89, 10, 0.62);
   --graph-toolbar-btn-hover-bg: rgba(255, 250, 239, 0.96);
   --graph-toolbar-btn-hover-color: #734707;
@@ -226,10 +235,13 @@
   --graph-panel-border: rgba(157, 105, 25, 0.28);
   --graph-panel-bg:
     linear-gradient(155deg, rgba(255, 249, 235, 0.92), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(246, 249, 250, 0.98));
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.97),
+      rgba(246, 249, 250, 0.98)
+    );
   --graph-panel-shadow:
-    -24px 0 70px rgba(51, 66, 75, 0.16),
-    inset 0 0 50px rgba(167, 107, 17, 0.02);
+    -24px 0 70px rgba(51, 66, 75, 0.16), inset 0 0 50px rgba(167, 107, 17, 0.02);
   --graph-panel-text: #263640;
   --graph-panel-header-bg: rgba(255, 255, 255, 0.62);
   --graph-panel-divider: rgba(81, 105, 116, 0.15);
@@ -307,10 +319,13 @@
   --graph-detail-edge: rgba(151, 94, 12, 0.62);
   --graph-detail-bg:
     linear-gradient(135deg, rgba(193, 128, 29, 0.07), transparent 32%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(245, 248, 249, 0.99));
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.99),
+      rgba(245, 248, 249, 0.99)
+    );
   --graph-detail-shadow:
-    0 30px 90px rgba(45, 60, 69, 0.24),
-    inset 0 0 44px rgba(55, 137, 135, 0.02);
+    0 30px 90px rgba(45, 60, 69, 0.24), inset 0 0 44px rgba(55, 137, 135, 0.02);
   --graph-detail-text: #273740;
   --graph-detail-mark-border: rgba(153, 99, 16, 0.36);
   --graph-detail-mark-color: #8b5a10;
@@ -332,10 +347,13 @@
 
   --graph-composer-bg:
     linear-gradient(135deg, rgba(193, 128, 29, 0.08), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(246, 249, 250, 0.98));
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.97),
+      rgba(246, 249, 250, 0.98)
+    );
   --graph-composer-shadow:
-    0 26px 70px rgba(48, 63, 72, 0.2),
-    inset 0 0 38px rgba(55, 137, 135, 0.02);
+    0 26px 70px rgba(48, 63, 72, 0.2), inset 0 0 38px rgba(55, 137, 135, 0.02);
   --graph-composer-text: #2a3942;
   --graph-composer-input-border: rgba(79, 108, 120, 0.28);
   --graph-composer-input-bg:

@@ -1,20 +1,21 @@
 <script setup lang="ts">
-import { Pencil } from '@lucide/vue'
-import UserIdentity from '@/components/UserIdentity.vue'
-import type { NodeDetail } from '@/lib/api'
+import { Pencil } from "@lucide/vue";
 
-defineProps<{ detail: NodeDetail }>()
-const emit = defineEmits<{ manage: [] }>()
+import UserIdentity from "@/components/UserIdentity.vue";
+import type { NodeDetail } from "@/lib/api";
+
+const emit = defineEmits<{ manage: [] }>();
+defineProps<{ detail: NodeDetail }>();
 </script>
 
 <template>
-  <section class="panel-section" aria-labelledby="panel-people-title">
+  <section aria-labelledby="panel-people-title" class="panel-section">
     <div class="people-heading">
       <h3 id="panel-people-title">参与人员</h3>
       <button
         v-if="detail.permissions.canManageMembers"
-        type="button"
         class="panel-edit-button"
+        type="button"
         @click="emit('manage')"
       >
         <Pencil :size="12" />
@@ -24,9 +25,9 @@ const emit = defineEmits<{ manage: [] }>()
 
     <div class="people-group">
       <h4>直接负责人</h4>
-      <ul v-if="detail.directLeaders.length" class="people-list">
+      <ul v-if="detail.directLeaders.length > 0" class="people-list">
         <li v-for="person in detail.directLeaders" :key="person.subject">
-          <UserIdentity :user="person" :size="24" />
+          <UserIdentity :size="24" :user="person" />
         </li>
       </ul>
       <p v-else class="panel-empty-copy">暂无直接负责人</p>
@@ -34,9 +35,9 @@ const emit = defineEmits<{ manage: [] }>()
 
     <div class="people-group">
       <h4>直接成员</h4>
-      <ul v-if="detail.directMembers.length" class="people-list">
+      <ul v-if="detail.directMembers.length > 0" class="people-list">
         <li v-for="person in detail.directMembers" :key="person.subject">
-          <UserIdentity :user="person" :size="24" />
+          <UserIdentity :size="24" :user="person" />
         </li>
       </ul>
       <p v-else class="panel-empty-copy">暂无直接成员</p>

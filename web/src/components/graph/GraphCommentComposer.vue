@@ -1,27 +1,23 @@
 <script setup lang="ts">
-import { ref, useId } from 'vue'
-import {
-  ImagePlus,
-  Loader2,
-  RotateCcw,
-  Send,
-  X,
-} from '@lucide/vue'
-import { useCommentComposer } from '@/composables/useCommentComposer'
+import { ImagePlus, Loader2, RotateCcw, Send, X } from "@lucide/vue";
+import { ref, useId } from "vue";
+
+import { useCommentComposer } from "@/composables/useCommentComposer";
 import {
   COMMENT_IMAGE_ACCEPT,
   COMMENT_IMAGE_LIMIT,
-} from '@/composables/useCommentImageDrafts'
-import type { Comment } from '@/lib/api'
+} from "@/composables/useCommentImageDrafts";
+import type { Comment } from "@/lib/api";
+
+const emit = defineEmits<{ created: [comment: Comment] }>();
 
 const props = defineProps<{
-  nodeId: number
-}>()
+  nodeId: number;
+}>();
 
-const emit = defineEmits<{ created: [comment: Comment] }>()
-const fileInput = ref<HTMLInputElement | null>(null)
-const textarea = ref<HTMLTextAreaElement | null>(null)
-const bodyId = useId()
+const fileInput = ref<HTMLInputElement | null>(null);
+const textarea = ref<HTMLTextAreaElement | null>(null);
+const bodyId = useId();
 const {
   body,
   submitting,
@@ -39,92 +35,96 @@ const {
   dropFiles,
   submit,
 } = useCommentComposer(() => props.nodeId, {
-  emptyMessage: '写下一步进展或添加一张图片',
-  submitErrorFallback: '进展发送失败，请重试',
-  onCreated: (comment) => emit('created', comment),
-})
+  emptyMessage: "写下一步进展或添加一张图片",
+  submitErrorFallback: "进展发送失败，请重试",
+  onCreated: (comment) => emit("created", comment),
+});
 
 function shortcut(event: KeyboardEvent) {
   if (
-    event.key !== 'Enter' ||
-    !(event.ctrlKey || event.metaKey) ||
+    event.key !== "Enter" ||
+    (!event.ctrlKey && !event.metaKey) ||
     event.isComposing ||
     event.keyCode === 229
   ) {
-    return
+    return;
   }
-  event.preventDefault()
-  void submit()
+  event.preventDefault();
+  void submit();
 }
 
 function focusComposer(event: PointerEvent) {
-  event.stopPropagation()
-  const target = event.target
-  if (target instanceof HTMLTextAreaElement) return
-  if (target instanceof Element && target.closest('button, input')) return
-  event.preventDefault()
-  textarea.value?.focus({ preventScroll: true })
+  event.stopPropagation();
+  const target = event.target;
+  if (target instanceof HTMLTextAreaElement) {
+    return;
+  }
+  if (target instanceof Element && target.closest("button, input")) {
+    return;
+  }
+  event.preventDefault();
+  textarea.value?.focus({ preventScroll: true });
 }
 </script>
 
 <template>
   <section
+    aria-label="输入进展"
     class="graph-comment-composer"
     data-graph-comment-composer
-    aria-label="输入进展"
-    @pointerdown.capture="focusComposer"
-    @pointermove.stop
-    @pointerup.stop
     @click.stop
     @dblclick.stop
     @dragenter="dragEnter"
-    @dragover="dragOver"
     @dragleave="dragLeave"
+    @dragover="dragOver"
     @drop="dropFiles"
+    @pointerdown.capture="focusComposer"
+    @pointermove.stop
+    @pointerup.stop
   >
     <textarea
+      v-model="body"
       ref="textarea"
       :id="bodyId"
-      v-model="body"
-      class="composer-input"
-      :class="{ 'has-images': images.length > 0 }"
-      rows="2"
-      maxlength="5000"
-      :disabled="submitting"
       :aria-invalid="!!error"
       aria-label="请输入进展"
+      class="composer-input"
+      :class="{ 'has-images': images.length > 0 }"
+      :disabled="submitting"
+      maxlength="5000"
       placeholder="输入进展，可粘贴或拖拽图片（Ctrl / ⌘ + Enter 发布）"
+      rows="2"
       @keydown="shortcut"
       @paste="pasteImages"
     />
 
-    <div v-if="images.length" class="composer-images" aria-live="polite">
+    <div v-if="images.length > 0" aria-live="polite" class="composer-images">
       <div v-for="image in images" :key="image.src" class="image-slot">
-        <img :src="image.src" :alt="image.file.name" />
+        <img :alt="image.file.name" :src="image.src" />
         <div
           v-if="image.status.state === 'uploading'"
+          :aria-label="`正在上传：${image.file.name}`"
           class="image-overlay"
           role="progressbar"
-          :aria-label="`正在上传：${image.file.name}`"
         >
-          <Loader2 :size="18" class="spin" />
+          <Loader2 class="spin" :size="18" />
         </div>
         <button
           v-else-if="image.status.state === 'failed'"
-          type="button"
-          class="image-overlay image-retry"
           :aria-label="`重试上传：${image.file.name}`"
+          class="image-overlay image-retry"
           :title="image.status.message"
+          type="button"
           @click="retry(image)"
         >
           <RotateCcw :size="16" />
         </button>
         <button
           v-if="image.status.state !== 'uploading'"
-          type="button"
-          class="image-remove"
           :aria-label="`移除图片：${image.file.name}`"
+          class="image-remove"
           :disabled="submitting"
+          type="button"
           @click="remove(image)"
         >
           <X :size="14" />
@@ -134,43 +134,45 @@ function focusComposer(event: PointerEvent) {
 
     <div class="composer-actions">
       <button
-        type="button"
+        aria-label="添加图片，也可粘贴或拖拽图片"
         class="attach-button"
         :disabled="submitting || images.length >= COMMENT_IMAGE_LIMIT"
-        aria-label="添加图片，也可粘贴或拖拽图片"
         title="添加图片，也可粘贴或拖拽"
+        type="button"
         @click="fileInput?.click()"
       >
-        <ImagePlus :size="20" aria-hidden="true" />
+        <ImagePlus aria-hidden="true" :size="20" />
         <span>添加图片 {{ images.length }}/{{ COMMENT_IMAGE_LIMIT }}</span>
       </button>
       <button
-        type="button"
-        class="send-button"
-        :disabled="submitting || pending || (!body.trim() && !images.length)"
         :aria-label="
           submitting ? '正在发送进展' : pending ? '正在上传图片' : '发布进展'
+        "
+        class="send-button"
+        :disabled="
+          submitting || pending || (!body.trim() && images.length === 0)
         "
         :title="
           submitting ? '正在发送进展' : pending ? '正在上传图片' : '发布进展'
         "
+        type="button"
         @click="submit"
       >
-        <Loader2 v-if="submitting" :size="20" class="spin" aria-hidden="true" />
-        <Send v-else :size="20" aria-hidden="true" />
-        <span>{{ submitting ? '发送中…' : '发布' }}</span>
+        <Loader2 v-if="submitting" aria-hidden="true" class="spin" :size="20" />
+        <Send v-else aria-hidden="true" :size="20" />
+        <span>{{ submitting ? "发送中…" : "发布" }}</span>
       </button>
     </div>
 
     <input
       ref="fileInput"
-      type="file"
       :accept="COMMENT_IMAGE_ACCEPT"
-      multiple
       class="file-input"
+      multiple
+      type="file"
       @change="selectFiles"
     />
-    <div v-if="dragging" class="drop-hint" aria-hidden="true">
+    <div v-if="dragging" aria-hidden="true" class="drop-hint">
       <ImagePlus :size="20" />
       <span>松开以添加图片</span>
     </div>

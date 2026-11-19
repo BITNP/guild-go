@@ -1,47 +1,54 @@
-import { ref } from 'vue'
-import {
-  fetchProgress,
-  type Comment,
-  type ProgressCursor,
-  type ProgressItem,
-  type Reaction,
-} from '@/lib/api'
-import { errorMessage, progressKey } from '@/lib/utils'
+import { ref } from "vue";
+
+import type {
+  Comment,
+  ProgressCursor,
+  ProgressItem,
+  Reaction,
+} from "@/lib/api";
+import { fetchProgress } from "@/lib/api";
+import { errorMessage, progressKey } from "@/lib/utils";
 
 export function useGraphProgress() {
-  const items = ref<ProgressItem[]>([])
-  const loading = ref(false)
-  const loadingOlder = ref(false)
-  const hasMore = ref(false)
-  const error = ref<string | null>(null)
-  let nextBefore: ProgressCursor | null = null
-  let generation = 0
-  let nodeId: number | null = null
+  const items = ref<ProgressItem[]>([]);
+  const loading = ref(false);
+  const loadingOlder = ref(false);
+  const hasMore = ref(false);
+  const error = ref<string | null>(null);
+  let nextBefore: ProgressCursor | null = null;
+  let generation = 0;
+  let nodeId: number | null = null;
 
   async function load(id: number) {
-    const current = ++generation
-    nodeId = id
-    items.value = []
-    loading.value = true
-    loadingOlder.value = false
-    hasMore.value = false
-    error.value = null
-    nextBefore = null
+    const current = ++generation;
+    nodeId = id;
+    items.value = [];
+    loading.value = true;
+    loadingOlder.value = false;
+    hasMore.value = false;
+    error.value = null;
+    nextBefore = null;
     try {
-      const page = await fetchProgress(id)
-      if (current !== generation) return
-      const fetched = [...page.items].reverse()
-      const fetchedKeys = new Set(fetched.map(progressKey))
+      const page = await fetchProgress(id);
+      if (current !== generation) {
+        return;
+      }
+      const fetched = [...page.items].reverse();
+      const fetchedKeys = new Set(fetched.map(progressKey));
       const locallyAdded = items.value.filter(
         (item) => !fetchedKeys.has(progressKey(item)),
-      )
-      items.value = [...fetched, ...locallyAdded]
-      hasMore.value = page.hasMore
-      nextBefore = page.nextBefore
+      );
+      items.value = [...fetched, ...locallyAdded];
+      hasMore.value = page.hasMore;
+      nextBefore = page.nextBefore;
     } catch (err) {
-      if (current === generation) error.value = errorMessage(err, '无法加载节点进展')
+      if (current === generation) {
+        error.value = errorMessage(err, "无法加载节点进展");
+      }
     } finally {
-      if (current === generation) loading.value = false
+      if (current === generation) {
+        loading.value = false;
+      }
     }
   }
 
@@ -52,54 +59,62 @@ export function useGraphProgress() {
       !hasMore.value ||
       nextBefore == null
     ) {
-      return
+      return;
     }
-    const current = generation
-    loadingOlder.value = true
-    error.value = null
+    const current = generation;
+    loadingOlder.value = true;
+    error.value = null;
     try {
-      const page = await fetchProgress(nodeId, nextBefore)
-      if (current !== generation) return
-      items.value = [...page.items].reverse().concat(items.value)
-      hasMore.value = page.hasMore
-      nextBefore = page.nextBefore
+      const page = await fetchProgress(nodeId, nextBefore);
+      if (current !== generation) {
+        return;
+      }
+      items.value = [...[...page.items].reverse(), ...items.value];
+      hasMore.value = page.hasMore;
+      nextBefore = page.nextBefore;
     } catch (err) {
       if (current === generation) {
-        error.value = errorMessage(err, '无法加载更早的进展')
+        error.value = errorMessage(err, "无法加载更早的进展");
       }
     } finally {
-      if (current === generation) loadingOlder.value = false
+      if (current === generation) {
+        loadingOlder.value = false;
+      }
     }
   }
 
   function add(comment: Comment) {
-    if (nodeId !== comment.nodeId) return
-    const key = `comment:${comment.id}`
-    if (items.value.some((item) => progressKey(item) === key)) return
-    items.value = [...items.value, { kind: 'comment', comment }]
+    if (nodeId !== comment.nodeId) {
+      return;
+    }
+    const key = `comment:${comment.id}`;
+    if (items.value.some((item) => progressKey(item) === key)) {
+      return;
+    }
+    items.value = [...items.value, { kind: "comment", comment }];
   }
 
   function updateReactions(commentId: number, reactions: Reaction[]) {
     items.value = items.value.map((item) =>
-      item.kind === 'comment' && item.comment.id === commentId
+      item.kind === "comment" && item.comment.id === commentId
         ? { ...item, comment: { ...item.comment, reactions } }
         : item,
-    )
+    );
   }
 
   function removeProgress(key: string) {
-    items.value = items.value.filter((item) => progressKey(item) !== key)
+    items.value = items.value.filter((item) => progressKey(item) !== key);
   }
 
   function clear() {
-    generation++
-    nodeId = null
-    items.value = []
-    loading.value = false
-    loadingOlder.value = false
-    hasMore.value = false
-    nextBefore = null
-    error.value = null
+    generation++;
+    nodeId = null;
+    items.value = [];
+    loading.value = false;
+    loadingOlder.value = false;
+    hasMore.value = false;
+    nextBefore = null;
+    error.value = null;
   }
 
   return {
@@ -114,5 +129,5 @@ export function useGraphProgress() {
     updateReactions,
     removeProgress,
     clear,
-  }
+  };
 }
