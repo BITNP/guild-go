@@ -33,26 +33,24 @@ cp .env.example .env
 
 关键项：
 
-| 变量 | 说明 |
-| --- | --- |
-| `APP_PUBLIC_URL` | 对外 HTTPS 源，例如 `https://guild.example.com` |
-| `APP_SECURE_COOKIE` | 生产为 `true` |
-| `APP_SESSION_TIMEOUT` | 会话空闲超时，默认 `24h` |
-| `DATABASE_URL` | PostgreSQL DSN |
-| `OIDC_ISSUER` | Keycloak realm issuer |
-| `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | confidential client |
-| `KEYCLOAK_ADMIN_*` | 只读 Admin API，用于显示其他用户姓名/头像/职务；可留空 |
-| `S3_ENDPOINT` / `S3_BUCKET` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` | 只保留这 4 个 S3 变量 |
+| 变量                                                            | 说明                                                   |
+| --------------------------------------------------------------- | ------------------------------------------------------ |
+| `APP_PUBLIC_URL`                                                | 对外 HTTPS 源，例如 `https://guild.example.com`        |
+| `APP_SECURE_COOKIE`                                             | 生产为 `true`                                          |
+| `APP_SESSION_TIMEOUT`                                           | 会话空闲超时，默认 `24h`                               |
+| `DATABASE_URL`                                                  | PostgreSQL DSN                                         |
+| `OIDC_ISSUER`                                                   | Keycloak realm issuer                                  |
+| `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET`                         | confidential client                                    |
+| `KEYCLOAK_ADMIN_*`                                              | 只读 Admin API，用于显示其他用户姓名/头像/职务；可留空 |
+| `S3_ENDPOINT` / `S3_BUCKET` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` | 只保留这 4 个 S3 变量                                  |
 
 S3 的 region 固定为 `us-east-1`，path-style 固定开启；附件大小 5MB、每条评论最多 4 张，这些是代码常量，不通过环境变量配置。
 
 ### 2. 构建前端并启动
 
 ```bash
-cd web
 pnpm install --frozen-lockfile
 pnpm build
-cd ..
 go run ./cmd/guild
 ```
 
@@ -67,7 +65,6 @@ go run ./cmd/guild
 go run ./cmd/guild
 
 # 终端 2
-cd web
 pnpm dev
 ```
 
@@ -121,7 +118,7 @@ third_party/bitnp-authz/  内嵌的 bitnp-authz Go 源码快照
 doc/API.md              API 契约
 ```
 
-没有 pnpm workspace，也没有把前端作为独立发布物；前端源码在 `web/`，Vite 输出到 `internal/web/dist`，Go 二进制嵌入后单进程提供。
+根目录通过 pnpm workspace 统一管理前端依赖与代码检查，前端不作为独立发布物；前端源码在 `web/`，Vite 输出到 `internal/web/dist`，Go 二进制嵌入后单进程提供。
 
 ## 权限模型
 
@@ -144,17 +141,17 @@ E_member(n) = union D_member(d) for d in S(n) ∪ E_leader(n)
 - **祖先负责人可在后代评论**；父节点普通成员不能评论未加入的子节点。
 - 只保存直接关系，不写冗余继承表。保存成员时保留未变化的成员行，删除移除项，仅重建角色发生变化的关系并插入新增项。`node_members.created_at` 表示当前角色关系的建立时间，原样保存时保持不变。通知消费者可直接按该字段读取时间窗口，无须修改 schema、保存成员快照或事件表。
 
-| 操作 | 条件 |
-| --- | --- |
-| 查看节点/评论/附件 | 任意准入成员 |
-| 加/取消表情 | 任意准入成员 |
-| 创建根节点、根排序 | manager（任一部门 admin）或系统管理员 |
-| 创建子节点 | 父节点有效负责人或系统管理员 |
-| 编辑/完成/标签/预期完成时间 | 节点有效负责人或系统管理员 |
-| 删除节点、管理成员、子节点排序 | 节点有效负责人或系统管理员 |
-| 移动节点 | 源节点和目标父节点的有效负责人，或系统管理员；提升为根节点还需 manager 权限 |
-| 发表评论 | 节点有效成员或系统管理员 |
-| 删除评论 | 评论作者或系统管理员 |
+| 操作                           | 条件                                                                        |
+| ------------------------------ | --------------------------------------------------------------------------- |
+| 查看节点/评论/附件             | 任意准入成员                                                                |
+| 加/取消表情                    | 任意准入成员                                                                |
+| 创建根节点、根排序             | manager（任一部门 admin）或系统管理员                                       |
+| 创建子节点                     | 父节点有效负责人或系统管理员                                                |
+| 编辑/完成/标签/预期完成时间    | 节点有效负责人或系统管理员                                                  |
+| 删除节点、管理成员、子节点排序 | 节点有效负责人或系统管理员                                                  |
+| 移动节点                       | 源节点和目标父节点的有效负责人，或系统管理员；提升为根节点还需 manager 权限 |
+| 发表评论                       | 节点有效成员或系统管理员                                                    |
+| 删除评论                       | 评论作者或系统管理员                                                        |
 
 创建节点时可以指定负责人/成员；未指定负责人时创建者自动成为直接负责人。每节点至少保留一个直接负责人，负责人和成员不能重叠。系统管理员可直接评论，但不会自动计入有效成员。
 

@@ -15,8 +15,6 @@ import (
 	authz "git.bitnp.net/BITNP/bitnp-authz"
 	"git.bitnp.net/BITNP/guild-go/internal/apperr"
 	"git.bitnp.net/BITNP/guild-go/internal/auth"
-	"git.bitnp.net/BITNP/guild-go/internal/config"
-	"git.bitnp.net/BITNP/guild-go/internal/httpapi"
 	"git.bitnp.net/BITNP/guild-go/internal/nodes"
 )
 
@@ -290,7 +288,7 @@ func TestMoveHTTPRequiresExplicitDestinationAndCSRF(t *testing.T) {
 	if err := authService.EnableDevAuthBypass("admin", "Admin"); err != nil {
 		t.Fatal(err)
 	}
-	handler := httpapi.New(config.Config{}, f.pool, authService, f.users, f.nodes, f.comments, f.store).Handler()
+	handler := f.httpHandler(authService)
 	csrfResponse := httptest.NewRecorder()
 	handler.ServeHTTP(csrfResponse, httptest.NewRequest(http.MethodGet, "/api/auth/csrf", nil))
 	var csrf struct{ Token string }

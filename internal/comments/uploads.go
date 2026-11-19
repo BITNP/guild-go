@@ -34,7 +34,7 @@ func (s *Service) UploadImage(ctx context.Context, session auth.Session, nodeID 
 	}
 	id, err := s.repo.AddUpload(ctx, nodeID, session.Subject, key, contentType, int64(len(data)))
 	if err != nil {
-		s.deleteObjects([]string{key})
+		storage.DeleteBestEffort(s.store, []string{key})
 		return 0, err
 	}
 	return id, nil
@@ -49,7 +49,7 @@ func (s *Service) DeleteUpload(ctx context.Context, session auth.Session, id int
 	if err != nil {
 		return err
 	}
-	s.deleteObjects([]string{key})
+	storage.DeleteBestEffort(s.store, []string{key})
 	return nil
 }
 
@@ -64,22 +64,12 @@ func (s *Service) StartUploadCleanup(ctx context.Context) {
 				slog.Warn("clean up unpublished comment images failed", "error", err)
 			}
 		} else {
-			s.deleteObjects(keys)
+			storage.DeleteBestEffort(s.store, keys)
 		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
 		}
-	}
-}
-
-func (s *Service) deleteObjects(keys []string) {
-	for _, key := range keys {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if err := s.store.Delete(ctx, key); err != nil {
-			slog.Warn("delete comment attachment failed", "key", key, "error", err)
-		}
-		cancel()
 	}
 }

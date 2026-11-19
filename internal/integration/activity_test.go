@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"git.bitnp.net/BITNP/guild-go/internal/auth"
-	"git.bitnp.net/BITNP/guild-go/internal/config"
-	"git.bitnp.net/BITNP/guild-go/internal/httpapi"
 	"git.bitnp.net/BITNP/guild-go/internal/nodes"
 )
 
@@ -166,7 +164,7 @@ func TestOverviewActivityHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	publicURL, _ := url.Parse("http://guild.example")
-	handler := httpapi.New(config.Config{}, f.pool, auth.NewService(nil, sessions, nil, publicURL, false, nil), f.users, f.nodes, f.comments, f.store).Handler()
+	handler := f.httpHandler(auth.NewService(nil, sessions, nil, publicURL, false, nil))
 	for _, test := range []struct {
 		query string
 		login bool

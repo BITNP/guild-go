@@ -1,88 +1,103 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { Comment, ProgressItem } from '@/lib/api'
-import type { GraphNeighborhood, GraphNode } from '@/graph/types'
-import { GraphScene } from '@/graph/GraphScene'
-import GraphCommentComposer from '@/components/graph/GraphCommentComposer.vue'
-import type { ThemeMode } from '@/composables/useTheme'
+import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 
-const props = defineProps<{
-  nodes: GraphNode[]
-  focus: GraphNeighborhood | null
-  progress: ProgressItem[]
-  progressLoading: boolean
-  canComment: boolean
-  theme: ThemeMode
-}>()
+import GraphCommentComposer from "@/components/graph/GraphCommentComposer.vue";
+import type { ThemeMode } from "@/composables/useTheme";
+import { GraphScene } from "@/graph/GraphScene";
+import type { GraphNeighborhood, GraphNode } from "@/graph/types";
+import type { Comment, ProgressItem } from "@/lib/api";
 
 const emit = defineEmits<{
-  select: [id: number]
-  blank: []
-  reaction: [commentId: number, emoji: string]
-  commentCreated: [comment: Comment]
-  progressOpen: [key: string]
-  progressEdge: []
-}>()
+  select: [id: number];
+  blank: [];
+  reaction: [commentId: number, emoji: string];
+  commentCreated: [comment: Comment];
+  progressOpen: [key: string];
+  progressEdge: [];
+}>();
 
-const container = ref<HTMLDivElement | null>(null)
-const composer = ref<{ $el: Element } | null>(null)
-const error = ref<string | null>(null)
-let scene: GraphScene | null = null
+const props = defineProps<{
+  nodes: GraphNode[];
+  focus: GraphNeighborhood | null;
+  progress: ProgressItem[];
+  progressLoading: boolean;
+  canComment: boolean;
+  theme: ThemeMode;
+}>();
+
+const container = ref<HTMLDivElement | null>(null);
+const composer = ref<{ $el: Element } | null>(null);
+const error = ref<string | null>(null);
+let scene: GraphScene | null = null;
 
 onMounted(() => {
-  if (!container.value) return
-  try {
-    scene = new GraphScene(container.value, {
-      onSelect: (id) => emit('select', id),
-      onBlank: () => emit('blank'),
-      onReaction: (commentId, emoji) => emit('reaction', commentId, emoji),
-      onProgressOpen: (key) => emit('progressOpen', key),
-      onProgressNeedOlder: () => emit('progressEdge'),
-    }, props.theme)
-    scene.setNodes(props.nodes)
-    scene.setFocus(props.focus)
-    scene.setProgress(props.progress, props.progressLoading)
-    syncComposer()
-  } catch (err) {
-    console.error(err)
-    error.value = '当前浏览器无法显示 3D 图谱。请开启浏览器的硬件加速后刷新页面。'
+  if (!container.value) {
+    return;
   }
-})
+  try {
+    scene = new GraphScene(
+      container.value,
+      {
+        onSelect: (id) => emit("select", id),
+        onBlank: () => emit("blank"),
+        onReaction: (commentId, emoji) => emit("reaction", commentId, emoji),
+        onProgressOpen: (key) => emit("progressOpen", key),
+        onProgressNeedOlder: () => emit("progressEdge"),
+      },
+      props.theme,
+    );
+    scene.setNodes(props.nodes);
+    scene.setFocus(props.focus);
+    scene.setProgress(props.progress, props.progressLoading);
+    syncComposer();
+  } catch (err) {
+    console.error(err);
+    error.value =
+      "当前浏览器无法显示 3D 图谱。请开启浏览器的硬件加速后刷新页面。";
+  }
+});
 
-watch(() => props.nodes, (nodes) => scene?.setNodes(nodes))
-watch(() => props.focus, (focus) => scene?.setFocus(focus))
-watch(() => props.theme, (theme) => scene?.setTheme(theme))
+watch(
+  () => props.nodes,
+  (nodes) => scene?.setNodes(nodes),
+);
+watch(
+  () => props.focus,
+  (focus) => scene?.setFocus(focus),
+);
+watch(
+  () => props.theme,
+  (theme) => scene?.setTheme(theme),
+);
 watch(
   [() => props.progress, () => props.progressLoading],
   ([progress, loading]) => scene?.setProgress(progress, loading),
-)
-watch(
-  [composer, () => props.focus, () => props.canComment],
-  syncComposer,
-  { flush: 'post' },
-)
+);
+watch([composer, () => props.focus, () => props.canComment], syncComposer, {
+  flush: "post",
+});
 
 onBeforeUnmount(() => {
-  scene?.attachCommentComposer(null)
-  scene?.destroy()
-  scene = null
-})
+  scene?.attachCommentComposer(null);
+  scene?.destroy();
+  scene = null;
+});
 
 function syncComposer() {
-  const element = composer.value?.$el
-  scene?.attachCommentComposer(element instanceof HTMLElement ? element : null)
-  scene?.setCommentComposerVisible(Boolean(props.focus && props.canComment))
+  const element = composer.value?.$el;
+  scene?.attachCommentComposer(element instanceof HTMLElement ? element : null);
+  scene?.setCommentComposerVisible(Boolean(props.focus && props.canComment));
 }
 
 function fitView() {
-  scene?.fitView()
+  scene?.fitView();
 }
 
 function scrollProgress(delta: number) {
-  scene?.scrollComments(delta)
+  scene?.scrollComments(delta);
 }
 
-defineExpose({ fitView, scrollProgress })
+defineExpose({ fitView, scrollProgress });
 </script>
 
 <template>
@@ -90,13 +105,13 @@ defineExpose({ fitView, scrollProgress })
     <div ref="container" class="graph-canvas">
       <GraphCommentComposer
         v-if="focus && canComment"
-        ref="composer"
         :key="focus.node.id"
+        ref="composer"
         :node-id="focus.node.id"
         @created="(comment) => emit('commentCreated', comment)"
       />
     </div>
-    <div class="graph-horizon" aria-hidden="true" />
+    <div aria-hidden="true" class="graph-horizon" />
     <div class="graph-vignette" />
     <div v-if="error" class="graph-stage-error">
       <p class="graph-stage-error-card" role="alert">{{ error }}</p>
@@ -110,7 +125,7 @@ defineExpose({ fitView, scrollProgress })
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #070a0d;
+  background: var(--graph-bg);
 }
 
 .graph-canvas {
@@ -126,13 +141,12 @@ defineExpose({ fitView, scrollProgress })
 }
 
 .graph-horizon {
-  background:
-    radial-gradient(circle at 72% 24%, rgba(232, 170, 58, 0.14), transparent 28%),
-    radial-gradient(circle at 46% 48%, rgba(77, 167, 169, 0.08), transparent 38%);
-  mix-blend-mode: screen;
+  background: var(--graph-horizon-bg);
+  mix-blend-mode: var(--graph-horizon-blend);
 }
 
 .graph-vignette {
+  opacity: var(--graph-vignette-opacity);
   background: radial-gradient(
     ellipse at 50% 43%,
     transparent 20%,
@@ -153,31 +167,10 @@ defineExpose({ fitView, scrollProgress })
   max-width: 28rem;
   margin: 0;
   padding: 12px 16px;
-  border: 1px solid rgba(245, 174, 82, 0.36);
+  border: 1px solid var(--graph-stage-error-border);
   border-radius: 8px;
-  background: rgba(11, 16, 18, 0.94);
-  color: #f3c66f;
+  background: var(--graph-stage-error-bg);
+  color: var(--graph-stage-error-color);
   font-size: 14px;
-}
-
-:global([data-theme='light'] .graph-stage) {
-  background: #eef3f5;
-}
-
-:global([data-theme='light'] .graph-horizon) {
-  background:
-    radial-gradient(circle at 72% 24%, rgba(188, 126, 24, 0.12), transparent 30%),
-    radial-gradient(circle at 46% 48%, rgba(44, 132, 137, 0.09), transparent 40%);
-  mix-blend-mode: multiply;
-}
-
-:global([data-theme='light'] .graph-vignette) {
-  display: none;
-}
-
-:global([data-theme='light'] .graph-stage-error-card) {
-  border-color: rgba(157, 100, 18, 0.32);
-  background: rgba(255, 255, 255, 0.94);
-  color: #8c5a0d;
 }
 </style>

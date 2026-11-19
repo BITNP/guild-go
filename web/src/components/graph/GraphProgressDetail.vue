@@ -1,116 +1,127 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { FileText, MessageSquare, Trash2, X } from '@lucide/vue'
-import ConfirmAction from '@/components/ConfirmAction.vue'
-import DescriptionDiff from '@/components/DescriptionDiff.vue'
-import ImageGallery from '@/components/ImageGallery.vue'
-import PreviewImage from '@/components/PreviewImage.vue'
-import UserIdentity from '@/components/UserIdentity.vue'
-import { deleteComment, type ProgressItem } from '@/lib/api'
+import { FileText, MessageSquare, Trash2, X } from "@lucide/vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+
+import ConfirmAction from "@/components/ConfirmAction.vue";
+import DescriptionDiff from "@/components/DescriptionDiff.vue";
+import ImageGallery from "@/components/ImageGallery.vue";
+import PreviewImage from "@/components/PreviewImage.vue";
+import UserIdentity from "@/components/UserIdentity.vue";
+import type { ProgressItem } from "@/lib/api";
+import { deleteComment } from "@/lib/api";
 import {
   errorMessage,
   formatDateTime,
   linkify,
   reactionEmoji,
   reactionKeys,
-} from '@/lib/utils'
-
-const props = defineProps<{
-  item: ProgressItem
-  nodeTitle: string
-  busy: boolean
-}>()
+} from "@/lib/utils";
 
 const emit = defineEmits<{
-  close: []
-  reaction: [commentId: number, emoji: string]
-  deleted: [commentId: number]
-}>()
+  close: [];
+  reaction: [commentId: number, emoji: string];
+  deleted: [commentId: number];
+}>();
 
-const deleteOpen = ref(false)
-const deleting = ref(false)
-const deleteError = ref<string | null>(null)
+const props = defineProps<{
+  item: ProgressItem;
+  nodeTitle: string;
+  busy: boolean;
+}>();
+
+const deleteOpen = ref(false);
+const deleting = ref(false);
+const deleteError = ref<string | null>(null);
 
 const comment = computed(() =>
-  props.item.kind === 'comment' ? props.item.comment : null,
-)
+  props.item.kind === "comment" ? props.item.comment : null,
+);
 const change = computed(() =>
-  props.item.kind === 'description_change'
+  props.item.kind === "description_change"
     ? props.item.descriptionChange
     : null,
-)
-const author = computed(() => comment.value?.author ?? change.value?.author)
-const createdAt = computed(() =>
-  comment.value?.createdAt ?? change.value?.createdAt ?? '',
-)
-const commentSegments = computed(() => linkify(comment.value?.body ?? ''))
+);
+const author = computed(() => comment.value?.author ?? change.value?.author);
+const createdAt = computed(
+  () => comment.value?.createdAt ?? change.value?.createdAt ?? "",
+);
+const commentSegments = computed(() => linkify(comment.value?.body ?? ""));
 const changeAction = computed(() => {
-  if (!change.value) return ''
-  if (!change.value.before) return '添加了节点描述'
-  if (!change.value.after) return '清空了节点描述'
-  return '修改了节点描述'
-})
+  if (!change.value) {
+    return "";
+  }
+  if (!change.value.before) {
+    return "添加了节点描述";
+  }
+  if (!change.value.after) {
+    return "清空了节点描述";
+  }
+
+  return "修改了节点描述";
+});
 
 function askDelete() {
-  deleteError.value = null
-  deleteOpen.value = true
+  deleteError.value = null;
+  deleteOpen.value = true;
 }
 
 async function confirmDelete() {
-  if (!comment.value || deleting.value) return
-  deleting.value = true
-  deleteError.value = null
+  if (!comment.value || deleting.value) {
+    return;
+  }
+  deleting.value = true;
+  deleteError.value = null;
   try {
-    await deleteComment(comment.value.id)
-    deleteOpen.value = false
-    emit('deleted', comment.value.id)
+    await deleteComment(comment.value.id);
+    deleteOpen.value = false;
+    emit("deleted", comment.value.id);
   } catch (err) {
-    deleteError.value = errorMessage(err, '删除进展失败')
+    deleteError.value = errorMessage(err, "删除进展失败");
   } finally {
-    deleting.value = false
+    deleting.value = false;
   }
 }
 
 function onKeydown(event: KeyboardEvent) {
   if (
-    event.key !== 'Escape' ||
+    event.key !== "Escape" ||
     event.defaultPrevented ||
     deleteOpen.value ||
-    document.querySelector('.n-modal-container, .n-image-preview-container')
+    document.querySelector(".n-modal-container, .n-image-preview-container")
   ) {
-    return
+    return;
   }
-  emit('close')
+  emit("close");
 }
 
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+onMounted(() => window.addEventListener("keydown", onKeydown));
+onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 </script>
 
 <template>
   <div class="progress-detail-backdrop" @click.self="emit('close')">
     <article
+      aria-labelledby="progress-detail-title"
+      aria-modal="true"
       class="progress-detail"
       data-graph-progress-detail
       role="dialog"
-      aria-modal="true"
-      aria-labelledby="progress-detail-title"
     >
       <header class="progress-detail-header">
-        <span class="progress-detail-mark" aria-hidden="true">
+        <span aria-hidden="true" class="progress-detail-mark">
           <MessageSquare v-if="comment" :size="17" />
           <FileText v-else :size="17" />
         </span>
         <div>
           <span class="progress-detail-kicker">
-            {{ comment ? '进展' : '描述变更' }}
+            {{ comment ? "进展" : "描述变更" }}
           </span>
           <strong id="progress-detail-title">{{ nodeTitle }}</strong>
         </div>
         <button
-          type="button"
-          class="progress-detail-close"
           aria-label="关闭进展详情"
+          class="progress-detail-close"
+          type="button"
           @click="emit('close')"
         >
           <X :size="17" />
@@ -118,19 +129,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       </header>
 
       <div class="progress-detail-meta">
-        <UserIdentity v-if="author" :user="author" :size="24" show-position />
+        <UserIdentity v-if="author" show-position :size="24" :user="author" />
         <div class="progress-detail-meta-right">
           <time :datetime="createdAt" :title="formatDateTime(createdAt)">
             {{ formatDateTime(createdAt) }}
           </time>
           <button
             v-if="comment?.canDelete"
-            type="button"
             class="progress-detail-delete"
             :disabled="busy || deleting"
+            type="button"
             @click="askDelete"
           >
-            <Trash2 :size="14" aria-hidden="true" />
+            <Trash2 aria-hidden="true" :size="14" />
             <span>删除</span>
           </button>
         </div>
@@ -139,36 +150,39 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       <div class="progress-detail-body">
         <template v-if="comment">
           <p v-if="comment.body.trim()">
-            <template
-              v-for="(segment, index) in commentSegments"
-              :key="index"
-              ><a
+            <template v-for="(segment, index) in commentSegments" :key="index">
+              <a
                 v-if="segment.type === 'link'"
                 :href="segment.href"
-                target="_blank"
                 rel="noopener noreferrer"
-                >{{ segment.value }}</a
-              ><template v-else>{{ segment.value }}</template></template
-            >
+                target="_blank"
+              >
+                {{ segment.value }}
+              </a>
+              <template v-else>{{ segment.value }}</template>
+            </template>
           </p>
-          <p v-else-if="!comment.attachments.length" class="progress-detail-empty">
+          <p
+            v-else-if="comment.attachments.length === 0"
+            class="progress-detail-empty"
+          >
             无正文
           </p>
 
           <ImageGallery
-            v-if="comment.attachments.length"
+            v-if="comment.attachments.length > 0"
             class="progress-detail-gallery"
           >
             <div class="progress-detail-images">
               <PreviewImage
                 v-for="(image, index) in comment.attachments"
                 :key="image.id"
-                :src="image.url"
                 :alt="`进展图片 ${index + 1}`"
-                :width="132"
+                class="progress-detail-image"
                 :height="100"
                 lazy
-                class="progress-detail-image"
+                :src="image.url"
+                :width="132"
               />
             </div>
           </ImageGallery>
@@ -177,8 +191,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <template v-else-if="change">
           <p class="progress-change-action">{{ changeAction }}</p>
           <DescriptionDiff
-            :before="change.before"
             :after="change.after"
+            :before="change.before"
             class="progress-change-diff"
           />
         </template>
@@ -189,14 +203,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <button
           v-for="emoji in reactionKeys"
           :key="emoji"
-          type="button"
+          :aria-label="reactionEmoji[emoji]?.label"
           :class="{
             active: comment.reactions.some(
               (reaction) => reaction.emoji === emoji && reaction.reactedByMe,
             ),
           }"
           :disabled="busy"
-          :aria-label="reactionEmoji[emoji]?.label"
+          type="button"
           @click="emit('reaction', comment.id, emoji)"
         >
           {{ reactionEmoji[emoji]?.symbol }}
@@ -211,13 +225,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
     </article>
 
     <ConfirmAction
+      :busy="deleting"
+      confirm-text="删除进展"
+      :error="deleteError"
       :open="deleteOpen"
       title="删除进展"
-      confirm-text="删除进展"
-      :busy="deleting"
-      :error="deleteError"
-      @confirm="confirmDelete"
       @close="deleteOpen = false"
+      @confirm="confirmDelete"
     >
       <p>图片附件也会一并删除，操作不可撤销。</p>
       <p v-if="comment?.body" class="delete-preview">
@@ -235,7 +249,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   display: grid;
   place-items: center;
   padding: 18px;
-  background: rgba(2, 7, 9, 0.42);
+  background: var(--graph-backdrop-bg);
   backdrop-filter: blur(5px);
 }
 
@@ -252,15 +266,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   max-height: min(72vh, 720px);
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(226, 178, 76, 0.42);
+  border: 1px solid var(--graph-detail-border);
   border-radius: 8px;
-  background:
-    linear-gradient(135deg, rgba(232, 181, 75, 0.09), transparent 32%),
-    linear-gradient(180deg, rgba(9, 17, 20, 0.98), rgba(4, 10, 13, 0.99));
-  box-shadow:
-    0 30px 90px rgba(0, 0, 0, 0.6),
-    inset 0 0 44px rgba(77, 177, 175, 0.025);
-  color: #e7eeeb;
+  background: var(--graph-detail-bg);
+  box-shadow: var(--graph-detail-shadow);
+  color: var(--graph-detail-text);
 }
 
 .progress-detail-header {
@@ -268,7 +278,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   align-items: center;
   gap: 11px;
   padding: 16px 18px;
-  border-bottom: 1px solid rgba(139, 166, 171, 0.18);
+  border-bottom: 1px solid var(--graph-panel-divider);
 }
 
 .progress-detail-mark {
@@ -277,9 +287,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   height: 34px;
   flex: none;
   place-items: center;
-  border: 1px solid rgba(231, 181, 76, 0.44);
+  border: 1px solid var(--graph-detail-mark-border);
   border-radius: 6px;
-  color: #edc469;
+  color: var(--graph-detail-mark-color);
 }
 
 .progress-detail-header > div {
@@ -290,14 +300,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 }
 
 .progress-detail-kicker {
-  color: rgba(120, 222, 198, 0.8);
+  color: var(--graph-detail-kicker);
   font-size: 12px;
   font-weight: 600;
 }
 
 .progress-detail-header strong {
   overflow: hidden;
-  color: #f2eee3;
+  color: var(--graph-detail-title);
   font-size: 16px;
   font-weight: 650;
   text-overflow: ellipsis;
@@ -310,16 +320,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   height: 30px;
   flex: none;
   place-items: center;
-  border: 1px solid rgba(139, 166, 171, 0.24);
+  border: 1px solid var(--graph-close-border);
   border-radius: 4px;
-  background: rgba(8, 15, 18, 0.7);
-  color: #b7c5c5;
+  background: var(--graph-close-bg);
+  color: var(--graph-close-color);
   cursor: pointer;
 }
 
 .progress-detail-close:hover {
-  border-color: rgba(238, 187, 78, 0.7);
-  color: #f2ca78;
+  border-color: var(--graph-close-hover-border);
+  color: var(--graph-close-hover-color);
 }
 
 .progress-detail-meta {
@@ -329,13 +339,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   justify-content: space-between;
   gap: 8px 18px;
   padding: 10px 20px;
-  border-bottom: 1px solid rgba(139, 166, 171, 0.12);
-  color: #8fa4a7;
+  border-bottom: 1px solid var(--graph-panel-divider);
+  color: var(--graph-detail-meta);
   font-size: 13px;
 }
 
 .progress-detail-meta :deep(.user-name) {
-  color: #e7eeeb;
+  color: var(--graph-detail-user-name);
   font-weight: 600;
 }
 
@@ -351,18 +361,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   align-items: center;
   gap: 4px;
   padding: 3px 8px;
-  border: 1px solid rgba(226, 125, 104, 0.34);
+  border: 1px solid var(--graph-danger-border);
   border-radius: 4px;
   background: transparent;
-  color: #e3a091;
+  color: var(--graph-danger-color);
   font-size: 12px;
   cursor: pointer;
 }
 
 .progress-detail-delete:hover:not(:disabled) {
-  border-color: rgba(241, 143, 119, 0.7);
-  background: rgba(177, 69, 50, 0.12);
-  color: #ffb9a8;
+  border-color: var(--graph-danger-hover-border);
+  background: var(--graph-danger-hover-bg);
+  color: var(--graph-danger-hover-color);
 }
 
 .progress-detail-delete:disabled {
@@ -380,7 +390,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 .progress-detail-body > p {
   margin: 0;
-  color: #e5ebe7;
+  color: var(--graph-detail-body);
   font-size: 15px;
   line-height: 1.85;
   overflow-wrap: anywhere;
@@ -388,18 +398,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 }
 
 .progress-detail-body a {
-  color: #f0c975;
+  color: var(--graph-content-link-color);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
 .progress-detail-empty {
-  color: #8fa4a7;
+  color: var(--graph-detail-empty);
 }
 
 .progress-change-action {
   margin-bottom: 12px;
-  color: #b7c8c9;
+  color: var(--graph-detail-change-action);
   font-size: 14px;
 }
 
@@ -439,8 +449,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   flex-wrap: wrap;
   gap: 6px;
   padding: 12px 18px;
-  border-top: 1px solid rgba(139, 166, 171, 0.18);
-  color: #7f9699;
+  border-top: 1px solid var(--graph-panel-divider);
+  color: var(--graph-detail-meta);
   font-size: 13px;
 }
 
@@ -451,21 +461,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   align-items: center;
   justify-content: center;
   gap: 4px;
-  border: 1px solid rgba(107, 142, 147, 0.3);
+  border: 1px solid var(--graph-reaction-btn-border);
   border-radius: 4px;
-  background: rgba(16, 25, 27, 0.74);
-  color: #e3e9e4;
+  background: var(--graph-reaction-btn-bg);
+  color: var(--graph-reaction-btn-color);
   font-size: 16px;
   cursor: pointer;
 }
 
 .progress-detail-reactions button:hover:not(:disabled) {
-  border-color: rgba(239, 188, 80, 0.52);
+  border-color: var(--graph-reaction-btn-hover-border);
+  background: var(--graph-reaction-btn-hover-bg);
 }
 
 .progress-detail-reactions button.active {
-  border-color: rgba(239, 188, 80, 0.7);
-  background: rgba(221, 170, 61, 0.16);
+  border-color: var(--graph-reaction-active-border);
+  background: var(--graph-reaction-active-bg);
 }
 
 .progress-detail-reactions button:disabled {
@@ -474,7 +485,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 }
 
 .progress-detail-reactions small {
-  color: #9bb1b2;
+  color: var(--graph-reaction-count-color);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -497,110 +508,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 .progress-detail-enter-from .progress-detail,
 .progress-detail-leave-to .progress-detail {
   transform: translateY(16px) scale(0.97);
-}
-
-:global([data-theme='light'] .progress-detail-backdrop) {
-  background: rgba(220, 228, 232, 0.42);
-}
-
-:global([data-theme='light'] .progress-detail) {
-  border-color: rgba(158, 103, 18, 0.3);
-  background:
-    linear-gradient(135deg, rgba(193, 128, 29, 0.07), transparent 32%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(245, 248, 249, 0.99));
-  box-shadow:
-    0 30px 90px rgba(45, 60, 69, 0.24),
-    inset 0 0 44px rgba(55, 137, 135, 0.02);
-  color: #273740;
-}
-
-:global([data-theme='light'] .progress-detail-header),
-:global([data-theme='light'] .progress-detail-meta) {
-  border-color: rgba(81, 105, 116, 0.16);
-}
-
-:global([data-theme='light'] .progress-detail-header strong) {
-  color: #17242c;
-}
-
-:global([data-theme='light'] .progress-detail-mark) {
-  border-color: rgba(153, 99, 16, 0.36);
-  color: #8b5a10;
-}
-
-:global([data-theme='light'] .progress-detail-kicker) {
-  color: #207a63;
-}
-
-:global([data-theme='light'] .progress-detail-meta) {
-  color: #667b85;
-}
-
-:global([data-theme='light'] .progress-detail-meta .user-name) {
-  color: #17242c;
-}
-
-:global([data-theme='light'] .progress-detail-delete) {
-  border-color: rgba(194, 59, 59, 0.32);
-  color: #a33333;
-}
-
-:global([data-theme='light'] .progress-detail-delete:hover:not(:disabled)) {
-  border-color: rgba(194, 59, 59, 0.65);
-  background: rgba(194, 59, 59, 0.08);
-  color: #8a1f1f;
-}
-
-:global([data-theme='light'] .progress-detail-close) {
-  border-color: rgba(78, 105, 117, 0.24);
-  background: rgba(255, 255, 255, 0.78);
-  color: #546b75;
-}
-
-:global([data-theme='light'] .progress-detail-close:hover) {
-  border-color: rgba(155, 101, 17, 0.55);
-  color: #7c4d09;
-}
-
-:global([data-theme='light'] .progress-detail-body > p) {
-  color: #24343d;
-}
-
-:global([data-theme='light'] .progress-detail-empty) {
-  color: #667b85;
-}
-
-:global([data-theme='light'] .progress-detail-body a) {
-  color: var(--guild-primary);
-}
-
-:global([data-theme='light'] .progress-change-action) {
-  color: #4f6470;
-}
-
-:global([data-theme='light'] .progress-detail-reactions) {
-  border-top-color: rgba(80, 105, 116, 0.16);
-  color: #687d87;
-}
-
-:global([data-theme='light'] .progress-detail-reactions button) {
-  border-color: rgba(82, 108, 120, 0.24);
-  background: rgba(255, 255, 255, 0.76);
-  color: #283942;
-}
-
-:global([data-theme='light'] .progress-detail-reactions button:hover:not(:disabled)) {
-  border-color: rgba(156, 100, 16, 0.52);
-  background: rgba(255, 250, 239, 0.96);
-}
-
-:global([data-theme='light'] .progress-detail-reactions small) {
-  color: #556a75;
-}
-
-:global([data-theme='light'] .progress-detail-reactions button.active) {
-  border-color: rgba(156, 100, 16, 0.52);
-  background: rgba(190, 126, 29, 0.1);
 }
 
 @media (prefers-reduced-motion: reduce) {

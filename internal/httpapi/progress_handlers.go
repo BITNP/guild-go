@@ -5,15 +5,11 @@ import (
 	"time"
 
 	"git.bitnp.net/BITNP/guild-go/internal/apperr"
+	"git.bitnp.net/BITNP/guild-go/internal/auth"
 	"git.bitnp.net/BITNP/guild-go/internal/comments"
 )
 
-func (s *Server) listProgress(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeError(w, r, apperr.Unauthorized("需要登录"))
-		return
-	}
+func (s *Server) listProgress(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	nodeID, err := parseID(r, "id")
 	if err != nil {
 		writeError(w, r, err)

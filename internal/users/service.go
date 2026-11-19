@@ -2,7 +2,6 @@ package users
 
 import (
 	"context"
-	"sort"
 	"strings"
 
 	authz "git.bitnp.net/BITNP/bitnp-authz"
@@ -24,6 +23,22 @@ type Summary struct {
 	UserName  string     `json:"userName"`
 	Avatar    *string    `json:"avatar"`
 	Positions []Position `json:"positions"`
+}
+
+// SummaryMap indexes resolved user summaries by subject.
+type SummaryMap map[string]Summary
+
+// FallbackSummary returns a subject-only summary when display metadata is unavailable.
+func FallbackSummary(subject string) Summary {
+	return Summary{Subject: subject, UserName: subject, Positions: []Position{}}
+}
+
+// For returns the resolved summary for subject, or a subject-only fallback.
+func (m SummaryMap) For(subject string) Summary {
+	if summary, ok := m[subject]; ok {
+		return summary
+	}
+	return FallbackSummary(subject)
 }
 
 // Permissions is the signed-in user's authorization view.
@@ -94,8 +109,8 @@ func (s *Service) SummaryFor(ctx context.Context, session auth.Session, subject 
 }
 
 // Summaries resolves many subjects, deduplicating them.
-func (s *Service) Summaries(ctx context.Context, session auth.Session, subjects []string) map[string]Summary {
-	result := make(map[string]Summary, len(subjects))
+func (s *Service) Summaries(ctx context.Context, session auth.Session, subjects []string) SummaryMap {
+	result := make(SummaryMap, len(subjects))
 	for _, subject := range subjects {
 		if subject == "" {
 			continue
@@ -137,7 +152,6 @@ func (s *Service) List(ctx context.Context, session auth.Session) ([]Summary, er
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(subjects)
 	result := make([]Summary, 0, len(subjects))
 	for _, subject := range subjects {
 		result = append(result, s.SummaryFor(ctx, session, subject))

@@ -3,6 +3,10 @@
 .env
 .env.*
 *.secert
+.devenv
+.direnv
+data
+node_modules
 web/node_modules
 web/.vite
 internal/web/dist/assets

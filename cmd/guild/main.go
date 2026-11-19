@@ -82,12 +82,12 @@ func main() {
 	}
 
 	checker := access.New(pool)
-	nodeRepo := nodes.NewRepository(pool)
-	nodeService := nodes.NewService(nodeRepo, userService, checker, store)
 	commentRepo := comments.NewRepository(pool)
 	commentService := comments.NewService(commentRepo, userService, checker, store)
+	nodeRepo := nodes.NewRepository(pool)
+	nodeService := nodes.NewService(nodeRepo, userService, commentService, checker, store)
 
-	server := httpapi.New(cfg, pool, authService, userService, nodeService, commentService, store)
+	server := httpapi.New(pool, authService, userService, nodeService, commentService)
 
 	go sessions.StartCleanup(ctx)
 	go pending.StartCleanup(ctx)

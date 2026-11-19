@@ -1,26 +1,29 @@
 <script setup lang="ts">
-import { NButton, NText } from 'naive-ui'
-import UserIdentity from '@/components/UserIdentity.vue'
-import NodeStatusTag from '@/components/NodeStatusTag.vue'
-import type { NodeDetail } from '@/lib/api'
-import { formatDateTime, timeAgo } from '@/lib/utils'
-defineProps<{ node: NodeDetail }>()
-const emit = defineEmits<{ manageMembers: [] }>()
+import { NButton, NText } from "naive-ui";
+
+import NodeStatusTag from "@/components/NodeStatusTag.vue";
+import UserIdentity from "@/components/UserIdentity.vue";
+import type { NodeDetail } from "@/lib/api";
+import { formatDateTime, timeAgo } from "@/lib/utils";
+
+const emit = defineEmits<{ manageMembers: [] }>();
+defineProps<{ node: NodeDetail }>();
 </script>
+
 <template>
   <section class="node-details">
-    <section class="detail-group" aria-label="状态与时间">
+    <section aria-label="状态与时间" class="detail-group">
       <h3>状态与时间</h3>
       <dl class="detail-fields">
         <dt>状态</dt>
         <dd>
           <NodeStatusTag
-            :due-at="node.dueAt"
             :completed-at="node.completedAt"
+            :due-at="node.dueAt"
           />
         </dd>
         <dt>预期完成</dt>
-        <dd>{{ node.dueAt ? formatDateTime(node.dueAt) : '未设置' }}</dd>
+        <dd>{{ node.dueAt ? formatDateTime(node.dueAt) : "未设置" }}</dd>
         <template v-if="node.completedAt">
           <dt>实际完成</dt>
           <dd>{{ formatDateTime(node.completedAt) }}</dd>
@@ -29,31 +32,32 @@ const emit = defineEmits<{ manageMembers: [] }>()
         <dd>{{ formatDateTime(node.createdAt) }}</dd>
         <dt>最近更新</dt>
         <dd>
-          <time :title="formatDateTime(node.updatedAt)">{{
-            timeAgo(node.updatedAt)
-          }}</time>
+          <time :title="formatDateTime(node.updatedAt)">
+            {{ timeAgo(node.updatedAt) }}
+          </time>
         </dd>
         <dt>创建者</dt>
         <dd>
           <UserIdentity
             class="detail-person"
-            :user="node.createdBy"
             :size="22"
+            :user="node.createdBy"
           />
         </dd>
       </dl>
     </section>
-    <section class="detail-group" aria-label="参与人员">
+    <section aria-label="参与人员" class="detail-group">
       <div class="group-heading">
         <h3>参与人员</h3>
         <NButton
           v-if="node.permissions.canManageMembers"
+          size="small"
           text
           type="primary"
-          size="small"
           @click="emit('manageMembers')"
-          >管理成员</NButton
         >
+          管理成员
+        </NButton>
       </div>
       <div class="people-group">
         <h4>直接负责人</h4>
@@ -62,10 +66,13 @@ const emit = defineEmits<{ manageMembers: [] }>()
             <UserIdentity class="detail-person" :user="person" />
           </li>
         </ul>
-        <NText v-if="node.inheritedLeaderCount" depth="3" class="inherited-note"
-          >另有
-          {{ node.inheritedLeaderCount }} 位上级节点负责人可管理此节点。</NText
+        <NText
+          v-if="node.inheritedLeaderCount"
+          class="inherited-note"
+          depth="3"
         >
+          另有 {{ node.inheritedLeaderCount }} 位上级节点负责人可管理此节点。
+        </NText>
       </div>
       <div class="people-group">
         <h4>直接成员</h4>
@@ -74,14 +81,19 @@ const emit = defineEmits<{ manageMembers: [] }>()
             <UserIdentity class="detail-person" :user="person" />
           </li>
         </ul>
-        <NText v-if="!node.directMembers.length" depth="3">暂无直接成员</NText>
-        <NText v-if="node.inheritedMemberCount" depth="3" class="inherited-note"
-          >另有
-          {{ node.inheritedMemberCount }} 位下级节点成员可在此发布进展。</NText
+        <NText v-if="node.directMembers.length === 0" depth="3">
+          暂无直接成员
+        </NText>
+        <NText
+          v-if="node.inheritedMemberCount"
+          class="inherited-note"
+          depth="3"
         >
+          另有 {{ node.inheritedMemberCount }} 位下级节点成员可在此发布进展。
+        </NText>
       </div>
     </section>
-    <section class="detail-group" aria-label="包含下级节点">
+    <section aria-label="包含下级节点" class="detail-group">
       <h3>包含下级节点</h3>
       <dl class="detail-fields">
         <dt>成员（含负责人）</dt>
@@ -94,6 +106,7 @@ const emit = defineEmits<{ manageMembers: [] }>()
     </section>
   </section>
 </template>
+
 <style scoped>
 .node-details {
   padding: 16px;

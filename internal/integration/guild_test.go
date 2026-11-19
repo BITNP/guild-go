@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"net/http"
 	"os"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"git.bitnp.net/BITNP/guild-go/internal/auth"
 	"git.bitnp.net/BITNP/guild-go/internal/comments"
 	"git.bitnp.net/BITNP/guild-go/internal/database"
+	"git.bitnp.net/BITNP/guild-go/internal/httpapi"
 	"git.bitnp.net/BITNP/guild-go/internal/nodes"
 	"git.bitnp.net/BITNP/guild-go/internal/storage"
 	"git.bitnp.net/BITNP/guild-go/internal/users"
@@ -64,8 +66,8 @@ func setup(t *testing.T) *fixture {
 	userService := users.NewService(userRepo, users.NewDirectory(users.NewKeycloakAdmin("", "", "", "")))
 	checker := access.New(pool)
 	store := storage.NewMemoryStore()
-	nodeService := nodes.NewService(nodes.NewRepository(pool), userService, checker, store)
 	commentService := comments.NewService(comments.NewRepository(pool), userService, checker, store)
+	nodeService := nodes.NewService(nodes.NewRepository(pool), userService, commentService, checker, store)
 
 	return &fixture{
 		pool:     pool,
@@ -79,6 +81,10 @@ func setup(t *testing.T) *fixture {
 		carol:    session("carol", authz.FromRoles([]string{"permission-techdept-access"})),
 		dave:     session("dave", authz.FromRoles([]string{"permission-techdept-access"})),
 	}
+}
+
+func (f *fixture) httpHandler(authService *auth.Service) http.Handler {
+	return httpapi.New(f.pool, authService, f.users, f.nodes, f.comments).Handler()
 }
 
 func session(subject string, permissions authz.SitePermissions) auth.Session {
