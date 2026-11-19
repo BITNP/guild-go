@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { NText } from 'naive-ui'
+import { NButton, NText } from 'naive-ui'
 import UserIdentity from '@/components/UserIdentity.vue'
 import NodeStatusTag from '@/components/NodeStatusTag.vue'
 import type { NodeDetail } from '@/lib/api'
 import { formatDateTime, timeAgo } from '@/lib/utils'
 defineProps<{ node: NodeDetail }>()
+const emit = defineEmits<{ manageMembers: [] }>()
 </script>
 <template>
   <section class="node-details">
@@ -43,7 +44,17 @@ defineProps<{ node: NodeDetail }>()
       </dl>
     </section>
     <section class="detail-group" aria-label="参与人员">
-      <h3>参与人员</h3>
+      <div class="group-heading">
+        <h3>参与人员</h3>
+        <NButton
+          v-if="node.permissions.canManageMembers"
+          text
+          type="primary"
+          size="small"
+          @click="emit('manageMembers')"
+          >管理成员</NButton
+        >
+      </div>
       <div class="people-group">
         <h4>直接负责人</h4>
         <ul class="people-list">
@@ -64,6 +75,10 @@ defineProps<{ node: NodeDetail }>()
           </li>
         </ul>
         <NText v-if="!node.directMembers.length" depth="3">暂无直接成员</NText>
+        <NText v-if="node.inheritedMemberCount" depth="3" class="inherited-note"
+          >另有
+          {{ node.inheritedMemberCount }} 位下级节点成员可在此发布进展。</NText
+        >
       </div>
     </section>
     <section class="detail-group" aria-label="包含下级节点">
@@ -96,6 +111,16 @@ defineProps<{ node: NodeDetail }>()
   line-height: 22px;
   font-weight: 600;
 }
+.group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.group-heading h3 {
+  margin: 0;
+}
 .detail-fields {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
@@ -111,6 +136,9 @@ defineProps<{ node: NodeDetail }>()
   margin: 0;
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+.detail-fields dd :deep(.user-identity) {
+  justify-content: flex-end;
 }
 .people-list {
   display: grid;

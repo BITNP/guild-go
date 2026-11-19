@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue'
-import { FileText, MessageSquare, X } from '@lucide/vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { FileText, MessageSquare, Trash2, X } from '@lucide/vue'
+import ConfirmAction from '@/components/ConfirmAction.vue'
+import DescriptionDiff from '@/components/DescriptionDiff.vue'
 import ImageGallery from '@/components/ImageGallery.vue'
 import PreviewImage from '@/components/PreviewImage.vue'
-import type { ProgressItem } from '@/lib/api'
+import UserIdentity from '@/components/UserIdentity.vue'
+import { deleteComment, type ProgressItem } from '@/lib/api'
 import {
+  errorMessage,
   formatDateTime,
+  linkify,
   reactionEmoji,
   reactionKeys,
 } from '@/lib/utils'
@@ -19,7 +24,12 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   reaction: [commentId: number, emoji: string]
+  deleted: [commentId: number]
 }>()
+
+const deleteOpen = ref(false)
+const deleting = ref(false)
+const deleteError = ref<string | null>(null)
 
 const comment = computed(() =>
   props.item.kind === 'comment' ? props.item.comment : null,
@@ -33,19 +43,44 @@ const author = computed(() => comment.value?.author ?? change.value?.author)
 const createdAt = computed(() =>
   comment.value?.createdAt ?? change.value?.createdAt ?? '',
 )
-const body = computed(() => {
-  if (comment.value) {
-    return comment.value.body.trim()
-      ? comment.value.body
-      : comment.value.attachments.length
-        ? '图片进展'
-        : '无正文'
-  }
-  return change.value?.after.trim() ? change.value.after : '清空了节点描述'
+const commentSegments = computed(() => linkify(comment.value?.body ?? ''))
+const changeAction = computed(() => {
+  if (!change.value) return ''
+  if (!change.value.before) return '添加了节点描述'
+  if (!change.value.after) return '清空了节点描述'
+  return '修改了节点描述'
 })
 
+function askDelete() {
+  deleteError.value = null
+  deleteOpen.value = true
+}
+
+async function confirmDelete() {
+  if (!comment.value || deleting.value) return
+  deleting.value = true
+  deleteError.value = null
+  try {
+    await deleteComment(comment.value.id)
+    deleteOpen.value = false
+    emit('deleted', comment.value.id)
+  } catch (err) {
+    deleteError.value = errorMessage(err, '删除进展失败')
+  } finally {
+    deleting.value = false
+  }
+}
+
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') emit('close')
+  if (
+    event.key !== 'Escape' ||
+    event.defaultPrevented ||
+    deleteOpen.value ||
+    document.querySelector('.n-modal-container, .n-image-preview-container')
+  ) {
+    return
+  }
+  emit('close')
 }
 
 onMounted(() => window.addEventListener('keydown', onKeydown))
@@ -83,37 +118,70 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       </header>
 
       <div class="progress-detail-meta">
-        <span>{{ author?.userName }}</span>
-        <time :datetime="createdAt" :title="formatDateTime(createdAt)">
-          {{ formatDateTime(createdAt) }}
-        </time>
+        <UserIdentity v-if="author" :user="author" :size="24" show-position />
+        <div class="progress-detail-meta-right">
+          <time :datetime="createdAt" :title="formatDateTime(createdAt)">
+            {{ formatDateTime(createdAt) }}
+          </time>
+          <button
+            v-if="comment?.canDelete"
+            type="button"
+            class="progress-detail-delete"
+            :disabled="busy || deleting"
+            @click="askDelete"
+          >
+            <Trash2 :size="14" aria-hidden="true" />
+            <span>删除</span>
+          </button>
+        </div>
       </div>
 
       <div class="progress-detail-body">
-        <p>{{ body }}</p>
+        <template v-if="comment">
+          <p v-if="comment.body.trim()">
+            <template
+              v-for="(segment, index) in commentSegments"
+              :key="index"
+              ><a
+                v-if="segment.type === 'link'"
+                :href="segment.href"
+                target="_blank"
+                rel="noopener noreferrer"
+                >{{ segment.value }}</a
+              ><template v-else>{{ segment.value }}</template></template
+            >
+          </p>
+          <p v-else-if="!comment.attachments.length" class="progress-detail-empty">
+            无正文
+          </p>
 
-        <ImageGallery
-          v-if="comment?.attachments.length"
-          class="progress-detail-gallery"
-        >
-          <div class="progress-detail-images">
-            <PreviewImage
-            v-for="(image, index) in comment.attachments"
-            :key="image.id"
-            :src="image.url"
-            :alt="`进展图片 ${index + 1}`"
-            :width="132"
-            :height="100"
-            lazy
-            class="progress-detail-image"
-            />
-          </div>
-        </ImageGallery>
+          <ImageGallery
+            v-if="comment.attachments.length"
+            class="progress-detail-gallery"
+          >
+            <div class="progress-detail-images">
+              <PreviewImage
+                v-for="(image, index) in comment.attachments"
+                :key="image.id"
+                :src="image.url"
+                :alt="`进展图片 ${index + 1}`"
+                :width="132"
+                :height="100"
+                lazy
+                class="progress-detail-image"
+              />
+            </div>
+          </ImageGallery>
+        </template>
 
-        <details v-if="change" class="progress-before">
-          <summary>查看修改前内容</summary>
-          <p>{{ change.before || '此前没有节点描述' }}</p>
-        </details>
+        <template v-else-if="change">
+          <p class="progress-change-action">{{ changeAction }}</p>
+          <DescriptionDiff
+            :before="change.before"
+            :after="change.after"
+            class="progress-change-diff"
+          />
+        </template>
       </div>
 
       <footer v-if="comment" class="progress-detail-reactions">
@@ -141,6 +209,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         </button>
       </footer>
     </article>
+
+    <ConfirmAction
+      :open="deleteOpen"
+      title="删除进展"
+      confirm-text="删除进展"
+      :busy="deleting"
+      :error="deleteError"
+      @confirm="confirmDelete"
+      @close="deleteOpen = false"
+    >
+      <p>图片附件也会一并删除，操作不可撤销。</p>
+      <p v-if="comment?.body" class="delete-preview">
+        {{ comment.body }}
+      </p>
+    </ConfirmAction>
   </div>
 </template>
 
@@ -151,9 +234,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   z-index: 24;
   display: grid;
   place-items: center;
-  padding: 28px 150px 28px 28px;
+  padding: 18px;
   background: rgba(2, 7, 9, 0.42);
   backdrop-filter: blur(5px);
+}
+
+@media (min-width: 981px) {
+  .progress-detail-backdrop {
+    padding: 24px 430px 24px 24px;
+  }
 }
 
 .progress-detail {
@@ -164,8 +253,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   flex-direction: column;
   overflow: hidden;
   border: 1px solid rgba(226, 178, 76, 0.42);
-  border-left-color: rgba(240, 188, 79, 0.82);
-  border-radius: 3px;
+  border-radius: 8px;
   background:
     linear-gradient(135deg, rgba(232, 181, 75, 0.09), transparent 32%),
     linear-gradient(180deg, rgba(9, 17, 20, 0.98), rgba(4, 10, 13, 0.99));
@@ -173,7 +261,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
     0 30px 90px rgba(0, 0, 0, 0.6),
     inset 0 0 44px rgba(77, 177, 175, 0.025);
   color: #e7eeeb;
-  transform: perspective(1400px) rotateX(0.7deg) rotateY(-1.1deg);
 }
 
 .progress-detail-header {
@@ -191,6 +278,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   flex: none;
   place-items: center;
   border: 1px solid rgba(231, 181, 76, 0.44);
+  border-radius: 6px;
   color: #edc469;
 }
 
@@ -223,6 +311,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   flex: none;
   place-items: center;
   border: 1px solid rgba(139, 166, 171, 0.24);
+  border-radius: 4px;
   background: rgba(8, 15, 18, 0.7);
   color: #b7c5c5;
   cursor: pointer;
@@ -236,12 +325,49 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 .progress-detail-meta {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
   gap: 8px 18px;
   padding: 10px 20px;
   border-bottom: 1px solid rgba(139, 166, 171, 0.12);
   color: #8fa4a7;
   font-size: 13px;
+}
+
+.progress-detail-meta :deep(.user-name) {
+  color: #e7eeeb;
+  font-weight: 600;
+}
+
+.progress-detail-meta-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.progress-detail-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid rgba(226, 125, 104, 0.34);
+  border-radius: 4px;
+  background: transparent;
+  color: #e3a091;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.progress-detail-delete:hover:not(:disabled) {
+  border-color: rgba(241, 143, 119, 0.7);
+  background: rgba(177, 69, 50, 0.12);
+  color: #ffb9a8;
+}
+
+.progress-detail-delete:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 .progress-detail-body {
@@ -252,14 +378,33 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   scrollbar-width: thin;
 }
 
-.progress-detail-body > p,
-.progress-before p {
+.progress-detail-body > p {
   margin: 0;
   color: #e5ebe7;
   font-size: 15px;
   line-height: 1.85;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.progress-detail-body a {
+  color: #f0c975;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.progress-detail-empty {
+  color: #8fa4a7;
+}
+
+.progress-change-action {
+  margin-bottom: 12px;
+  color: #b7c8c9;
+  font-size: 14px;
+}
+
+.progress-change-diff {
+  margin-top: 12px;
 }
 
 .progress-detail-gallery {
@@ -281,22 +426,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   overflow: hidden;
 }
 
-.progress-before {
-  margin-top: 18px;
-  border-top: 1px solid rgba(139, 166, 171, 0.16);
-  padding-top: 12px;
-}
-
-.progress-before summary {
-  color: #d8b96e;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.progress-before p {
-  margin-top: 10px;
-  color: #aebcbd;
-  font-size: 13px;
+.delete-preview {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 120px;
+  overflow: auto;
 }
 
 .progress-detail-reactions {
@@ -318,11 +452,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   justify-content: center;
   gap: 4px;
   border: 1px solid rgba(107, 142, 147, 0.3);
-  border-radius: 2px;
+  border-radius: 4px;
   background: rgba(16, 25, 27, 0.74);
   color: #e3e9e4;
   font-size: 16px;
   cursor: pointer;
+}
+
+.progress-detail-reactions button:hover:not(:disabled) {
+  border-color: rgba(239, 188, 80, 0.52);
 }
 
 .progress-detail-reactions button.active {
@@ -358,7 +496,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 .progress-detail-enter-from .progress-detail,
 .progress-detail-leave-to .progress-detail {
-  transform: perspective(1400px) translateY(16px) scale(0.97);
+  transform: translateY(16px) scale(0.97);
 }
 
 :global([data-theme='light'] .progress-detail-backdrop) {
@@ -367,7 +505,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 :global([data-theme='light'] .progress-detail) {
   border-color: rgba(158, 103, 18, 0.3);
-  border-left-color: rgba(151, 94, 12, 0.62);
   background:
     linear-gradient(135deg, rgba(193, 128, 29, 0.07), transparent 32%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(245, 248, 249, 0.99));
@@ -399,26 +536,46 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   color: #667b85;
 }
 
+:global([data-theme='light'] .progress-detail-meta .user-name) {
+  color: #17242c;
+}
+
+:global([data-theme='light'] .progress-detail-delete) {
+  border-color: rgba(194, 59, 59, 0.32);
+  color: #a33333;
+}
+
+:global([data-theme='light'] .progress-detail-delete:hover:not(:disabled)) {
+  border-color: rgba(194, 59, 59, 0.65);
+  background: rgba(194, 59, 59, 0.08);
+  color: #8a1f1f;
+}
+
 :global([data-theme='light'] .progress-detail-close) {
   border-color: rgba(78, 105, 117, 0.24);
   background: rgba(255, 255, 255, 0.78);
   color: #546b75;
 }
 
+:global([data-theme='light'] .progress-detail-close:hover) {
+  border-color: rgba(155, 101, 17, 0.55);
+  color: #7c4d09;
+}
+
 :global([data-theme='light'] .progress-detail-body > p) {
   color: #24343d;
 }
 
-:global([data-theme='light'] .progress-before) {
-  border-top-color: rgba(80, 105, 116, 0.15);
+:global([data-theme='light'] .progress-detail-empty) {
+  color: #667b85;
 }
 
-:global([data-theme='light'] .progress-before summary) {
-  color: #8b590e;
+:global([data-theme='light'] .progress-detail-body a) {
+  color: var(--guild-primary);
 }
 
-:global([data-theme='light'] .progress-before p) {
-  color: #5b707a;
+:global([data-theme='light'] .progress-change-action) {
+  color: #4f6470;
 }
 
 :global([data-theme='light'] .progress-detail-reactions) {
@@ -432,15 +589,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   color: #283942;
 }
 
+:global([data-theme='light'] .progress-detail-reactions button:hover:not(:disabled)) {
+  border-color: rgba(156, 100, 16, 0.52);
+  background: rgba(255, 250, 239, 0.96);
+}
+
+:global([data-theme='light'] .progress-detail-reactions small) {
+  color: #556a75;
+}
+
 :global([data-theme='light'] .progress-detail-reactions button.active) {
   border-color: rgba(156, 100, 16, 0.52);
   background: rgba(190, 126, 29, 0.1);
-}
-
-@media (max-width: 800px) {
-  .progress-detail-backdrop {
-    padding: 18px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

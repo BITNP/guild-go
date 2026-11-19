@@ -11,6 +11,7 @@ import {
   NH1,
   NList,
   NSpace,
+  NSpin,
   NTag,
 } from 'naive-ui'
 import { CalendarDays, Check, Circle } from '@lucide/vue'
@@ -27,7 +28,7 @@ import OrderDialog from '@/components/OrderDialog.vue'
 import DeleteNodeDialog from '@/components/DeleteNodeDialog.vue'
 import { useNodeStore } from '@/composables/useNodeStore'
 import { fetchNode, updateNode, type NodeDetail } from '@/lib/api'
-import { errorMessage, formatDateTime } from '@/lib/utils'
+import { errorMessage, formatDateTime, linkify } from '@/lib/utils'
 const route = useRoute(),
   router = useRouter()
 const { reload: reloadNodes } = useNodeStore()
@@ -43,6 +44,7 @@ const editOpen = ref(false),
   moveOpen = ref(false),
   orderOpen = ref(false),
   deleteOpen = ref(false)
+const descriptionSegments = computed(() => linkify(detail.value?.description ?? ''))
 async function load(silent = false) {
   const requested = nodeId.value
   if (!Number.isSafeInteger(requested) || requested <= 0) {
@@ -134,13 +136,15 @@ watch(
 <template>
   <AppShell
     ><section class="node-page" :aria-busy="loading" :inert="loading || undefined">
-      <NSpace vertical :size="24">
+      <NSpin :show="loading">
+        <NSpace vertical :size="24">
           <NAlert v-if="error" type="error"
             >{{ error }} <NButton text @click="load()">重试</NButton>
             <NButton text @click="router.push({ name: 'home' })"
               >返回总览</NButton
             ></NAlert
           >
+          <div v-else-if="loading && !detail" class="node-placeholder" />
           <template v-else-if="detail">
             <header class="node-header">
               <NBreadcrumb aria-label="节点路径" class="node-breadcrumb"
@@ -176,6 +180,9 @@ watch(
                       :loading="toggling"
                       :disabled="!detail.permissions.canEdit"
                       :aria-label="
+                        detail.completedAt ? '标记为未完成' : '标记为已完成'
+                      "
+                      :title="
                         detail.completedAt ? '标记为未完成' : '标记为已完成'
                       "
                       :aria-pressed="!!detail.completedAt"
@@ -235,7 +242,17 @@ watch(
                   >
                 </div>
                 <p v-if="detail.description" class="node-description">
-                  {{ detail.description }}
+                  <template
+                    v-for="(segment, index) in descriptionSegments"
+                    :key="index"
+                    ><a
+                      v-if="segment.type === 'link'"
+                      :href="segment.href"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      >{{ segment.value }}</a
+                    ><template v-else>{{ segment.value }}</template></template
+                  >
                 </p>
               </NCard>
             </header>
@@ -274,13 +291,19 @@ watch(
               :updated-at="detail.updatedAt"
               @changed="onCommentChanged"
             />
-          </template> </NSpace>
+          </template>
+        </NSpace>
+      </NSpin>
     </section>
     <template #rail
       ><div :aria-busy="loading" :inert="loading || undefined">
-        <NodeDetails v-if="detail && !error" :node="detail" />
+        <NodeDetails
+          v-if="detail && !error"
+          :node="detail"
+          @manage-members="membersOpen = true"
+        />
       </div></template
-  ></AppShell>
+    ></AppShell>
   <template v-if="detail">
     <NodeFormDialog
       v-model:open="editOpen"
@@ -398,6 +421,14 @@ watch(
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.8;
+}
+.node-description a {
+  color: var(--guild-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.node-placeholder {
+  min-height: 280px;
 }
 @media (max-width: 639px) {
   .node-page {

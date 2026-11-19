@@ -142,11 +142,12 @@ onMounted(() => {
           quaternary
           class="tree-toggle"
           aria-label="打开节点树"
+          title="打开节点树"
           @click="treeOpen = true"
           ><Menu :size="18" /></NButton
         ><RouterLink class="brand" :to="{ name: 'home' }"
           ><NAvatar :size="28" color="#1f5fbf" class="brand-mark">公</NAvatar
-          ><strong class="brand-name">公会</strong></RouterLink
+          ><strong class="brand-name">开拓者公会</strong></RouterLink
         ><NMenu
           class="main-menu"
           mode="horizontal"
@@ -171,6 +172,7 @@ onMounted(() => {
           quaternary
           class="rail-toggle"
           :aria-label="`打开${railTitle}`"
+          :title="`打开${railTitle}`"
           @click="railOpen = true"
           ><PanelRight :size="18" /></NButton
         ><NDropdown

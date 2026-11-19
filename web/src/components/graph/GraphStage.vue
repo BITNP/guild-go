@@ -98,13 +98,6 @@ defineExpose({ fitView, scrollProgress })
     </div>
     <div class="graph-horizon" aria-hidden="true" />
     <div class="graph-vignette" />
-    <div class="graph-hud-frame" aria-hidden="true">
-      <span class="graph-corner is-tl" />
-      <span class="graph-corner is-tr" />
-      <span class="graph-corner is-bl" />
-      <span class="graph-corner is-br" />
-    </div>
-    <div class="graph-scanline" aria-hidden="true" />
     <div v-if="error" class="graph-stage-error">
       <p class="graph-stage-error-card" role="alert">{{ error }}</p>
     </div>
@@ -126,9 +119,7 @@ defineExpose({ fitView, scrollProgress })
 }
 
 .graph-horizon,
-.graph-vignette,
-.graph-hud-frame,
-.graph-scanline {
+.graph-vignette {
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -148,51 +139,6 @@ defineExpose({ fitView, scrollProgress })
     rgba(3, 7, 9, 0.1) 58%,
     rgba(2, 5, 7, 0.78) 100%
   );
-}
-
-.graph-hud-frame {
-  inset: 12px;
-  opacity: 0.62;
-}
-
-.graph-corner {
-  position: absolute;
-  width: 34px;
-  height: 34px;
-  border-color: rgba(225, 178, 79, 0.48);
-  border-style: solid;
-}
-
-.graph-corner.is-tl {
-  top: 0;
-  left: 0;
-  border-width: 1px 0 0 1px;
-}
-
-.graph-corner.is-tr {
-  top: 0;
-  right: 0;
-  border-width: 1px 1px 0 0;
-}
-
-.graph-corner.is-bl {
-  bottom: 0;
-  left: 0;
-  border-width: 0 0 1px 1px;
-}
-
-.graph-corner.is-br {
-  right: 0;
-  bottom: 0;
-  border-width: 0 1px 1px 0;
-}
-
-.graph-scanline {
-  inset: auto 7% 9%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(239, 183, 72, 0.42), transparent);
-  box-shadow: 0 0 18px rgba(239, 183, 72, 0.28);
-  opacity: 0.5;
 }
 
 .graph-stage-error {
@@ -227,15 +173,6 @@ defineExpose({ fitView, scrollProgress })
 
 :global([data-theme='light'] .graph-vignette) {
   display: none;
-}
-
-:global([data-theme='light'] .graph-corner) {
-  border-color: rgba(151, 100, 20, 0.46);
-}
-
-:global([data-theme='light'] .graph-scanline) {
-  background: linear-gradient(90deg, transparent, rgba(148, 94, 14, 0.4), transparent);
-  box-shadow: 0 0 18px rgba(148, 94, 14, 0.2);
 }
 
 :global([data-theme='light'] .graph-stage-error-card) {

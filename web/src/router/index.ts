@@ -100,7 +100,7 @@ router.afterEach((to, _, failure) => {
   }
   if (failure) return
   const title = typeof to.meta.title === 'string' ? to.meta.title : ''
-  document.title = title ? `${title} · 公会` : '公会'
+  document.title = title ? `${title} | 开拓者公会` : '开拓者公会'
 })
 
 router.onError((_, to) => {

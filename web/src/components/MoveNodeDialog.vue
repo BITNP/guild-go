@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { NAlert, NButton, NEmpty, NFormItem, NSelect, NSpace, NText } from 'naive-ui'
+import { NAlert, NButton, NFormItem, NSelect, NSpace, NText } from 'naive-ui'
 import AppModal from '@/components/AppModal.vue'
 import { useAuth } from '@/composables/useAuth'
 import { fetchNodes, moveNode, type NodeDetail, type NodeSummary } from '@/lib/api'
@@ -104,13 +104,12 @@ async function save() {
           aria-label="目标父节点"
           :options="options"
           :loading="loading"
-          :disabled="loading || saving"
+          :disabled="loading || saving || (!error && !options.length)"
           filterable
-          placeholder="搜索并选择目标父节点"
+          :placeholder="!loading && !error && !options.length ? '暂无可移动的位置' : '搜索并选择目标父节点'"
         />
       </NFormItem>
       <NText depth="3">节点及所有下级节点将一同移动到目标列表末尾。成员和内容保留，继承权限将按新位置计算。</NText>
-      <NEmpty v-if="!loading && !error && !options.length" description="暂无可移动的位置" size="small" />
       <NAlert v-if="error" type="error" role="alert">
         {{ error }} <NButton v-if="!nodes.length" text @click="retry++">重新加载</NButton>
       </NAlert>

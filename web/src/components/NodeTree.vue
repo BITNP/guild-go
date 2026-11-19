@@ -7,7 +7,6 @@ import {
   NEmpty,
   NEllipsis,
   NInput,
-  NInputGroup,
   NRadioButton,
   NRadioGroup,
   NScrollbar,
@@ -34,7 +33,7 @@ const emit = defineEmits<{ navigate: [] }>()
 const route = useRoute(),
   router = useRouter(),
   { isManager } = useAuth()
-const { nodes, roots, childrenOf, byId, loading, error, reload } =
+const { nodes, roots, childrenOf, ancestorsOf, byId, loading, error, reload } =
   useNodeStore()
 const search = ref(''),
   relation = ref('all'),
@@ -124,6 +123,29 @@ watch(
   },
   { immediate: true },
 )
+watch(
+  [() => route.name, () => route.params.id, () => nodes.value.length],
+  ([name, id]) => {
+    if (name !== 'node') return
+    const activeId = Number(id)
+    if (!Number.isSafeInteger(activeId) || activeId <= 0) return
+    const ancestorIds = ancestorsOf(activeId)
+      .map((node) => node.id)
+      .filter((ancestorId) => ancestorId !== activeId)
+    const missing = ancestorIds.filter(
+      (ancestorId) => !expanded.value.includes(ancestorId),
+    )
+    if (missing.length) {
+      expanded.value = [...expanded.value, ...missing]
+    }
+  },
+  { immediate: true },
+)
+function resetFilters() {
+  search.value = ''
+  relation.value = 'all'
+  tag.value = null
+}
 function navigate(keys: Array<string | number>) {
   if (!keys.length) return
   void router.push({ name: 'node', params: { id: keys[0] } })
@@ -138,17 +160,23 @@ async function created(node: NodeDetail) {
 <template>
   <section class="node-navigation">
     <div class="node-filters">
-      <NInputGroup
-        ><NInput
+      <div class="search-row">
+        <NInput
           v-model:value="search"
           clearable
           placeholder="搜索节点或标签"
-          :input-props="{ 'aria-label': '搜索节点或标签' }" /><NButton
-          v-if="isManager"
-          aria-label="新建根节点"
-          @click="createOpen = true"
-          ><Plus :size="16" /></NButton></NInputGroup
-      ><NRadioGroup
+          :input-props="{ 'aria-label': '搜索节点或标签' }"
+        /><NTooltip v-if="isManager"
+          ><template #trigger
+            ><NButton
+              aria-label="新建根节点"
+              class="create-root-btn"
+              @click="createOpen = true"
+              ><Plus :size="16" /></NButton></template
+          >新建根节点</NTooltip
+        >
+      </div>
+      <NRadioGroup
         v-model:value="relation"
         size="small"
         aria-label="按参与关系筛选"
@@ -211,6 +239,7 @@ async function created(node: NodeDetail) {
             show-line
             ellipsis
             :indent="18"
+            :cancelable="false"
             :data="data"
             :selected-keys="selected"
             :expanded-keys="expandedKeys"
@@ -234,10 +263,19 @@ async function created(node: NodeDetail) {
             v-else
             size="small"
             :description="filtering ? '没有匹配的节点' : '还没有节点'"
-        /></NSpin></div
+            ><template v-if="filtering" #extra
+              ><NButton size="small" @click="resetFilters"
+                >清除筛选</NButton
+              ></template
+            ></NEmpty
+          ></NSpin
+        ></div
     ></NScrollbar>
-    <NText depth="3" class="node-count"
-      >{{ nodes.length }} 个节点 · {{ roots.length }} 个根节点</NText
+    <NText depth="3" class="node-count">{{
+      filtering && visible
+        ? `匹配 ${visible.size} / ${nodes.length} 个节点`
+        : `${nodes.length} 个节点 · ${roots.length} 个根节点`
+    }}</NText
     ><NodeFormDialog v-model:open="createOpen" mode="create" @saved="created" />
   </section>
 </template>
@@ -255,6 +293,15 @@ async function created(node: NodeDetail) {
   gap: 8px;
   border-bottom: 1px solid var(--guild-border);
   background: var(--guild-surface-subtle);
+}
+.search-row {
+  display: flex;
+  gap: 8px;
+}
+.create-root-btn {
+  width: 34px;
+  padding: 0;
+  flex: none;
 }
 .tree-scroll {
   flex: 1;

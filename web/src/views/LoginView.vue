@@ -27,7 +27,7 @@ const error = computed(() => {
   if (code === 'provider_unavailable' || code === 'unavailable')
     return '登录服务暂时不可用，请稍后重试。'
   if (code === 'not_member')
-    return '此账号暂无公会访问权限，请联系部门管理员开通。'
+    return '此账号暂无开拓者公会访问权限，请联系部门管理员开通。'
   if (code === 'no_roles') return '此账号尚未分配网协角色，请联系管理员。'
   if (code) return '登录已取消或无法完成，请重试。'
   return connectionError.value ? '无法连接登录服务，请稍后重试。' : ''
@@ -47,7 +47,7 @@ onMounted(async () => {
                 >公</NAvatar
               >
               <div>
-                <NH1>公会</NH1><NText depth="3">Guild of Pioneers</NText>
+                <NH1>开拓者公会</NH1><NText depth="3">Guild of Pioneers</NText>
               </div></NSpace
             >
             <p>网协的工作协作空间</p>
@@ -67,7 +67,7 @@ onMounted(async () => {
         ><NGi
           ><section class="login-action">
             <NSpace vertical :size="20"
-              ><NH2>登录公会</NH2
+              ><NH2>登录开拓者公会</NH2
               ><NAlert v-if="error" type="error">{{ error }}</NAlert
               ><NButton
                 type="primary"

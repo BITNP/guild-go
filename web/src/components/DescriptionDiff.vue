@@ -60,10 +60,6 @@ onBeforeUnmount(() => {
   generation++
   controller?.dispose()
 })
-
-function reloadPage() {
-  window.location.reload()
-}
 </script>
 
 <template>
@@ -76,7 +72,7 @@ function reloadPage() {
   >
     <NAlert v-if="failed" type="error" :show-icon="false">
       差异加载失败
-      <NButton size="small" class="diff-retry" @click="reloadPage">刷新重试</NButton>
+      <NButton size="small" class="diff-retry" @click="mountDiff">重试</NButton>
     </NAlert>
     <NSpin v-show="!failed" :show="loading" size="small" description="正在加载变更">
       <div

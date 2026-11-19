@@ -16,6 +16,11 @@ const selected = ref<string | null>(null),
 const active = computed(() =>
   props.reactions.filter((reaction) => reaction.count > 0),
 )
+function hasReacted(emoji: string): boolean {
+  return props.reactions.some(
+    (reaction) => reaction.emoji === emoji && reaction.reactedByMe,
+  )
+}
 function react(emoji: string) {
   selected.value = null
   picker.value = false
@@ -71,8 +76,12 @@ function react(emoji: string) {
           v-for="emoji in reactionKeys"
           :key="emoji"
           class="emoji-picker__option"
-          quaternary
+          :type="hasReacted(emoji) ? 'primary' : 'default'"
+          :secondary="hasReacted(emoji)"
+          :quaternary="!hasReacted(emoji)"
           :aria-label="reactionEmoji[emoji]?.label"
+          :aria-pressed="hasReacted(emoji)"
+          :title="reactionEmoji[emoji]?.label"
           @click="react(emoji)"
           >{{ reactionEmoji[emoji]?.symbol }}</NButton
         >

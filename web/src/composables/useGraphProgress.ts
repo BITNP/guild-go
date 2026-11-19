@@ -93,6 +93,10 @@ export function useGraphProgress() {
     )
   }
 
+  function removeProgress(key: string) {
+    items.value = items.value.filter((item) => progressKey(item) !== key)
+  }
+
   function clear() {
     generation++
     nodeId = null
@@ -114,6 +118,7 @@ export function useGraphProgress() {
     loadOlder,
     add,
     updateReactions,
+    removeProgress,
     clear,
   }
 }

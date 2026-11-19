@@ -148,7 +148,7 @@ watch(() => [props.nodeId, props.updatedAt], load, { immediate: true })
         error
       }}</NAlert>
       <NSpin :show="loading && !items.length"
-        ><NAlert v-if="loadError" type="error"
+        ><div v-if="loading && !items.length && !loadError" class="progress-placeholder" /><NAlert v-if="loadError" type="error"
           >{{ loadError }}
           <NButton text @click="load">重新加载</NButton></NAlert
         ><NEmpty
@@ -168,7 +168,7 @@ watch(() => [props.nodeId, props.updatedAt], load, { immediate: true })
             <DescriptionChangeItem v-else :change="item.descriptionChange" />
           </template>
         </NList></NSpin
-      ><NSpace v-if="hasMore" justify="center"
+      ><NSpace v-if="hasMore" justify="center" class="load-more-row"
         ><NButton :loading="loadingMore" :disabled="loading" @click="loadMore"
           >加载更多进展</NButton
         ></NSpace
@@ -197,6 +197,14 @@ watch(() => [props.nodeId, props.updatedAt], load, { immediate: true })
 }
 .comments-alert {
   margin-bottom: 16px;
+}
+.progress-placeholder {
+  min-height: 120px;
+}
+.load-more-row {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--guild-border);
 }
 .delete-preview {
   white-space: pre-wrap;
