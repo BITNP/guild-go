@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Focus, Loader2, Network } from '@lucide/vue'
 import AppShell from '@/components/AppShell.vue'
 import DeleteNodeDialog from '@/components/DeleteNodeDialog.vue'
@@ -51,6 +51,7 @@ const {
   loadOlder: loadOlderProgress,
   add: addProgressComment,
   updateReactions,
+  removeProgress,
   clear: clearProgress,
 } = useGraphProgress()
 const stage = ref<GraphStageExpose | null>(null)
@@ -363,7 +364,13 @@ async function onNodesOrdered() {
 }
 
 function onWheel(event: WheelEvent) {
-  if (!active.value) return
+  if (
+    !active.value ||
+    active.value.node.id === VIRTUAL_ROOT_ID ||
+    expandedProgress.value
+  ) {
+    return
+  }
   if (
     event.target instanceof Element &&
     event.target.closest(
@@ -377,8 +384,60 @@ function onWheel(event: WheelEvent) {
   stage.value?.scrollProgress(event.deltaY)
 }
 
+function onProgressCommentDeleted(commentId: number) {
+  removeProgress(`comment:${commentId}`)
+  expandedProgressKey.value = null
+  if (detail.value) {
+    detail.value = {
+      ...detail.value,
+      subtreeCommentCount: Math.max(0, detail.value.subtreeCommentCount - 1),
+    }
+  }
+  if (active.value) {
+    active.value = {
+      ...active.value,
+      node: {
+        ...active.value.node,
+        commentCount: Math.max(0, active.value.node.commentCount - 1),
+      },
+    }
+  }
+  void reload()
+}
+
+function onWindowKeydown(event: KeyboardEvent) {
+  if (
+    event.key !== 'Escape' ||
+    event.defaultPrevented ||
+    event.isComposing ||
+    event.keyCode === 229 ||
+    !active.value
+  ) {
+    return
+  }
+  if (
+    editOpen.value ||
+    createOpen.value ||
+    deleteOpen.value ||
+    moveOpen.value ||
+    orderOpen.value ||
+    expandedProgress.value ||
+    document.querySelector(
+      '.n-modal-container, .n-image-preview-container, .n-drawer-container, .n-dropdown-menu',
+    )
+  ) {
+    return
+  }
+  clearSelection()
+}
+
 onMounted(() => {
+  window.addEventListener('keydown', onWindowKeydown)
   void load()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onWindowKeydown)
 })
 
 watch(() => active.value?.node.id ?? null, (id) => {
@@ -436,22 +495,6 @@ watch(() => active.value?.node.id ?? null, (id) => {
         @progress-edge="loadOlderProgress"
       />
 
-      <Transition name="network-loading">
-        <div
-          v-if="active && selectionLoading"
-          class="graph-network-loading"
-          role="status"
-          aria-live="polite"
-        >
-          <div class="network-loading-card">
-            <span class="network-loading-sigil" aria-hidden="true">
-              <span />
-            </span>
-            <p>正在加载节点…</p>
-          </div>
-        </div>
-      </Transition>
-
       <Transition name="progress-detail">
         <GraphProgressDetail
           v-if="expandedProgress"
@@ -463,6 +506,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
           "
           @close="expandedProgressKey = null"
           @reaction="reactToComment"
+          @deleted="onProgressCommentDeleted"
         />
       </Transition>
 
@@ -496,7 +540,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
         </div>
         <div class="graph-status">
           <span>{{ nodes.length }} 个节点</span>
-          <template v-if="loading || active">
+          <template v-if="loading || (active && active.node.id !== VIRTUAL_ROOT_ID)">
             <span class="graph-dot" />
             <span v-if="loading" class="graph-inline">
               <Loader2 :size="12" class="graph-spin" /> 正在加载
@@ -509,17 +553,25 @@ watch(() => active.value?.node.id ?? null, (id) => {
             </span>
           </template>
         </div>
+        <div class="graph-toolbar">
+          <button
+            v-if="active"
+            type="button"
+            class="graph-button"
+            @click="clearSelection"
+          >
+            <Focus :size="14" aria-hidden="true" /> 返回全图
+          </button>
+          <button
+            v-else
+            type="button"
+            class="graph-button"
+            @click="stage?.fitView()"
+          >
+            <Focus :size="14" aria-hidden="true" /> 重置视角
+          </button>
+        </div>
       </header>
-
-      <div v-if="!active" class="graph-toolbar">
-        <button
-          type="button"
-          class="graph-button"
-          @click="stage?.fitView()"
-        >
-          <Focus :size="14" aria-hidden="true" /> 显示全部节点
-        </button>
-      </div>
 
       <div v-if="dataError" class="graph-error-overlay">
         <div class="graph-error-card">
@@ -587,14 +639,10 @@ watch(() => active.value?.node.id ?? null, (id) => {
   background: #070a0d;
 }
 
-.graph-header,
-.graph-toolbar {
+.graph-header {
   position: absolute;
   z-index: 10;
   pointer-events: none;
-}
-
-.graph-header {
   top: 28px;
   left: 30px;
   max-width: min(420px, calc(100% - 32px));
@@ -613,7 +661,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
   width: 38px;
   height: 38px;
   border: 1px solid rgba(236, 181, 75, 0.72);
-  clip-path: polygon(22% 0, 100% 0, 100% 78%, 78% 100%, 0 100%, 0 22%);
+  border-radius: 8px;
   background:
     linear-gradient(135deg, rgba(238, 181, 73, 0.2), transparent 62%),
     rgba(10, 17, 20, 0.88);
@@ -664,10 +712,9 @@ watch(() => active.value?.node.id ?? null, (id) => {
 }
 
 .graph-toolbar {
-  top: 28px;
-  right: 28px;
   display: flex;
   gap: 6px;
+  margin-top: 12px;
   pointer-events: auto;
 }
 
@@ -678,7 +725,7 @@ watch(() => active.value?.node.id ?? null, (id) => {
   gap: 6px;
   padding: 0 12px;
   border: 1px solid rgba(221, 176, 83, 0.42);
-  border-radius: 3px;
+  border-radius: 6px;
   background: rgba(8, 14, 17, 0.78);
   color: #e6c37b;
   font-size: 13px;
@@ -695,94 +742,6 @@ watch(() => active.value?.node.id ?? null, (id) => {
   border-color: rgba(242, 190, 83, 0.8);
   background: rgba(25, 27, 20, 0.9);
   color: #fff3d1;
-}
-
-.graph-network-loading {
-  position: absolute;
-  inset: 0;
-  z-index: 15;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-  background: radial-gradient(
-    circle at 50% 46%,
-    rgba(6, 17, 20, 0.3),
-    rgba(4, 8, 10, 0.12) 36%,
-    transparent 62%
-  );
-}
-
-.network-loading-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 13px 18px;
-  border: 1px solid rgba(230, 178, 73, 0.38);
-  border-radius: 2px;
-  background: rgba(6, 13, 16, 0.9);
-  color: #e9ce91;
-  font-size: 13px;
-  box-shadow:
-    0 20px 50px rgba(0, 0, 0, 0.38),
-    inset 0 0 24px rgba(229, 174, 58, 0.04);
-  backdrop-filter: blur(14px);
-}
-
-.network-loading-card p {
-  margin: 0;
-}
-
-.network-loading-sigil {
-  position: relative;
-  width: 28px;
-  height: 28px;
-  flex: none;
-  border: 1px solid rgba(94, 206, 188, 0.28);
-  border-top-color: #64d6be;
-  border-radius: 50%;
-  animation: network-loading-spin 1.1s linear infinite;
-}
-
-.network-loading-sigil::before {
-  position: absolute;
-  inset: 5px;
-  border: 1px solid rgba(235, 184, 74, 0.42);
-  border-right-color: #e8b954;
-  border-radius: 50%;
-  content: '';
-  animation: network-loading-spin 0.7s linear infinite reverse;
-}
-
-.network-loading-sigil span {
-  position: absolute;
-  inset: 11px;
-  border-radius: 50%;
-  background: #f0c263;
-  box-shadow: 0 0 12px rgba(240, 194, 99, 0.86);
-  animation: network-loading-pulse 1.2s ease-in-out infinite;
-}
-
-@keyframes network-loading-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes network-loading-pulse {
-  50% {
-    opacity: 0.45;
-    transform: scale(0.72);
-  }
-}
-
-.network-loading-enter-active,
-.network-loading-leave-active {
-  transition: opacity 180ms ease;
-}
-
-.network-loading-enter-from,
-.network-loading-leave-to {
-  opacity: 0;
 }
 
 .graph-error-overlay {
@@ -887,24 +846,6 @@ watch(() => active.value?.node.id ?? null, (id) => {
   color: #734707;
 }
 
-:global([data-theme='light'] .network-loading-card) {
-  border-color: rgba(158, 102, 18, 0.28);
-  background: rgba(255, 255, 255, 0.9);
-  color: #81520d;
-  box-shadow:
-    0 20px 50px rgba(48, 63, 72, 0.16),
-    inset 0 0 24px rgba(181, 126, 37, 0.03);
-}
-
-:global([data-theme='light'] .graph-network-loading) {
-  background: radial-gradient(
-    circle at 50% 46%,
-    rgba(238, 244, 246, 0.3),
-    rgba(232, 238, 241, 0.12) 36%,
-    transparent 62%
-  );
-}
-
 :global([data-theme='light'] .graph-error-card),
 :global([data-theme='light'] .graph-toast) {
   border-color: rgba(157, 100, 18, 0.28);
@@ -921,28 +862,12 @@ watch(() => active.value?.node.id ?? null, (id) => {
   .graph-spin {
     animation: none;
   }
-
-  .network-loading-sigil,
-  .network-loading-sigil::before,
-  .network-loading-sigil span {
-    animation: none;
-  }
-
-  .network-loading-enter-active,
-  .network-loading-leave-active {
-    transition: none;
-  }
 }
 
 @media (max-width: 640px) {
   .graph-header {
     top: 20px;
     left: 20px;
-  }
-
-  .graph-toolbar {
-    top: 20px;
-    right: 20px;
   }
 }
 </style>

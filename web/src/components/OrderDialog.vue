@@ -9,7 +9,7 @@ import {
   NSpace,
   NText,
 } from 'naive-ui'
-import { ArrowDown, ArrowUp } from '@lucide/vue'
+import { ArrowDown, ArrowUp, GripVertical } from '@lucide/vue'
 import AppModal from '@/components/AppModal.vue'
 import { orderNodes, type ChildNode } from '@/lib/api'
 import { errorMessage } from '@/lib/utils'
@@ -22,7 +22,9 @@ const props = defineProps<{
   emit = defineEmits<{ close: []; saved: [] }>()
 const items = ref<ChildNode[]>([]),
   saving = ref(false),
-  error = ref<string | null>(null)
+  error = ref<string | null>(null),
+  draggingIndex = ref<number | null>(null),
+  dragOverIndex = ref<number | null>(null)
 watch(
   () => props.open,
   (open) => {
@@ -31,6 +33,8 @@ watch(
         (a, b) => a.sortOrder - b.sortOrder || a.id - b.id,
       )
       error.value = null
+      draggingIndex.value = null
+      dragOverIndex.value = null
     }
   },
   { immediate: true },
@@ -41,6 +45,39 @@ function move(index: number, direction: -1 | 1) {
   const next = [...items.value]
   ;[next[index], next[target]] = [next[target]!, next[index]!]
   items.value = next
+}
+function onDragStart(index: number, event: DragEvent) {
+  if (saving.value) return
+  draggingIndex.value = index
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(index))
+  }
+}
+function onDragOver(index: number) {
+  if (draggingIndex.value === null || draggingIndex.value === index) {
+    dragOverIndex.value = null
+    return
+  }
+  dragOverIndex.value = index
+}
+function onDragLeave(index: number) {
+  if (dragOverIndex.value === index) dragOverIndex.value = null
+}
+function onDrop(index: number) {
+  const from = draggingIndex.value
+  draggingIndex.value = null
+  dragOverIndex.value = null
+  if (from === null || from === index || saving.value) return
+  const next = [...items.value]
+  const [moved] = next.splice(from, 1)
+  if (!moved) return
+  next.splice(index, 0, moved)
+  items.value = next
+}
+function onDragEnd() {
+  draggingIndex.value = null
+  dragOverIndex.value = null
 }
 async function save() {
   if (saving.value) return
@@ -68,10 +105,26 @@ async function save() {
     @close="emit('close')"
     ><NSpace vertical :size="16"
       ><NText v-if="parentTitle" depth="3">父节点：{{ parentTitle }}</NText
-      ><NList bordered
-        ><NListItem v-for="(item, index) in items" :key="item.id"
-          ><span class="order-label">{{ index + 1 }}. {{ item.title }}</span
-          ><template #suffix
+      ><NList bordered class="order-list"
+        ><NListItem
+          v-for="(item, index) in items"
+          :key="item.id"
+          :class="{
+            'order-row': true,
+            'is-dragging': draggingIndex === index,
+            'is-drag-over': dragOverIndex === index,
+          }"
+          :draggable="!saving"
+          @dragstart="onDragStart(index, $event)"
+          @dragover.prevent="onDragOver(index)"
+          @dragleave="onDragLeave(index)"
+          @drop.prevent="onDrop(index)"
+          @dragend="onDragEnd"
+          ><div class="order-item">
+            <GripVertical :size="16" class="drag-handle" aria-hidden="true" />
+            <span class="order-label">{{ index + 1 }}. {{ item.title }}</span>
+          </div>
+          <template #suffix
             ><NSpace :wrap="false" :size="4"
               ><NButton
                 quaternary
@@ -105,6 +158,32 @@ async function save() {
   >
 </template>
 <style scoped>
+.order-list {
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+}
+.order-row {
+  cursor: grab;
+  transition:
+    background-color 0.15s,
+    opacity 0.15s;
+}
+.order-row.is-dragging {
+  opacity: 0.45;
+}
+.order-row.is-drag-over {
+  background: var(--guild-primary-soft);
+}
+.order-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.drag-handle {
+  flex: none;
+  color: var(--guild-muted);
+}
 .order-label {
   overflow-wrap: anywhere;
 }

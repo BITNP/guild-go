@@ -6,16 +6,10 @@ import {
   NAvatar,
   NButton,
   NCard,
-  NGrid,
-  NGi,
   NH1,
-  NH2,
-  NList,
-  NListItem,
   NSpace,
   NText,
 } from 'naive-ui'
-import { ListTree, Users, MessageSquare } from '@lucide/vue'
 import { useAuth } from '@/composables/useAuth'
 import { safeReturnTo } from '@/lib/utils'
 const route = useRoute(),
@@ -38,50 +32,26 @@ onMounted(async () => {
 </script>
 <template>
   <main class="login-stage">
-    <NCard class="login-card" :content-style="{ padding: 0 }"
-      ><NGrid cols="1 s:2" responsive="screen"
-        ><NGi
-          ><section class="login-product">
-            <NSpace align="center" :size="16"
-              ><NAvatar :size="48" color="#1f5fbf" class="login-mark"
-                >公</NAvatar
-              >
-              <div>
-                <NH1>公会</NH1><NText depth="3">Guild of Pioneers</NText>
-              </div></NSpace
-            >
-            <p>网协的工作协作空间</p>
-            <NList :show-divider="false" class="product-features"
-              ><NListItem
-                ><template #prefix><ListTree :size="18" /></template
-                >拆分节点，安排工作</NListItem
-              ><NListItem
-                ><template #prefix><Users :size="18" /></template
-                >分配负责人和成员</NListItem
-              ><NListItem
-                ><template #prefix><MessageSquare :size="18" /></template
-                >发布文字和图片进展</NListItem
-              ></NList
-            >
-          </section></NGi
-        ><NGi
-          ><section class="login-action">
-            <NSpace vertical :size="20"
-              ><NH2>登录公会</NH2
-              ><NAlert v-if="error" type="error">{{ error }}</NAlert
-              ><NButton
-                type="primary"
-                size="large"
-                block
-                :disabled="state === 'active'"
-                @click="login(returnTo)"
-                >使用网协通行证登录</NButton
-              ></NSpace
-            >
-          </section></NGi
-        ></NGrid
-      ></NCard
-    >
+    <NCard class="login-card">
+      <NSpace vertical :size="24">
+        <header class="login-header">
+          <NAvatar :size="44" color="#1f5fbf" class="login-mark">公</NAvatar>
+          <div>
+            <NH1>公会</NH1>
+            <NText depth="3">网协的工作协作空间</NText>
+          </div>
+        </header>
+        <NAlert v-if="error" type="error">{{ error }}</NAlert>
+        <NButton
+          type="primary"
+          size="large"
+          block
+          :disabled="state === 'active'"
+          @click="login(returnTo)"
+          >使用网协通行证登录</NButton
+        >
+      </NSpace>
+    </NCard>
   </main>
 </template>
 <style scoped>
@@ -93,38 +63,27 @@ onMounted(async () => {
   background: var(--guild-app-bg);
 }
 .login-card {
-  max-width: 800px;
-  overflow: hidden;
+  max-width: 400px;
+  width: 100%;
 }
-.login-product {
-  padding: 32px;
-  background: var(--guild-primary-soft);
-  height: 100%;
+.login-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
-.login-product h1,
-.login-action h2 {
-  margin: 0;
+.login-header h1 {
+  margin: 0 0 2px;
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 650;
 }
 .login-mark {
+  flex: none;
   color: white;
-}
-.product-features {
-  background: transparent;
-}
-.login-action {
-  height: 100%;
-  padding: 32px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
 }
 @media (max-width: 639px) {
   .login-stage {
     padding: 16px;
-  }
-  .login-product,
-  .login-action {
-    padding: 24px;
   }
 }
 </style>

@@ -11,6 +11,7 @@ import {
   NH1,
   NList,
   NSpace,
+  NSpin,
   NStatistic,
 } from 'naive-ui'
 import AppShell from '@/components/AppShell.vue'
@@ -21,12 +22,18 @@ import NodeFormDialog from '@/components/NodeFormDialog.vue'
 import OrderDialog from '@/components/OrderDialog.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useNodeStore } from '@/composables/useNodeStore'
-import { fetchOverview, type ActivityScope, type NodeDetail, type Overview } from '@/lib/api'
+import {
+  fetchOverview,
+  type ActivityScope,
+  type NodeDetail,
+  type Overview,
+} from '@/lib/api'
 import { errorMessage, isOverdue } from '@/lib/utils'
 const router = useRouter(),
   { isManager } = useAuth(),
   {
     nodes,
+    loading: nodesLoading,
     error: nodesError,
     reload: reloadNodes,
   } = useNodeStore()
@@ -38,22 +45,38 @@ const overview = ref<Overview | null>(null),
 const activityScope = ref<ActivityScope>('related')
 const rootIds = computed(() => new Set(overview.value?.roots.map((root) => root.id)))
 let loadVersion = 0
-const statistics = computed(() => [
-  { label: '全部节点', value: nodes.value.length },
-  {
-    label: '我负责',
-    value: nodes.value.filter((node) => node.myRelation === 'leader').length,
-  },
-  {
-    label: '未完成',
-    value: nodes.value.filter((node) => !node.completedAt).length,
-  },
-  {
-    label: '已逾期',
-    value: nodes.value.filter((node) => isOverdue(node.dueAt, node.completedAt))
-      .length,
-  },
-])
+const statisticsLoading = computed(() => nodesLoading.value && !nodes.value.length)
+const statistics = computed(() => {
+  if (statisticsLoading.value) {
+    return [
+      { label: '全部节点', value: '—', warning: false },
+      { label: '我负责', value: '—', warning: false },
+      { label: '未完成', value: '—', warning: false },
+      { label: '已逾期', value: '—', warning: false },
+    ]
+  }
+  const overdueCount = nodes.value.filter((node) =>
+    isOverdue(node.dueAt, node.completedAt),
+  ).length
+  return [
+    { label: '全部节点', value: nodes.value.length, warning: false },
+    {
+      label: '我负责',
+      value: nodes.value.filter((node) => node.myRelation === 'leader').length,
+      warning: false,
+    },
+    {
+      label: '未完成',
+      value: nodes.value.filter((node) => !node.completedAt).length,
+      warning: false,
+    },
+    {
+      label: '已逾期',
+      value: overdueCount,
+      warning: overdueCount > 0,
+    },
+  ]
+})
 async function load() {
   const version = ++loadVersion
   loading.value = true
@@ -102,22 +125,21 @@ watch(activityScope, load)
           {{ nodesError }}
           <NButton text @click="reloadNodes">重试</NButton>
         </NAlert>
-        <NCard v-if="overview && !nodesError" size="small">
-          <NGrid :cols="4" :x-gap="16">
-            <NGi v-for="stat in statistics" :key="stat.label" class="statistic-cell">
-              <NStatistic
-                :label="stat.label"
-                :value="stat.value"
-                :value-style="{
-                  color:
-                    stat.label === '已逾期' && stat.value
-                      ? 'var(--guild-warning)'
-                      : undefined,
-                }"
-              />
-            </NGi>
-          </NGrid>
-        </NCard>
+        <NSpin v-else :show="statisticsLoading" size="small">
+          <NCard size="small">
+            <NGrid :cols="4" :x-gap="16">
+              <NGi v-for="stat in statistics" :key="stat.label" class="statistic-cell">
+                <NStatistic
+                  :label="stat.label"
+                  :value="stat.value"
+                  :value-style="{
+                    color: stat.warning ? 'var(--guild-warning)' : undefined,
+                  }"
+                />
+              </NGi>
+            </NGrid>
+          </NCard>
+        </NSpin>
         <RecentProgress
           v-model:scope="activityScope"
           :activities="overview?.recentActivities ?? []"
@@ -126,10 +148,22 @@ watch(activityScope, load)
           :error="error"
           @retry="load"
         />
-        <section v-if="overview" class="root-section" aria-label="根节点">
-          <SectionHeading title="根节点" :count="overview.roots.length" />
-          <NCard size="small">
-            <NList v-if="overview.roots.length">
+        <section
+          v-if="overview || (loading && !error)"
+          class="root-section"
+          aria-label="根节点"
+        >
+          <SectionHeading title="根节点" :count="overview?.roots.length" />
+          <NCard size="small" :aria-busy="loading && !overview">
+            <div
+              v-if="loading && !overview"
+              class="roots-placeholder"
+              role="status"
+              aria-label="正在加载根节点"
+            >
+              <NSpin size="small" />
+            </div>
+            <NList v-else-if="overview?.roots.length">
               <NodeListItem
                 v-for="root in overview.roots"
                 :key="root.id"
@@ -187,6 +221,10 @@ watch(activityScope, load)
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+.roots-placeholder {
+  padding: 20px 0;
+  text-align: center;
 }
 .statistic-cell + .statistic-cell {
   padding-left: 16px;

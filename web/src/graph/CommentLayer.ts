@@ -57,6 +57,19 @@ const CARD_PALETTES = {
     cyan: 'rgba(102, 219, 186, 0.82)',
     divider: 'rgba(139, 166, 171, 0.2)',
     empty: 'rgba(232, 185, 85, 0.86)',
+    reactionActiveBg: 'rgba(224, 174, 66, 0.27)',
+    reactionBg: 'rgba(75, 201, 174, 0.15)',
+    reactionIdleBg: 'rgba(91, 119, 124, 0.1)',
+    reactionActiveBorder: 'rgba(241, 192, 87, 0.78)',
+    reactionBorder: 'rgba(98, 218, 186, 0.48)',
+    reactionIdleBorder: 'rgba(103, 137, 142, 0.24)',
+    reactionEmojiActive: 'rgba(244, 247, 239, 0.98)',
+    reactionEmojiIdle: 'rgba(176, 196, 198, 0.48)',
+    reactionCountActive: 'rgba(255, 220, 141, 0.96)',
+    reactionCount: 'rgba(133, 226, 203, 0.9)',
+    changePromptBg: 'rgba(75, 201, 174, 0.1)',
+    changePromptBorder: 'rgba(98, 218, 186, 0.35)',
+    changePromptText: 'rgba(116, 224, 198, 0.88)',
   },
   light: {
     surface: 'rgba(255, 255, 255, 0.94)',
@@ -67,6 +80,19 @@ const CARD_PALETTES = {
     cyan: 'rgba(21, 124, 89, 0.9)',
     divider: 'rgba(82, 105, 119, 0.18)',
     empty: 'rgba(133, 83, 12, 0.86)',
+    reactionActiveBg: 'rgba(181, 120, 24, 0.16)',
+    reactionBg: 'rgba(21, 124, 89, 0.1)',
+    reactionIdleBg: 'rgba(82, 105, 119, 0.06)',
+    reactionActiveBorder: 'rgba(165, 104, 18, 0.65)',
+    reactionBorder: 'rgba(21, 124, 89, 0.4)',
+    reactionIdleBorder: 'rgba(82, 105, 119, 0.22)',
+    reactionEmojiActive: 'rgba(23, 32, 43, 0.98)',
+    reactionEmojiIdle: 'rgba(82, 105, 119, 0.55)',
+    reactionCountActive: '#8c5308',
+    reactionCount: '#136a4c',
+    changePromptBg: 'rgba(21, 124, 89, 0.08)',
+    changePromptBorder: 'rgba(21, 124, 89, 0.32)',
+    changePromptText: '#136a4c',
   },
 } as const
 
@@ -171,7 +197,8 @@ export class CommentLayer {
           previousTexture?.dispose()
           visual.textureKey = textureKey
           visual.dot.material.color.setHex(
-            item.kind === 'comment' && item.comment.reactions.length > 0
+            item.kind === 'comment' &&
+              item.comment.reactions.some((reaction) => reaction.count > 0)
               ? 0x6de2c2
               : 0xe7b34d,
           )
@@ -586,16 +613,16 @@ function createProgressTexture(
       const x = REACTION_START_X + index * (REACTION_CELL_WIDTH + REACTION_GAP)
       const reaction = counts.get(emoji)
       context.fillStyle = reaction?.reactedByMe
-        ? 'rgba(224, 174, 66, 0.27)'
+        ? palette.reactionActiveBg
         : reaction
-          ? 'rgba(75, 201, 174, 0.15)'
-          : 'rgba(91, 119, 124, 0.1)'
+          ? palette.reactionBg
+          : palette.reactionIdleBg
       context.fillRect(x, REACTION_ROW_TOP, REACTION_CELL_WIDTH, 72)
       context.strokeStyle = reaction?.reactedByMe
-        ? 'rgba(241, 192, 87, 0.78)'
+        ? palette.reactionActiveBorder
         : reaction
-          ? 'rgba(98, 218, 186, 0.48)'
-          : 'rgba(103, 137, 142, 0.24)'
+          ? palette.reactionBorder
+          : palette.reactionIdleBorder
       context.strokeRect(
         x + 0.5,
         REACTION_ROW_TOP + 0.5,
@@ -607,8 +634,8 @@ function createProgressTexture(
       context.textAlign = 'center'
       context.textBaseline = 'middle'
       context.fillStyle = reaction
-        ? 'rgba(244, 247, 239, 0.98)'
-        : 'rgba(176, 196, 198, 0.48)'
+        ? palette.reactionEmojiActive
+        : palette.reactionEmojiIdle
       context.fillText(
         reactionEmoji[emoji]?.symbol ?? emoji,
         x + (reaction ? 40 : REACTION_CELL_WIDTH / 2),
@@ -617,19 +644,19 @@ function createProgressTexture(
       if (reaction) {
         context.font = '600 25px "Noto Sans SC", "PingFang SC", sans-serif'
         context.fillStyle = reaction.reactedByMe
-          ? 'rgba(255, 220, 141, 0.96)'
-          : 'rgba(133, 226, 203, 0.9)'
+          ? palette.reactionCountActive
+          : palette.reactionCount
         context.textAlign = 'left'
         context.fillText(String(reaction.count), x + 66, REACTION_ROW_TOP + 39)
       }
     })
   } else {
-    context.fillStyle = 'rgba(75, 201, 174, 0.1)'
+    context.fillStyle = palette.changePromptBg
     context.fillRect(34, REACTION_ROW_TOP, 956, 72)
-    context.strokeStyle = 'rgba(98, 218, 186, 0.35)'
+    context.strokeStyle = palette.changePromptBorder
     context.strokeRect(34.5, REACTION_ROW_TOP + 0.5, 955, 71)
     context.font = '600 27px "Noto Sans SC", "PingFang SC", sans-serif'
-    context.fillStyle = 'rgba(116, 224, 198, 0.88)'
+    context.fillStyle = palette.changePromptText
     context.textAlign = 'center'
     context.textBaseline = 'middle'
     context.fillText('点击展开完整描述变更', 512, REACTION_ROW_TOP + 37)

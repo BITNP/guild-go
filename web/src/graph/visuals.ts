@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import type { ThemeMode } from '@/composables/useTheme'
 
 const LABEL_CANVAS_WIDTH = 768
-const LABEL_CANVAS_HEIGHT = 192
+const LABEL_CANVAS_HEIGHT = 128
 
 export const LABEL_ASPECT_RATIO = LABEL_CANVAS_WIDTH / LABEL_CANVAS_HEIGHT
 
@@ -19,7 +19,7 @@ export function createLabelTexture(
   if (!context) throw new Error('Canvas 2D context is unavailable')
 
   context.clearRect(0, 0, canvas.width, canvas.height)
-  roundedRect(context, 8, 8, 752, 176, 16)
+  roundedRect(context, 8, 8, 752, 112, 16)
   const light = theme === 'light'
   context.fillStyle = light
     ? virtual
@@ -54,28 +54,14 @@ export function createLabelTexture(
       : completed
         ? '#68dfb7'
         : '#e8b34a'
-  context.fillRect(26, 30, 4, 132)
+  context.fillRect(26, 26, 6, 76)
 
   context.textBaseline = 'middle'
   context.textAlign = 'left'
-  context.font = '800 42px Inter, "Noto Sans SC", "PingFang SC", sans-serif'
-  context.fillStyle = light
-    ? virtual
-      ? '#a8680e'
-      : 'rgba(76, 94, 108, 0.82)'
-    : virtual
-      ? '#f4bd4e'
-      : 'rgba(178, 199, 206, 0.82)'
-  context.fillText(
-    virtual ? '全部根节点' : completed ? '已完成' : '未完成',
-    54,
-    42,
-  )
-
-  context.font = '700 64px Inter, "Noto Sans SC", "PingFang SC", sans-serif'
+  context.font = '700 56px Inter, "Noto Sans SC", "PingFang SC", sans-serif'
   context.fillStyle = light ? '#17202b' : '#f4f1e8'
   const lines = wrapText(context, title || '未命名节点', 664, 1)
-  context.fillText(lines[0] ?? '未命名节点', 54, 110)
+  context.fillText(lines[0] ?? '未命名节点', 54, 64)
 
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace

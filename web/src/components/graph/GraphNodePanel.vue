@@ -1,20 +1,16 @@
 <script setup lang="ts">
 import {
   computed,
-  onBeforeUnmount,
-  onMounted,
   ref,
   watch,
 } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
-  NAlert,
-  NDatePicker,
-} from 'naive-ui'
-import {
   ArrowUpDown,
   CalendarClock,
+  Check,
   ChevronRight,
+  Circle,
   ExternalLink,
   FolderInput,
   Pencil,
@@ -27,7 +23,13 @@ import NodeStatusTag from '@/components/NodeStatusTag.vue'
 import UserIdentity from '@/components/UserIdentity.vue'
 import type { GraphNode } from '@/graph/types'
 import { updateNode, type NodeDetail } from '@/lib/api'
-import { errorMessage, formatDateTime, timeAgo } from '@/lib/utils'
+import {
+  errorMessage,
+  formatDateTime,
+  isOverdue,
+  linkify,
+  timeAgo,
+} from '@/lib/utils'
 
 const props = defineProps<{
   selected: GraphNode
@@ -53,58 +55,17 @@ const emit = defineEmits<{
 }>()
 
 const membersOpen = ref(false)
-const editingMeta = ref(false)
-const quickDue = ref<number | null>(null)
-const savingMeta = ref(false)
-const metaError = ref<string | null>(null)
 const savingStatus = ref(false)
 const statusError = ref<string | null>(null)
-const panel = ref<HTMLElement | null>(null)
 const title = computed(() => props.detail?.title ?? props.selected.title)
-let pointerTargetX = 0
-let pointerTargetY = 0
-let pointerX = 0
-let pointerY = 0
-let tiltFrame = 0
-let lastTiltFrame = performance.now()
-let reduceMotion = false
-
-function updatePointerTilt(event: PointerEvent) {
-  pointerTargetX = (event.clientX / Math.max(window.innerWidth, 1)) * 2 - 1
-  pointerTargetY = (event.clientY / Math.max(window.innerHeight, 1)) * 2 - 1
-}
-
-function animateTilt(now: number) {
-  const delta = Math.min(0.05, (now - lastTiltFrame) / 1000)
-  lastTiltFrame = now
-  const damping = 1 - Math.exp(-delta * 5)
-  pointerX += (pointerTargetX - pointerX) * damping
-  pointerY += (pointerTargetY - pointerY) * damping
-  panel.value?.style.setProperty('--panel-tilt-x', `${pointerY * 0.8}deg`)
-  panel.value?.style.setProperty('--panel-tilt-y', `${-pointerX * 1.15}deg`)
-  tiltFrame = requestAnimationFrame(animateTilt)
-}
-
-onMounted(() => {
-  reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  window.addEventListener('pointermove', updatePointerTilt, { passive: true })
-  if (!reduceMotion) {
-    lastTiltFrame = performance.now()
-    tiltFrame = requestAnimationFrame(animateTilt)
-  }
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('pointermove', updatePointerTilt)
-  cancelAnimationFrame(tiltFrame)
-})
+const descriptionSegments = computed(() =>
+  linkify(props.detail?.description ?? ''),
+)
 
 watch(
   () => props.selected.id,
   () => {
     membersOpen.value = false
-    editingMeta.value = false
-    metaError.value = null
     statusError.value = null
   },
 )
@@ -122,53 +83,12 @@ function createNode() {
   }
 }
 
-function startMetaEdit() {
-  if (!props.detail || savingStatus.value) return
-  quickDue.value = props.detail.dueAt
-    ? new Date(props.detail.dueAt).getTime()
-    : null
-  metaError.value = null
-  editingMeta.value = true
-}
-
-function cancelMetaEdit() {
-  if (savingMeta.value) return
-  editingMeta.value = false
-  metaError.value = null
-}
-
-async function saveMetaEdit() {
-  const node = props.detail
-  if (!node || savingMeta.value) return
-  savingMeta.value = true
-  metaError.value = null
-  try {
-    const updated = await updateNode(node.id, {
-      title: node.title,
-      description: node.description,
-      dueAt: quickDue.value === null
-        ? null
-        : new Date(quickDue.value).toISOString(),
-      tags: node.tags,
-      completed: !!node.completedAt,
-    })
-    editingMeta.value = false
-    emit('updated', updated)
-  } catch (err) {
-    metaError.value = errorMessage(err, '保存到期时间失败')
-  } finally {
-    savingMeta.value = false
-  }
-}
-
 async function toggleCompletion() {
   const node = props.detail
   if (
     !node ||
     !node.permissions.canEdit ||
-    savingStatus.value ||
-    editingMeta.value ||
-    savingMeta.value
+    savingStatus.value
   ) {
     return
   }
@@ -193,7 +113,6 @@ async function toggleCompletion() {
 
 <template>
   <aside
-    ref="panel"
     class="node-control-panel"
     data-graph-node-panel
     aria-label="节点控制面板"
@@ -217,7 +136,7 @@ async function toggleCompletion() {
           v-if="detail.permissions.canEdit"
           type="button"
           class="status-toggle"
-          :disabled="savingStatus || editingMeta || savingMeta"
+          :disabled="savingStatus"
           :aria-pressed="!!detail.completedAt"
           @click="toggleCompletion"
         >
@@ -339,7 +258,21 @@ async function toggleCompletion() {
                 class="child-link"
                 @click="emit('navigate', child.id)"
               >
-                <span class="child-orb" aria-hidden="true" />
+                <Check
+                  v-if="child.completedAt"
+                  :size="14"
+                  class="child-icon is-completed"
+                  aria-label="已完成"
+                />
+                <Circle
+                  v-else
+                  :size="14"
+                  :class="[
+                    'child-icon',
+                    { 'is-overdue': isOverdue(child.dueAt, child.completedAt) },
+                  ]"
+                  aria-label="未完成"
+                />
                 <span class="child-title">{{ child.title }}</span>
                 <span v-if="child.childCount" class="child-count"
                   >{{ child.childCount }} 个子节点</span
@@ -360,7 +293,17 @@ async function toggleCompletion() {
         >
           <h3 id="panel-description-title">节点描述</h3>
           <p v-if="detail.description" class="panel-description">
-            {{ detail.description }}
+            <template
+              v-for="(segment, index) in descriptionSegments"
+              :key="index"
+              ><a
+                v-if="segment.type === 'link'"
+                :href="segment.href"
+                target="_blank"
+                rel="noopener noreferrer"
+                >{{ segment.value }}</a
+              ><template v-else>{{ segment.value }}</template></template
+            >
           </p>
           <p v-else class="panel-empty-copy">暂无节点描述</p>
         </section>
@@ -370,58 +313,15 @@ async function toggleCompletion() {
           class="panel-section"
           aria-labelledby="panel-meta-title"
         >
-          <div class="panel-section-heading">
-            <h3 id="panel-meta-title">节点信息</h3>
-            <button
-              v-if="detail.permissions.canEdit && !editingMeta"
-              type="button"
-              class="panel-edit-button"
-              :disabled="savingStatus"
-              @click="startMetaEdit"
-            >
-              <Pencil :size="12" />
-              修改预期完成
-            </button>
-          </div>
-
-          <div v-if="editingMeta" class="meta-editor">
-            <label class="meta-editor-field">
-              <span>预期完成时间</span>
-              <NDatePicker
-                v-model:value="quickDue"
-                type="datetime"
-                format="yyyy-MM-dd HH:mm"
-                :time-picker-props="{ format: 'HH:mm' }"
-                clearable
-                :disabled="savingMeta"
-              />
-            </label>
-            <NAlert v-if="metaError" type="error" role="alert">
-              {{ metaError }}
-            </NAlert>
-            <div class="meta-editor-actions">
-              <button
-                type="button"
-                :disabled="savingMeta"
-                @click="cancelMetaEdit"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                class="is-primary"
-                :disabled="savingMeta"
-                @click="saveMetaEdit"
-              >
-                {{ savingMeta ? '保存中…' : '保存修改' }}
-              </button>
-            </div>
-          </div>
-
-          <dl v-else class="panel-meta-grid">
+          <h3 id="panel-meta-title">节点信息</h3>
+          <dl class="panel-meta-grid">
             <div>
               <dt><CalendarClock :size="13" />预期完成</dt>
-              <dd>{{ formatDateTime(detail.dueAt) }}</dd>
+              <dd>{{ detail.dueAt ? formatDateTime(detail.dueAt) : '未设置' }}</dd>
+            </div>
+            <div v-if="detail.completedAt">
+              <dt>实际完成</dt>
+              <dd>{{ formatDateTime(detail.completedAt) }}</dd>
             </div>
             <div>
               <dt>创建时间</dt>
@@ -434,7 +334,7 @@ async function toggleCompletion() {
               </dd>
             </div>
             <div>
-              <dt>下级节点</dt>
+              <dt>包含节点</dt>
               <dd>{{ detail.subtreeNodeCount }}</dd>
             </div>
             <div>
@@ -442,8 +342,8 @@ async function toggleCompletion() {
               <dd>{{ detail.effectiveMemberCount }}</dd>
             </div>
             <div>
-              <dt>进展</dt>
-              <dd>{{ detail.subtreeCommentCount }}</dd>
+              <dt>图片附件</dt>
+              <dd>{{ detail.subtreeAttachmentCount }}</dd>
             </div>
           </dl>
         </section>
@@ -519,22 +419,18 @@ async function toggleCompletion() {
 
 <style scoped>
 .node-control-panel {
-  --panel-base-rotate-y: -2.4deg;
-  --panel-tilt-x: 0deg;
-  --panel-tilt-y: 0deg;
   position: absolute;
   z-index: 20;
   top: 16px;
   right: 16px;
   bottom: 16px;
   display: flex;
-  width: clamp(330px, 36vw, 620px);
+  width: clamp(320px, 28vw, 400px);
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
   border: 1px solid rgba(222, 174, 69, 0.34);
-  border-right-color: rgba(240, 187, 78, 0.68);
-  border-radius: 4px;
+  border-radius: 8px;
   background:
     linear-gradient(155deg, rgba(25, 24, 17, 0.9), transparent 34%),
     linear-gradient(180deg, rgba(10, 17, 20, 0.97), rgba(5, 10, 13, 0.98));
@@ -544,60 +440,31 @@ async function toggleCompletion() {
   color: #d9e1e1;
   pointer-events: auto;
   backdrop-filter: blur(22px);
-  transform:
-    perspective(1500px)
-    rotateX(var(--panel-tilt-x))
-    rotateY(calc(var(--panel-base-rotate-y) + var(--panel-tilt-y)));
-  transform-origin: 100% 50%;
-  transform-style: preserve-3d;
   will-change: transform, opacity;
 }
 
 .node-panel-enter-active {
   transition:
-    transform 360ms cubic-bezier(0.22, 0.76, 0.24, 1),
-    opacity 240ms ease-out;
+    transform 260ms cubic-bezier(0.22, 0.76, 0.24, 1),
+    opacity 200ms ease-out;
 }
 
 .node-panel-leave-active {
   transition:
-    transform 300ms cubic-bezier(0.55, 0, 0.8, 0.42),
-    opacity 220ms ease-in;
+    transform 200ms cubic-bezier(0.55, 0, 0.8, 0.42),
+    opacity 180ms ease-in;
 }
 
 .node-panel-enter-from,
 .node-panel-leave-to {
   opacity: 0;
-  transform:
-    perspective(1500px)
-    rotateX(var(--panel-tilt-x))
-    rotateY(calc(var(--panel-base-rotate-y) + var(--panel-tilt-y)))
-    translate3d(calc(100% + 32px), 0, -20px);
+  transform: translateX(calc(100% + 24px));
 }
 
 .node-panel-enter-to,
 .node-panel-leave-from {
   opacity: 1;
-  transform:
-    perspective(1500px)
-    rotateX(var(--panel-tilt-x))
-    rotateY(calc(var(--panel-base-rotate-y) + var(--panel-tilt-y)))
-    translate3d(0, 0, 0);
-}
-
-.node-control-panel::before {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(244, 192, 82, 0.78),
-    transparent
-  );
-  content: '';
+  transform: translateX(0);
 }
 
 .panel-header {
@@ -617,7 +484,7 @@ async function toggleCompletion() {
   height: 30px;
   place-items: center;
   border: 1px solid rgba(150, 171, 175, 0.22);
-  border-radius: 2px;
+  border-radius: 4px;
   background: rgba(10, 16, 19, 0.72);
   color: #a5b4b7;
   cursor: pointer;
@@ -652,7 +519,7 @@ async function toggleCompletion() {
 .status-toggle {
   padding: 3px 8px;
   border: 1px solid rgba(221, 176, 75, 0.34);
-  border-radius: 2px;
+  border-radius: 4px;
   background: rgba(218, 170, 67, 0.07);
   color: #e5c47c;
   font-size: 13px;
@@ -685,7 +552,7 @@ async function toggleCompletion() {
 .panel-tag {
   padding: 2px 7px;
   border: 1px solid rgba(116, 150, 157, 0.28);
-  border-radius: 2px;
+  border-radius: 4px;
   color: #9eb2b6;
   font-size: 13px;
 }
@@ -727,18 +594,6 @@ async function toggleCompletion() {
   font-weight: 700;
 }
 
-.panel-section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 13px;
-}
-
-.panel-section-heading h3 {
-  margin: 0;
-}
-
 .panel-relation {
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr);
@@ -767,7 +622,7 @@ async function toggleCompletion() {
   gap: 8px;
   padding: 8px 10px;
   border: 1px solid rgba(221, 176, 75, 0.22);
-  border-radius: 2px;
+  border-radius: 4px;
   background: rgba(218, 170, 67, 0.055);
   font-size: 14px;
   text-align: left;
@@ -818,24 +673,28 @@ async function toggleCompletion() {
 
 .child-link {
   display: grid;
-  grid-template-columns: 7px minmax(0, 1fr) auto 14px;
+  grid-template-columns: 14px minmax(0, 1fr) auto 14px;
   align-items: center;
   gap: 9px;
   width: 100%;
   padding: 8px 9px;
   border: 1px solid transparent;
-  border-radius: 2px;
+  border-radius: 4px;
   color: #c6d1d2;
   font-size: 15px;
   text-align: left;
 }
 
-.child-orb {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #d9aa49;
-  box-shadow: 0 0 8px rgba(227, 176, 67, 0.72);
+.child-icon {
+  color: #84979b;
+}
+
+.child-icon.is-completed {
+  color: #56c99a;
+}
+
+.child-icon.is-overdue {
+  color: #e6b85e;
 }
 
 .child-title {
@@ -854,10 +713,16 @@ async function toggleCompletion() {
 .panel-description {
   margin: 0;
   color: #aebbbc;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.8;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.panel-description a {
+  color: #f0c975;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .panel-meta-grid {
@@ -888,52 +753,6 @@ async function toggleCompletion() {
   overflow-wrap: anywhere;
 }
 
-.meta-editor {
-  display: grid;
-  gap: 14px;
-}
-
-.meta-editor-field {
-  display: grid;
-  gap: 7px;
-  color: #91a4a8;
-  font-size: 14px;
-}
-
-.meta-editor-field :deep(.n-date-picker),
-.meta-editor-field :deep(.n-input) {
-  width: 100%;
-}
-
-.meta-editor-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding-top: 4px;
-}
-
-.meta-editor-actions button {
-  min-height: 32px;
-  padding: 6px 12px;
-  border: 1px solid rgba(139, 164, 169, 0.28);
-  border-radius: 2px;
-  background: rgba(11, 18, 21, 0.72);
-  color: #bdcbcc;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.meta-editor-actions button.is-primary {
-  border-color: rgba(232, 181, 75, 0.62);
-  background: rgba(218, 170, 67, 0.12);
-  color: #f1cb7b;
-}
-
-.meta-editor-actions button:disabled {
-  cursor: wait;
-  opacity: 0.55;
-}
-
 .people-heading {
   display: flex;
   align-items: center;
@@ -952,7 +771,7 @@ async function toggleCompletion() {
   gap: 5px;
   padding: 5px 9px;
   border: 1px solid rgba(221, 176, 75, 0.3);
-  border-radius: 2px;
+  border-radius: 4px;
   background: transparent;
   color: #d9b96f;
   font-size: 13px;
@@ -976,7 +795,7 @@ async function toggleCompletion() {
   gap: 5px;
   padding: 5px 9px;
   border: 1px solid rgba(226, 125, 104, 0.34);
-  border-radius: 2px;
+  border-radius: 4px;
   background: transparent;
   color: #e3a091;
   font-size: 13px;
@@ -1054,10 +873,16 @@ async function toggleCompletion() {
   min-height: 32px;
   padding: 6px 12px;
   border: 1px solid rgba(230, 180, 75, 0.35);
+  border-radius: 4px;
   background: transparent;
   color: #e5c077;
   font-size: 13px;
   cursor: pointer;
+}
+
+.panel-error button:hover {
+  border-color: rgba(240, 187, 78, 0.68);
+  color: #ffe0a2;
 }
 
 .panel-footer {
@@ -1074,7 +899,7 @@ async function toggleCompletion() {
   justify-content: center;
   gap: 8px;
   border: 1px solid rgba(231, 181, 76, 0.52);
-  border-radius: 2px;
+  border-radius: 6px;
   background:
     linear-gradient(90deg, rgba(231, 181, 76, 0.16), transparent),
     rgba(24, 23, 17, 0.8);
@@ -1091,7 +916,6 @@ async function toggleCompletion() {
 
 :global([data-theme='light'] .node-control-panel) {
   border-color: rgba(157, 105, 25, 0.28);
-  border-right-color: rgba(151, 94, 12, 0.5);
   background:
     linear-gradient(155deg, rgba(255, 249, 235, 0.92), transparent 34%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(246, 249, 250, 0.98));
@@ -1116,11 +940,50 @@ async function toggleCompletion() {
   color: #5c7079;
 }
 
+:global([data-theme='light'] .panel-close:hover) {
+  border-color: rgba(155, 101, 17, 0.55);
+  color: #7c4d09;
+}
+
 :global([data-theme='light'] .status-toggle),
 :global([data-theme='light'] .panel-edit-button) {
   border-color: rgba(155, 101, 17, 0.3);
   background: rgba(184, 119, 21, 0.06);
   color: #80510d;
+}
+
+:global([data-theme='light'] .status-toggle:hover),
+:global([data-theme='light'] .panel-edit-button:hover) {
+  border-color: rgba(142, 89, 10, 0.62);
+  background: rgba(184, 119, 21, 0.12);
+  color: #633d06;
+}
+
+:global([data-theme='light'] .panel-edit-button.is-primary) {
+  border-color: rgba(155, 101, 17, 0.52);
+  background: rgba(184, 119, 21, 0.12);
+  color: #6e4406;
+}
+
+:global([data-theme='light'] .panel-edit-button.is-primary:hover) {
+  border-color: rgba(135, 83, 8, 0.78);
+  background: rgba(184, 119, 21, 0.2);
+  color: #4f3003;
+}
+
+:global([data-theme='light'] .panel-delete-button) {
+  border-color: rgba(194, 59, 59, 0.34);
+  color: #b03030;
+}
+
+:global([data-theme='light'] .panel-delete-button:hover) {
+  border-color: rgba(194, 59, 59, 0.68);
+  background: rgba(194, 59, 59, 0.08);
+  color: #8c1d1d;
+}
+
+:global([data-theme='light'] .status-error) {
+  color: #b03030;
 }
 
 :global([data-theme='light'] .panel-tag) {
@@ -1180,26 +1043,29 @@ async function toggleCompletion() {
   color: #344650;
 }
 
+:global([data-theme='light'] .panel-description a) {
+  color: var(--guild-primary);
+}
+
+:global([data-theme='light'] .child-icon) {
+  color: #607580;
+}
+
+:global([data-theme='light'] .child-icon.is-completed) {
+  color: #157347;
+}
+
+:global([data-theme='light'] .child-icon.is-overdue) {
+  color: #966200;
+}
+
 :global([data-theme='light'] .inherited-count) {
   color: #70848e;
 }
 
-:global([data-theme='light'] .meta-editor-field),
 :global([data-theme='light'] .panel-loading),
 :global([data-theme='light'] .panel-error) {
   color: #627781;
-}
-
-:global([data-theme='light'] .meta-editor-actions button) {
-  border-color: rgba(81, 106, 118, 0.25);
-  background: rgba(255, 255, 255, 0.78);
-  color: #4f6570;
-}
-
-:global([data-theme='light'] .meta-editor-actions button.is-primary) {
-  border-color: rgba(156, 101, 17, 0.46);
-  background: rgba(187, 123, 24, 0.09);
-  color: #7d4e0a;
 }
 
 :global([data-theme='light'] .panel-error p) {
@@ -1209,6 +1075,12 @@ async function toggleCompletion() {
 :global([data-theme='light'] .panel-error button) {
   border-color: rgba(156, 101, 17, 0.34);
   color: #7f500b;
+}
+
+:global([data-theme='light'] .panel-error button:hover) {
+  border-color: rgba(142, 89, 10, 0.62);
+  background: rgba(184, 119, 21, 0.1);
+  color: #5e3904;
 }
 
 :global([data-theme='light'] .panel-footer) {
@@ -1224,6 +1096,14 @@ async function toggleCompletion() {
   color: #81510b;
 }
 
+:global([data-theme='light'] .panel-page-link:hover) {
+  border-color: rgba(142, 89, 10, 0.68);
+  background:
+    linear-gradient(90deg, rgba(190, 127, 29, 0.18), transparent),
+    rgba(255, 248, 232, 0.96);
+  color: #5e3904;
+}
+
 @keyframes panel-spin {
   to {
     transform: rotate(360deg);
@@ -1232,7 +1112,7 @@ async function toggleCompletion() {
 
 @media (max-width: 980px) {
   .node-control-panel {
-    width: min(460px, calc(100vw - 32px));
+    width: min(380px, calc(100vw - 32px));
   }
 }
 

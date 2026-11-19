@@ -224,6 +224,10 @@ export class GraphScene {
     return SCENE_PALETTES[this.theme]
   }
 
+  private get canNavigateCanvas(): boolean {
+    return !this.focus || this.selectedId === VIRTUAL_ROOT_ID
+  }
+
   constructor(
     container: HTMLElement,
     callbacks: SceneCallbacks,
@@ -469,6 +473,7 @@ export class GraphScene {
     }
     this.hasInteracted = true
     this.rebuildViews()
+    this.renderer.domElement.style.cursor = this.canNavigateCanvas ? 'grab' : 'default'
   }
 
   clearFocus() {
@@ -488,6 +493,7 @@ export class GraphScene {
     }
     this.updateLabelTargets()
     this.applyVisualState()
+    this.renderer.domElement.style.cursor = 'grab'
   }
 
   fitView() {
@@ -757,7 +763,7 @@ export class GraphScene {
         }))
     if (label) {
       label.center.set(0.5, 0)
-      label.scale.set(4.8, 0.9, 1)
+      label.scale.set(4.8, 4.8 / LABEL_ASPECT_RATIO, 1)
     }
     const labelTargetPosition = new THREE.Vector3()
 
@@ -1070,7 +1076,7 @@ export class GraphScene {
     this.dragDistance = 0
     this.lastPointer.set(event.clientX, event.clientY)
     this.renderer.domElement.setPointerCapture(event.pointerId)
-    this.renderer.domElement.style.cursor = 'grabbing'
+    this.renderer.domElement.style.cursor = this.canNavigateCanvas ? 'grabbing' : 'default'
   }
 
   private onPointerMove = (event: PointerEvent) => {
@@ -1081,15 +1087,13 @@ export class GraphScene {
     this.pointerClient.set(event.clientX, event.clientY)
     if (!this.dragging) {
       this.updateHoverFromPointer()
-      this.renderer.domElement.style.cursor =
-        this.hoveredId == null ? 'grab' : 'pointer'
       return
     }
     const dx = event.clientX - this.lastPointer.x
     const dy = event.clientY - this.lastPointer.y
     this.dragDistance += Math.abs(dx) + Math.abs(dy)
     this.lastPointer.set(event.clientX, event.clientY)
-    if (this.focus || this.dragDistance < 3) return
+    if (!this.canNavigateCanvas || this.dragDistance < 3) return
     this.hasInteracted = true
     const scale = this.distance / Math.max(rect.height, 1) * 1.15
     this.dragRight.set(1, 0, 0).applyQuaternion(this.camera.quaternion)
@@ -1119,7 +1123,7 @@ export class GraphScene {
       this.renderer.domElement.releasePointerCapture(event.pointerId)
     }
     if (this.dragDistance > 5) {
-      this.renderer.domElement.style.cursor = 'grab'
+      this.renderer.domElement.style.cursor = this.canNavigateCanvas ? 'grab' : 'default'
       return
     }
     const progress = this.pickProgressAt(event.clientX, event.clientY)
@@ -1133,7 +1137,9 @@ export class GraphScene {
       return
     }
     const id = this.pickNodeAt(event.clientX, event.clientY, true)
-    this.renderer.domElement.style.cursor = id == null ? 'grab' : 'pointer'
+    this.renderer.domElement.style.cursor = id == null
+      ? (this.canNavigateCanvas ? 'grab' : 'default')
+      : 'pointer'
     if (id == null) this.callbacks.onBlank()
     else this.callbacks.onSelect(id)
   }
@@ -1148,7 +1154,7 @@ export class GraphScene {
   }
 
   private onWheel = (event: WheelEvent) => {
-    if (this.focus) return
+    if (!this.canNavigateCanvas) return
     this.introActive = false
     event.preventDefault()
     this.hasInteracted = true
@@ -1189,11 +1195,19 @@ export class GraphScene {
       this.pointerClient.y,
       true,
     )
-    if (hovered === this.hoveredId) return
+    if (hovered === this.hoveredId) {
+      this.renderer.domElement.style.cursor =
+        hovered == null
+          ? (this.canNavigateCanvas ? 'grab' : 'default')
+          : 'pointer'
+      return
+    }
     this.hoveredId = hovered
     this.applyVisualState()
     this.renderer.domElement.style.cursor =
-      hovered == null ? 'grab' : 'pointer'
+      hovered == null
+        ? (this.canNavigateCanvas ? 'grab' : 'default')
+        : 'pointer'
   }
 
   private pickProgressAt(clientX: number, clientY: number) {
@@ -1628,9 +1642,9 @@ export class GraphScene {
         5,
       )
       const labelScreenHeight = THREE.MathUtils.clamp(
-        48 * Math.pow(zoom, 0.32),
+        36 * Math.pow(zoom, 0.32),
+        34,
         46,
-        62,
       )
       const viewportHeight = Math.max(1, this.container.clientHeight)
       view.group.getWorldPosition(labelNodeWorldPosition)

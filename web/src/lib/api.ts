@@ -64,12 +64,6 @@ export interface CommentPreview {
   attachmentCount: number
 }
 
-export interface CommentList {
-  items: Comment[]
-  hasMore: boolean
-  nextBefore: number | null
-}
-
 export interface DescriptionChange {
   id: number
   nodeId: number
@@ -355,18 +349,6 @@ export function saveNodeMembers(
   return apiFetch<NodeDetail>(`/api/nodes/${id}/members`, {
     method: 'PUT',
     body: JSON.stringify({ leaders, members }),
-  })
-}
-
-export function fetchComments(
-  nodeId: number,
-  before?: number | null,
-): Promise<CommentList> {
-  const params = new URLSearchParams()
-  params.set('limit', '30')
-  if (before != null) params.set('before', String(before))
-  return apiFetch<CommentList>(`/api/nodes/${nodeId}/comments?${params.toString()}`, {
-    cache: 'no-store',
   })
 }
 

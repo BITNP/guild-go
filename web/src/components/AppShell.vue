@@ -142,6 +142,7 @@ onMounted(() => {
           quaternary
           class="tree-toggle"
           aria-label="打开节点树"
+          title="打开节点树"
           @click="treeOpen = true"
           ><Menu :size="18" /></NButton
         ><RouterLink class="brand" :to="{ name: 'home' }"
@@ -171,6 +172,7 @@ onMounted(() => {
           quaternary
           class="rail-toggle"
           :aria-label="`打开${railTitle}`"
+          :title="`打开${railTitle}`"
           @click="railOpen = true"
           ><PanelRight :size="18" /></NButton
         ><NDropdown

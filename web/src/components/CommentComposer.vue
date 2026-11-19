@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, useId } from 'vue'
+import { onBeforeUnmount, ref, useId, watch } from 'vue'
 import {
   NAlert,
   NButton,
   NCard,
-  NForm,
-  NFormItem,
   NInput,
   NText,
 } from 'naive-ui'
@@ -114,6 +112,10 @@ function shortcut(event: KeyboardEvent) {
   }
 }
 
+watch(body, () => {
+  if (error.value && body.value.trim()) error.value = null
+})
+
 onBeforeUnmount(() => dispose(!submitting.value))
 </script>
 <template>
@@ -125,23 +127,21 @@ onBeforeUnmount(() => dispose(!submitting.value))
     @drop="dropFiles"
   >
     <NCard size="small">
-      <NForm @submit.prevent="submit">
-        <NFormItem label="发布进展" :show-feedback="false">
-          <NInput
-            v-model:value="body"
-            type="textarea"
-            :disabled="submitting"
-            :maxlength="5000"
-            :autosize="{ minRows: 2, maxRows: 10 }"
-            :input-props="{
-              'aria-label': '发布进展',
-              'aria-describedby': hintId,
-              onPaste: pasteImages,
-            }"
-            placeholder="写下进展或问题…"
-            @keydown="shortcut"
-          />
-        </NFormItem>
+      <form @submit.prevent="submit">
+        <NInput
+          v-model:value="body"
+          type="textarea"
+          :disabled="submitting"
+          :maxlength="5000"
+          :autosize="{ minRows: 2, maxRows: 10 }"
+          :input-props="{
+            'aria-label': '发布进展',
+            'aria-describedby': hintId,
+            onPaste: pasteImages,
+          }"
+          placeholder="写下进展或问题…"
+          @keydown="shortcut"
+        />
         <ImageGallery>
           <div v-if="images.length" class="image-previews">
             <ImageUploadPreview
@@ -168,6 +168,9 @@ onBeforeUnmount(() => dispose(!submitting.value))
             <template #icon><ImagePlus :size="16" /></template>
             添加图片 {{ images.length }}/{{ COMMENT_IMAGE_LIMIT }}
           </NButton>
+          <NText :id="hintId" depth="3" class="composer-hint">
+            可粘贴或拖拽图片，最多 {{ COMMENT_IMAGE_LIMIT }} 张 · Ctrl / ⌘ + Enter 发布
+          </NText>
           <NButton
             type="primary"
             size="small"
@@ -186,10 +189,6 @@ onBeforeUnmount(() => dispose(!submitting.value))
           class="file-input"
           @change="selectFiles"
         />
-        <NText :id="hintId" depth="3" class="composer-hint">
-          可粘贴、拖拽或选择图片 · 最多 {{ COMMENT_IMAGE_LIMIT }} 张，每张不超过
-          5 MB · Ctrl / ⌘ + Enter 发布
-        </NText>
         <NAlert
           v-if="error"
           type="error"
@@ -198,7 +197,7 @@ onBeforeUnmount(() => dispose(!submitting.value))
         >
           {{ error }}
         </NAlert>
-      </NForm>
+      </form>
     </NCard>
     <div v-if="dragging" class="drop-hint" aria-hidden="true">
       <ImagePlus :size="22" />
@@ -237,17 +236,16 @@ onBeforeUnmount(() => dispose(!submitting.value))
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 16px;
+  gap: 8px 12px;
+  margin-top: 12px;
 }
 .file-input {
   display: none;
 }
 .composer-hint {
-  display: block;
-  margin-top: 12px;
+  margin-right: auto;
   font-size: 12px;
-  line-height: 1.7;
+  line-height: 1.5;
 }
 .composer-error {
   margin-top: 12px;

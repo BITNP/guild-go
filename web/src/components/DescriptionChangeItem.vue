@@ -8,6 +8,7 @@ import { formatDateTime, timeAgo } from '@/lib/utils'
 
 const props = defineProps<{ change: DescriptionChange }>()
 const expanded = ref(false)
+const hasExpanded = ref(false)
 const action = computed(() =>
   !props.change.before
     ? '添加了描述'
@@ -15,6 +16,10 @@ const action = computed(() =>
       ? '清空了描述'
       : '修改了描述',
 )
+function toggle() {
+  if (!expanded.value) hasExpanded.value = true
+  expanded.value = !expanded.value
+}
 </script>
 
 <template>
@@ -34,7 +39,7 @@ const action = computed(() =>
           class="change-toggle"
           :aria-expanded="expanded"
           :aria-controls="`description-change-${change.id}`"
-          @click="expanded = !expanded"
+          @click="toggle"
         >{{ expanded ? '收起' : '查看变更' }}</NButton>
       </div>
       <NCollapseTransition :show="expanded">
@@ -42,7 +47,11 @@ const action = computed(() =>
           :id="`description-change-${change.id}`"
           class="description-comparison"
         >
-          <DescriptionDiff :before="change.before" :after="change.after" />
+          <DescriptionDiff
+            v-if="hasExpanded"
+            :before="change.before"
+            :after="change.after"
+          />
         </div>
       </NCollapseTransition>
     </article>

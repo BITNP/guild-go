@@ -22,12 +22,20 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
         class="completed-icon"
         aria-label="已完成"
       />
-      <Circle v-else :size="16" class="node-icon" aria-label="未完成" />
+      <Circle
+        v-else
+        :size="16"
+        :class="[
+          'node-icon',
+          { 'overdue-icon': isOverdue(node.dueAt, node.completedAt) },
+        ]"
+        aria-label="未完成"
+      />
       <div class="entry-content">
         <div class="entry-heading">
           <RouterLink
             :to="{ name: 'node', params: { id: node.id } }"
-            class="node-link"
+            :class="['node-link', { 'completed-link': !!node.completedAt }]"
             >{{ node.title }}</RouterLink
           >
           <NodeStatusTag
@@ -89,6 +97,12 @@ defineProps<{ node: ChildNode; leaders?: UserSummary[] }>()
   padding-bottom: 0;
 }
 .node-icon {
+  color: var(--guild-muted);
+}
+.overdue-icon {
+  color: var(--guild-warning);
+}
+.completed-link {
   color: var(--guild-muted);
 }
 .node-icon,

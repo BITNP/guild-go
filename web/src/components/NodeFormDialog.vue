@@ -110,8 +110,7 @@ async function submit() {
     @close="emit('update:open', false)"
     ><NForm label-placement="top" :disabled="saving" @submit.prevent="submit">
       <p v-if="parentTitle" class="parent-context">父节点：{{ parentTitle }}</p>
-      <section class="form-section" aria-label="节点内容">
-        <h3>节点内容</h3>
+      <div class="form-fields">
         <NFormItem label="标题" required :show-feedback="false"
           ><NInput
             v-model:value="title"
@@ -125,24 +124,19 @@ async function submit() {
             v-model:value="description"
             :input-props="{ 'aria-label': '描述' }"
             type="textarea"
+            :maxlength="20000"
             :autosize="{ minRows: 3, maxRows: 8 }"
             placeholder="说明需要完成的工作"
         /></NFormItem>
-      </section>
-      <section class="form-section" aria-label="工作安排">
-        <h3>工作安排</h3>
         <NGrid cols="1 s:2" responsive="screen" :x-gap="16" :y-gap="16"
           ><NFormItemGi label="预期完成时间" :show-feedback="false"
-            ><label class="date-input">
-              <span class="visually-hidden">预期完成时间</span>
-              <NDatePicker
-                v-model:value="due"
-                type="datetime"
-                format="yyyy-MM-dd HH:mm"
-                :time-picker-props="{ format: 'HH:mm' }"
-                clearable
-                class="date-input"
-              /> </label></NFormItemGi
+            ><NDatePicker
+              v-model:value="due"
+              type="datetime"
+              format="yyyy-MM-dd HH:mm"
+              :time-picker-props="{ format: 'HH:mm' }"
+              clearable
+              class="date-input" /></NFormItemGi
           ><NFormItemGi label="标签" :show-feedback="false"
             ><NInput
               v-model:value="tags"
@@ -151,7 +145,7 @@ async function submit() {
         ><NCheckbox v-if="!creating" v-model:checked="completed"
           >标记为已完成</NCheckbox
         >
-      </section>
+      </div>
       <section v-if="creating" class="form-section" aria-label="参与人员">
         <h3>参与人员</h3>
         <MemberFields
@@ -189,11 +183,12 @@ async function submit() {
   font-size: 13px;
   overflow-wrap: anywhere;
 }
+.form-fields,
 .form-section {
   display: grid;
   gap: 16px;
 }
-.form-section + .form-section {
+.form-section {
   margin-top: 20px;
   padding-top: 20px;
   border-top: 1px solid var(--guild-border);
@@ -211,14 +206,6 @@ async function submit() {
 }
 .date-input {
   width: 100%;
-}
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  clip-path: inset(50%);
-  overflow: hidden;
-  white-space: nowrap;
 }
 .form-error {
   margin-top: 16px;
