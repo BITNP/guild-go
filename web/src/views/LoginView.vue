@@ -232,29 +232,6 @@ onMounted(async () => {
     </header>
 
     <div class="login-grid">
-      <section class="login-editorial">
-        <div class="editorial-main">
-          <h1 class="login-title">开拓者公会</h1>
-          <p class="login-english">Guild of Pioneers</p>
-          <p class="login-lead">网协的工作协作空间</p>
-
-          <NAlert v-if="error" type="error" class="login-alert">
-            {{ error }}
-          </NAlert>
-
-          <div class="login-actions">
-            <button
-              type="button"
-              class="login-button"
-              :disabled="state === 'active'"
-              @click="login(returnTo)"
-            >
-              使用网协通行证登录
-            </button>
-          </div>
-        </div>
-      </section>
-
       <aside class="login-figure" aria-hidden="true">
         <svg
           viewBox="0 0 640 640"
@@ -295,6 +272,29 @@ onMounted(async () => {
           </g>
         </svg>
       </aside>
+
+      <section class="login-editorial">
+        <div class="editorial-main">
+          <h1 class="login-title">开拓者公会</h1>
+          <p class="login-english">Guild of Pioneers</p>
+          <p class="login-lead">网协的工作协作空间</p>
+
+          <NAlert v-if="error" type="error" class="login-alert">
+            {{ error }}
+          </NAlert>
+
+          <div class="login-actions">
+            <button
+              type="button"
+              class="login-button"
+              :disabled="state === 'active'"
+              @click="login(returnTo)"
+            >
+              使用网协通行证登录
+            </button>
+          </div>
+        </div>
+      </section>
     </div>
   </main>
 </template>
@@ -365,7 +365,7 @@ onMounted(async () => {
 
 .login-grid {
   display: grid;
-  grid-template-columns: minmax(380px, 1fr) minmax(380px, 1.08fr);
+  grid-template-columns: minmax(380px, 1.08fr) minmax(380px, 1fr);
   min-height: 0;
 }
 
@@ -450,7 +450,7 @@ onMounted(async () => {
   display: grid;
   place-items: center;
   padding: clamp(24px, 4vw, 56px);
-  border-left: 1px solid var(--guild-border);
+  border-right: 1px solid var(--guild-border);
   background: var(--figure-bg);
   overflow: hidden;
 }
