@@ -2,6 +2,8 @@ package users
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"strings"
 
 	authz "git.bitnp.net/BITNP/bitnp-authz"
@@ -70,6 +72,98 @@ func NewService(repo *Repository, directory *Directory) *Service {
 // Provision records a verified subject.
 func (s *Service) Provision(ctx context.Context, subject string) error {
 	return s.repo.Upsert(ctx, subject)
+}
+
+// ResolveActorSession builds an authorization session for an internal service
+// acting on behalf of subject using live Keycloak user and realm role data.
+func (s *Service) ResolveActorSession(ctx context.Context, subject string) (auth.Session, error) {
+	subject = strings.TrimSpace(subject)
+	if subject == "" {
+		return auth.Session{}, apperr.BadRequest("必须提供有效的用户 subject")
+	}
+	session, admitted, err := s.lookupKeycloakSession(ctx, subject)
+	if err != nil {
+		return auth.Session{}, err
+	}
+	if !admitted {
+		return auth.Session{}, apperr.Forbidden("用户不存在、已禁用或没有公会准入权限")
+	}
+	if err := s.Provision(ctx, subject); err != nil {
+		return auth.Session{}, err
+	}
+	return session, nil
+}
+
+// EnsureSubjects verifies that each non-empty subject is either already known
+// locally or exists as an enabled, admitted Keycloak user, provisioning new rows.
+func (s *Service) EnsureSubjects(ctx context.Context, subjects []string) error {
+	seen := make(map[string]struct{}, len(subjects))
+	for _, raw := range subjects {
+		subject := strings.TrimSpace(raw)
+		if subject == "" {
+			continue
+		}
+		if _, ok := seen[subject]; ok {
+			continue
+		}
+		seen[subject] = struct{}{}
+
+		exists, err := s.repo.Exists(ctx, subject)
+		if err != nil {
+			return err
+		}
+		if exists {
+			continue
+		}
+		_, admitted, err := s.lookupKeycloakSession(ctx, subject)
+		if err != nil {
+			return err
+		}
+		if !admitted {
+			return apperr.BadRequest("包含不存在或未准入的用户")
+		}
+		if err := s.Provision(ctx, subject); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) lookupKeycloakSession(ctx context.Context, subject string) (auth.Session, bool, error) {
+	if s.directory == nil || s.directory.client == nil || !s.directory.client.Enabled() {
+		return auth.Session{}, false, apperr.New(http.StatusServiceUnavailable, "KEYCLOAK_UNAVAILABLE", "Keycloak Admin API 未配置")
+	}
+	user, err := s.directory.client.User(ctx, subject)
+	if err != nil {
+		if strings.Contains(err.Error(), "status 404") {
+			return auth.Session{}, false, nil
+		}
+		return auth.Session{}, false, fmt.Errorf("查询 Keycloak 用户失败: %w", err)
+	}
+	if enabled, ok := user["enabled"].(bool); ok && !enabled {
+		return auth.Session{}, false, nil
+	}
+	roles, err := s.directory.client.RealmRoles(ctx, subject)
+	if err != nil {
+		if strings.Contains(err.Error(), "status 404") {
+			return auth.Session{}, false, nil
+		}
+		return auth.Session{}, false, fmt.Errorf("查询 Keycloak 角色失败: %w", err)
+	}
+	perms := authz.FromRoles(roles)
+	if !perms.Admitted {
+		return auth.Session{}, false, nil
+	}
+	var picture string
+	if avatar := avatarURL(user); avatar != nil {
+		picture = *avatar
+	}
+	return auth.Session{
+		Subject:     subject,
+		Name:        displayName(user, subject),
+		Picture:     picture,
+		Permissions: perms,
+	}, true, nil
 }
 
 // AllExist reports whether every subject is a known user.

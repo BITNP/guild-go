@@ -14,18 +14,38 @@ import (
 	"git.bitnp.net/BITNP/guild-go/internal/auth"
 	"git.bitnp.net/BITNP/guild-go/internal/comments"
 	"git.bitnp.net/BITNP/guild-go/internal/database"
+	"git.bitnp.net/BITNP/guild-go/internal/events"
 	"git.bitnp.net/BITNP/guild-go/internal/nodes"
 	"git.bitnp.net/BITNP/guild-go/internal/users"
 	"git.bitnp.net/BITNP/guild-go/internal/web"
 )
 
+// InternalAuthorizer resolves an acting user session and provisions known
+// subjects on behalf of an authenticated internal service.
+type InternalAuthorizer interface {
+	ResolveActorSession(ctx context.Context, subject string) (auth.Session, error)
+	EnsureSubjects(ctx context.Context, subjects []string) error
+}
+
+// InternalFeed exposes committed domain events and service-level read projections.
+type InternalFeed interface {
+	LatestID(ctx context.Context) (int64, error)
+	ListAfter(ctx context.Context, after int64, limit int) (events.ListResponse, error)
+	ListDueNodes(ctx context.Context, query events.DueNodesQuery) (events.DueNodesResponse, error)
+	ActivitySummary(ctx context.Context, start, end time.Time) (events.ActivitySummary, error)
+}
+
 // Server owns the HTTP dependencies.
 type Server struct {
-	pool     *pgxpool.Pool
-	auth     *auth.Service
-	users    *users.Service
-	nodes    *nodes.Service
-	comments *comments.Service
+	pool          *pgxpool.Pool
+	auth          *auth.Service
+	users         *users.Service
+	nodes         *nodes.Service
+	comments      *comments.Service
+	internalToken string
+	internalAuthz InternalAuthorizer
+	internalFeed  InternalFeed
+	eventBroker   *events.Broker
 }
 
 type sessionHandler func(http.ResponseWriter, *http.Request, auth.Session)
@@ -39,6 +59,27 @@ func New(pool *pgxpool.Pool, authService *auth.Service, userService *users.Servi
 		nodes:    nodeService,
 		comments: commentService,
 	}
+}
+
+// WithInternalAPI enables actor-delegated /api/internal/* service endpoints using
+// a shared bearer token and Keycloak-backed actor resolution.
+func (s *Server) WithInternalAPI(token string, authorizer InternalAuthorizer) *Server {
+	s.internalToken = strings.TrimSpace(token)
+	s.internalAuthz = authorizer
+
+	return s
+}
+
+// WithInternalFeed enables service-level /api/internal/* event, deadline and
+// activity summary endpoints authenticated solely by the shared bearer token.
+func (s *Server) WithInternalFeed(token string, feed InternalFeed, broker *events.Broker) *Server {
+	if trimmed := strings.TrimSpace(token); trimmed != "" {
+		s.internalToken = trimmed
+	}
+	s.internalFeed = feed
+	s.eventBroker = broker
+
+	return s
 }
 
 func (s *Server) handleSession(mux *http.ServeMux, pattern string, requireCSRF bool, fn sessionHandler) {
@@ -91,6 +132,23 @@ func (s *Server) Handler() http.Handler {
 	s.handleSession(mux, "GET /api/comments/{id}/reactions/{emoji}", false, s.reactionUsers)
 	s.handleSession(mux, "PUT /api/comments/{id}/reactions/{emoji}", true, s.toggleReaction)
 	s.handleSession(mux, "GET /api/attachments/{id}", false, s.getAttachment)
+
+	s.handleInternal(mux, "GET /api/internal/users", s.listUsers)
+	s.handleInternal(mux, "GET /api/internal/overview", s.overview)
+	s.handleInternal(mux, "GET /api/internal/nodes", s.listNodes)
+	s.handleInternal(mux, "GET /api/internal/nodes/{id}", s.getNode)
+	s.handleInternal(mux, "POST /api/internal/nodes", s.createNodeInternal)
+	s.handleInternal(mux, "PUT /api/internal/nodes/{id}", s.updateNode)
+	s.handleInternal(mux, "PUT /api/internal/nodes/{id}/move", s.moveNode)
+	s.handleInternal(mux, "DELETE /api/internal/nodes/{id}", s.deleteNode)
+	s.handleInternal(mux, "PUT /api/internal/nodes/{id}/members", s.replaceMembersInternal)
+	s.handleInternal(mux, "GET /api/internal/nodes/{id}/progress", s.listProgress)
+	s.handleInternal(mux, "POST /api/internal/nodes/{id}/comments", s.createComment)
+
+	mux.Handle("GET /api/internal/events", s.internalServiceAuth(http.HandlerFunc(s.listEventsInternal)))
+	mux.Handle("GET /api/internal/events/stream", s.internalServiceAuth(http.HandlerFunc(s.streamEventsInternal)))
+	mux.Handle("GET /api/internal/due-nodes", s.internalServiceAuth(http.HandlerFunc(s.dueNodesInternal)))
+	mux.Handle("GET /api/internal/activity-summary", s.internalServiceAuth(http.HandlerFunc(s.activitySummaryInternal)))
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Status: 404, Error: "NOT_FOUND", Message: "接口不存在"})
@@ -153,6 +211,10 @@ type statusWriter struct {
 func (w *statusWriter) WriteHeader(status int) {
 	w.status = status
 	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *statusWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
 }
 
 func (s *Server) logger(next http.Handler) http.Handler {

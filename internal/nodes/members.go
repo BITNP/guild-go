@@ -10,6 +10,7 @@ import (
 	"git.bitnp.net/BITNP/guild-go/internal/apperr"
 	"git.bitnp.net/BITNP/guild-go/internal/auth"
 	"git.bitnp.net/BITNP/guild-go/internal/database"
+	"git.bitnp.net/BITNP/guild-go/internal/events"
 	"git.bitnp.net/BITNP/guild-go/internal/users"
 )
 
@@ -35,15 +36,39 @@ func (r *Repository) Members(ctx context.Context, nodeID int64) ([]MemberRow, er
 }
 
 // ReplaceMembers updates the direct membership set without recreating unchanged rows.
-func (r *Repository) ReplaceMembers(ctx context.Context, id int64, leaders, members []string) error {
-	return database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
-		var lockedID int64
-		if err := tx.QueryRow(ctx, `SELECT id FROM nodes WHERE id=$1 FOR UPDATE`, id).Scan(&lockedID); err != nil {
+func (r *Repository) ReplaceMembers(ctx context.Context, id int64, leaders, members []string, actor string) error {
+	var eventIDs []int64
+	err := database.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
+		var (
+			lockedID int64
+			title    string
+		)
+		if err := tx.QueryRow(ctx, `SELECT id, title FROM nodes WHERE id=$1 FOR UPDATE`, id).Scan(&lockedID, &title); err != nil {
 			if err == pgx.ErrNoRows {
 				return apperr.NotFound("节点不存在")
 			}
 			return err
 		}
+
+		prevRoles := make(map[string]string)
+		existingRows, err := tx.Query(ctx, `SELECT subject, role FROM node_members WHERE node_id=$1`, id)
+		if err != nil {
+			return err
+		}
+		for existingRows.Next() {
+			var subject, role string
+			if err := existingRows.Scan(&subject, &role); err != nil {
+				existingRows.Close()
+				return err
+			}
+			prevRoles[subject] = role
+		}
+		if err := existingRows.Err(); err != nil {
+			existingRows.Close()
+			return err
+		}
+		existingRows.Close()
+
 		// Keep unchanged (subject, role) pairs; recreate only removed/changed roles.
 		if _, err := tx.Exec(ctx, `DELETE FROM node_members
             WHERE node_id=$1 AND NOT (
@@ -60,9 +85,76 @@ func (r *Repository) ReplaceMembers(ctx context.Context, id int64, leaders, memb
 				}
 			}
 		}
-		_, err := tx.Exec(ctx, `UPDATE nodes SET updated_at=now() WHERE id=$1`, id)
-		return err
+		if _, err := tx.Exec(ctx, `UPDATE nodes SET updated_at=now() WHERE id=$1`, id); err != nil {
+			return err
+		}
+
+		newRoles := make(map[string]string, len(leaders)+len(members))
+		for _, subject := range leaders {
+			newRoles[subject] = "leader"
+		}
+		for _, subject := range members {
+			newRoles[subject] = "member"
+		}
+
+		removed := make([]string, 0)
+		for subject := range prevRoles {
+			if _, ok := newRoles[subject]; !ok {
+				removed = append(removed, subject)
+			}
+		}
+		sort.Strings(removed)
+		for _, subject := range removed {
+			evID, err := events.RecordTx(ctx, tx, events.Input{
+				Kind:         events.KindMemberRemoved,
+				NodeID:       &id,
+				ActorSubject: actor,
+				Payload: map[string]any{
+					"subject":   subject,
+					"role":      prevRoles[subject],
+					"nodeTitle": title,
+				},
+			})
+			if err != nil {
+				return err
+			}
+			eventIDs = append(eventIDs, evID)
+		}
+
+		assigned := make([]string, 0)
+		for subject, role := range newRoles {
+			if oldRole, ok := prevRoles[subject]; !ok || oldRole != role {
+				assigned = append(assigned, subject)
+			}
+		}
+		sort.Strings(assigned)
+		for _, subject := range assigned {
+			payload := map[string]any{
+				"subject":   subject,
+				"role":      newRoles[subject],
+				"nodeTitle": title,
+			}
+			if oldRole, ok := prevRoles[subject]; ok {
+				payload["previousRole"] = oldRole
+			}
+			evID, err := events.RecordTx(ctx, tx, events.Input{
+				Kind:         events.KindMemberAssigned,
+				NodeID:       &id,
+				ActorSubject: actor,
+				Payload:      payload,
+			})
+			if err != nil {
+				return err
+			}
+			eventIDs = append(eventIDs, evID)
+		}
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+	r.broker.Publish(eventIDs...)
+	return nil
 }
 
 // RootLeaders returns direct leader subjects for root nodes.
@@ -102,7 +194,7 @@ func (s *Service) ReplaceMembers(ctx context.Context, session auth.Session, id i
 	if err != nil {
 		return Detail{}, err
 	}
-	if err := s.repo.ReplaceMembers(ctx, id, leaders, members); err != nil {
+	if err := s.repo.ReplaceMembers(ctx, id, leaders, members, session.Subject); err != nil {
 		return Detail{}, err
 	}
 	return s.Get(ctx, session, id)

@@ -34,6 +34,8 @@ type Config struct {
 	S3Bucket    string
 	S3AccessKey string
 	S3SecretKey string
+
+	InternalAPIToken string
 }
 
 // Load reads configuration from the environment.
@@ -56,6 +58,7 @@ func Load() (Config, error) {
 		S3Bucket:                  env("S3_BUCKET", ""),
 		S3AccessKey:               env("S3_ACCESS_KEY", ""),
 		S3SecretKey:               env("S3_SECRET_KEY", ""),
+		InternalAPIToken:          env("INTERNAL_API_TOKEN", ""),
 	}
 
 	public, err := url.Parse(env("APP_PUBLIC_URL", "http://localhost:8080"))

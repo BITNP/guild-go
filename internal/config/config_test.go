@@ -46,6 +46,20 @@ func TestDevAuthBypassRejectsEmptyIdentity(t *testing.T) {
 	}
 }
 
+func TestInternalAPITokenLoadsOptional(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("APP_DEV_AUTH_BYPASS", "true")
+	t.Setenv("INTERNAL_API_TOKEN", "  internal-secret  ")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load config with internal token: %v", err)
+	}
+	if cfg.InternalAPIToken != "internal-secret" {
+		t.Fatalf("unexpected InternalAPIToken = %q", cfg.InternalAPIToken)
+	}
+}
+
 func setBaseEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("APP_PUBLIC_URL", "http://localhost:8080")

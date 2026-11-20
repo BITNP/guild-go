@@ -278,7 +278,7 @@ func (s *Service) Move(ctx context.Context, session auth.Session, id int64, req 
 			return Detail{}, err
 		}
 	}
-	if err := s.repo.Move(ctx, id, req.ParentID, func(tx pgx.Tx) error {
+	if err := s.repo.Move(ctx, id, req.ParentID, session.Subject, func(tx pgx.Tx) error {
 		if session.Permissions.SystemAdmin {
 			return nil
 		}
@@ -317,7 +317,7 @@ func (s *Service) Delete(ctx context.Context, session auth.Session, id int64) er
 	if err != nil {
 		return err
 	}
-	if err := s.repo.Delete(ctx, id); err != nil {
+	if err := s.repo.Delete(ctx, id, session.Subject); err != nil {
 		return err
 	}
 	storage.DeleteBestEffort(s.store, keys)
