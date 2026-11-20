@@ -233,7 +233,13 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       @close="deleteOpen = false"
       @confirm="confirmDelete"
     >
-      <p>图片附件也会一并删除，操作不可撤销。</p>
+      <p>
+        {{
+          comment?.attachments.length
+            ? `附带的 ${comment.attachments.length} 张图片也会一并删除，操作不可撤销。`
+            : "删除后不可撤销。"
+        }}
+      </p>
       <p v-if="comment?.body" class="delete-preview">
         {{ comment.body }}
       </p>

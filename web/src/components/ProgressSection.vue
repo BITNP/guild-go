@@ -208,7 +208,13 @@ watch(() => [props.nodeId, props.updatedAt], load, { immediate: true });
       @close="deleteTarget = null"
       @confirm="confirmDelete"
     >
-      <p>图片附件也会一并删除，操作不可撤销。</p>
+      <p>
+        {{
+          deleteTarget?.attachments.length
+            ? `附带的 ${deleteTarget.attachments.length} 张图片也会一并删除，操作不可撤销。`
+            : "删除后不可撤销。"
+        }}
+      </p>
       <p v-if="deleteTarget?.body" class="delete-preview">
         {{ deleteTarget.body }}
       </p>
