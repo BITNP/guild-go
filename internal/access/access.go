@@ -210,16 +210,11 @@ ORDER BY 1, 3`
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var result []MemberDetail
-	for rows.Next() {
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (MemberDetail, error) {
 		var detail MemberDetail
-		if err := rows.Scan(&detail.Subject, &detail.Role, &detail.NodeID, &detail.NodeTitle); err != nil {
-			return nil, err
-		}
-		result = append(result, detail)
-	}
-	return result, rows.Err()
+		err := row.Scan(&detail.Subject, &detail.Role, &detail.NodeID, &detail.NodeTitle)
+		return detail, err
+	})
 }
 
 // SubtreeCounts counts nodes, comments and attachments in a subtree.
@@ -258,16 +253,7 @@ ORDER BY a.id`
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var keys []string
-	for rows.Next() {
-		var key string
-		if err := rows.Scan(&key); err != nil {
-			return nil, err
-		}
-		keys = append(keys, key)
-	}
-	return keys, rows.Err()
+	return pgx.CollectRows(rows, pgx.RowTo[string])
 }
 
 func (c *Checker) querySubjects(ctx context.Context, query string, nodeID int64) ([]string, error) {
@@ -275,14 +261,5 @@ func (c *Checker) querySubjects(ctx context.Context, query string, nodeID int64)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var subjects []string
-	for rows.Next() {
-		var subject string
-		if err := rows.Scan(&subject); err != nil {
-			return nil, err
-		}
-		subjects = append(subjects, subject)
-	}
-	return subjects, rows.Err()
+	return pgx.CollectRows(rows, pgx.RowTo[string])
 }

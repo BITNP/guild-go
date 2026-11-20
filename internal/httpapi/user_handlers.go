@@ -2,14 +2,11 @@ package httpapi
 
 import (
 	"net/http"
+
+	"git.bitnp.net/BITNP/guild-go/internal/auth"
 )
 
-func (s *Server) listUsers(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) listUsers(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	result, err := s.users.List(r.Context(), session)
 	if err != nil {
 		writeError(w, r, err)
@@ -18,12 +15,7 @@ func (s *Server) listUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (s *Server) getUser(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) getUser(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	subject := r.PathValue("subject")
 	result, err := s.users.Get(r.Context(), session, subject)
 	if err != nil {

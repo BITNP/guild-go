@@ -5,15 +5,11 @@ import (
 	"net/http"
 
 	"git.bitnp.net/BITNP/guild-go/internal/apperr"
+	"git.bitnp.net/BITNP/guild-go/internal/auth"
 	"git.bitnp.net/BITNP/guild-go/internal/nodes"
 )
 
-func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) overview(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	scope := r.URL.Query().Get("scope")
 	if scope != "" && scope != "all" && scope != "related" {
 		writeError(w, r, apperr.BadRequest("动态范围必须为 all 或 related"))
@@ -27,12 +23,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (s *Server) listNodes(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) listNodes(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	result, err := s.nodes.List(r.Context(), session)
 	if err != nil {
 		writeError(w, r, err)
@@ -41,12 +32,7 @@ func (s *Server) listNodes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (s *Server) getNode(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) getNode(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	id, err := parseID(r, "id")
 	if err != nil {
 		writeError(w, r, err)
@@ -60,12 +46,7 @@ func (s *Server) getNode(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (s *Server) createNode(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) createNode(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	var request nodes.CreateRequest
 	if err := decodeJSON(w, r, &request); err != nil {
 		writeError(w, r, err)
@@ -79,12 +60,7 @@ func (s *Server) createNode(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, result)
 }
 
-func (s *Server) updateNode(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) updateNode(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	id, err := parseID(r, "id")
 	if err != nil {
 		writeError(w, r, err)
@@ -103,12 +79,7 @@ func (s *Server) updateNode(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (s *Server) moveNode(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) moveNode(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	id, err := parseID(r, "id")
 	if err != nil {
 		writeError(w, r, err)
@@ -134,12 +105,7 @@ func (s *Server) moveNode(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (s *Server) deleteNode(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) deleteNode(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	id, err := parseID(r, "id")
 	if err != nil {
 		writeError(w, r, err)
@@ -152,12 +118,7 @@ func (s *Server) deleteNode(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) orderNodes(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) orderNodes(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	var request nodes.OrderRequest
 	if err := decodeJSON(w, r, &request); err != nil {
 		writeError(w, r, err)
@@ -170,12 +131,7 @@ func (s *Server) orderNodes(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) getMembers(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) getMembers(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	id, err := parseID(r, "id")
 	if err != nil {
 		writeError(w, r, err)
@@ -189,12 +145,7 @@ func (s *Server) getMembers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (s *Server) replaceMembers(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
+func (s *Server) replaceMembers(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	id, err := parseID(r, "id")
 	if err != nil {
 		writeError(w, r, err)

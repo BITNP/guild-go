@@ -85,12 +85,12 @@ func main() {
 	eventBroker := events.NewBroker()
 	eventRepo := events.NewRepository(pool)
 	checker := access.New(pool)
-	nodeRepo := nodes.NewRepository(pool).WithBroker(eventBroker)
-	nodeService := nodes.NewService(nodeRepo, userService, checker, store)
 	commentRepo := comments.NewRepository(pool).WithBroker(eventBroker)
 	commentService := comments.NewService(commentRepo, userService, checker, store)
+	nodeRepo := nodes.NewRepository(pool).WithBroker(eventBroker)
+	nodeService := nodes.NewService(nodeRepo, userService, commentService, checker, store)
 
-	server := httpapi.New(cfg, pool, authService, userService, nodeService, commentService, store)
+	server := httpapi.New(pool, authService, userService, nodeService, commentService)
 
 	if cfg.InternalAPIToken != "" {
 		server.WithInternalFeed(cfg.InternalAPIToken, eventRepo, eventBroker)

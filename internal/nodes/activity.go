@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"git.bitnp.net/BITNP/guild-go/internal/auth"
 	"git.bitnp.net/BITNP/guild-go/internal/comments"
 	"git.bitnp.net/BITNP/guild-go/internal/users"
@@ -68,17 +70,12 @@ func (r *Repository) RecentActivity(ctx context.Context, subject string, related
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	result := make([]activityRow, 0)
-	for rows.Next() {
+	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (activityRow, error) {
 		var row activityRow
-		if err := rows.Scan(&row.ID, &row.Kind, &row.NodeID, &row.NodeTitle, &row.RootTitle,
-			&row.Subject, &row.BodyPreview, &row.CreatedAt, &row.AttachmentCount, &row.DueAt, &row.CompletedAt); err != nil {
-			return nil, err
-		}
-		result = append(result, row)
-	}
-	return result, rows.Err()
+		err := r.Scan(&row.ID, &row.Kind, &row.NodeID, &row.NodeTitle, &row.RootTitle,
+			&row.Subject, &row.BodyPreview, &row.CreatedAt, &row.AttachmentCount, &row.DueAt, &row.CompletedAt)
+		return row, err
+	})
 }
 
 func (s *Service) activityViews(ctx context.Context, session auth.Session, rows []activityRow) ([]Activity, error) {
@@ -93,7 +90,7 @@ func (s *Service) activityViews(ctx context.Context, session auth.Session, rows 
 		}
 	}
 	authors := s.users.Summaries(ctx, session, subjects)
-	reactions, err := s.repo.ReactionsForComments(ctx, ids, session.Subject)
+	reactions, err := s.comments.ReactionsForComments(ctx, ids, session.Subject)
 	if err != nil {
 		return nil, err
 	}
@@ -101,10 +98,7 @@ func (s *Service) activityViews(ctx context.Context, session auth.Session, rows 
 	for _, row := range rows {
 		view := row.Activity
 		if row.Subject != "" {
-			author, ok := authors[row.Subject]
-			if !ok {
-				author = users.Summary{Subject: row.Subject, UserName: row.Subject, Positions: []users.Position{}}
-			}
+			author := authors.For(row.Subject)
 			view.Author = &author
 		}
 		view.BodyPreview = comments.TextPreview(view.BodyPreview, 120)

@@ -15,17 +15,17 @@
 
 ### 状态码
 
-| 状态码 | 含义 |
-| --- | --- |
-| 200 | 读取/更新成功 |
-| 201 | 创建成功 |
-| 204 | 删除/排序/登出成功 |
-| 400 | 参数或请求体不合法 |
-| 401 | 未登录或会话过期 |
-| 403 | 权限不足或 CSRF 无效 |
-| 404 | 资源不存在 |
-| 413 | 图片/请求体超过大小限制 |
-| 500 | 服务器内部错误 |
+| 状态码 | 含义                    |
+| ------ | ----------------------- |
+| 200    | 读取/更新成功           |
+| 201    | 创建成功                |
+| 204    | 删除/排序/登出成功      |
+| 400    | 参数或请求体不合法      |
+| 401    | 未登录或会话过期        |
+| 403    | 权限不足或 CSRF 无效    |
+| 404    | 资源不存在              |
+| 413    | 图片/请求体超过大小限制 |
+| 500    | 服务器内部错误          |
 
 错误体：
 
@@ -112,7 +112,7 @@ OIDC 回调。校验 state、nonce、issuer、audience、签名和 PKCE。成功
 或：
 
 ```json
-{"state":"anonymous","user":null}
+{ "state": "anonymous", "user": null }
 ```
 
 `Cache-Control: no-store`。
@@ -122,7 +122,7 @@ OIDC 回调。校验 state、nonce、issuer、audience、签名和 PKCE。成功
 要求登录。返回：
 
 ```json
-{"token":"opaque","headerName":"X-CSRF-Token"}
+{ "token": "opaque", "headerName": "X-CSRF-Token" }
 ```
 
 ### `GET /api/auth/me`
@@ -218,10 +218,10 @@ OIDC 回调。校验 state、nonce、issuer、audience、签名和 PKCE。成功
 `related` 包含当前用户创建、有效负责/参与节点的动态，以及当前用户发表的评论，继承规则与节点列表一致。
 按当前树和成员关系筛选，节点路径显示当前标题及根节点。
 
-| `kind` | 含义 |
-| --- | --- |
-| `comment` | 发表评论，包含正文预览、图片数量、表情汇总 |
-| `node_created` | 尚未更新的节点，包含创建者 |
+| `kind`         | 含义                                                       |
+| -------------- | ---------------------------------------------------------- |
+| `comment`      | 发表评论，包含正文预览、图片数量、表情汇总                 |
+| `node_created` | 尚未更新的节点，包含创建者                                 |
 | `node_updated` | 节点最近有更新，`author` 为 `null`，不推断更新人或具体操作 |
 
 使用 `(kind, id)` 作为动态唯一标识，不同类型的 ID 可能重复。
@@ -396,7 +396,7 @@ E_member(n) = 本节点及所有后代的直接成员（含负责人）∪ E_lea
 要求源节点和目标父节点的有效负责人，或系统管理员 + CSRF。移动为根节点还要求 manager 或系统管理员。
 
 ```json
-{"parentId": 3}
+{ "parentId": 3 }
 ```
 
 - 必须显式提供 `parentId`；正整数表示目标父节点，`null` 表示移动为根节点。省略或无效值返回 400。
@@ -413,7 +413,7 @@ E_member(n) = 本节点及所有后代的直接成员（含负责人）∪ E_lea
 请求：
 
 ```json
-{"parentId": 3, "ids": [13, 12, 15]}
+{ "parentId": 3, "ids": [13, 12, 15] }
 ```
 
 - `parentId=null` 表示根节点；根排序要求 manager 或系统管理员。
@@ -482,7 +482,12 @@ E_member(n) = 本节点及所有后代的直接成员（含负责人）∪ E_lea
       "descriptionChange": {
         "id": 8,
         "nodeId": 12,
-        "author": { "subject": "user-1", "userName": "林晓", "avatar": null, "positions": [] },
+        "author": {
+          "subject": "user-1",
+          "userName": "林晓",
+          "avatar": null,
+          "positions": []
+        },
         "before": "原需求",
         "after": "修改后的需求",
         "createdAt": "2026-10-25T01:00:00Z"
@@ -490,7 +495,11 @@ E_member(n) = 本节点及所有后代的直接成员（含负责人）∪ E_lea
     }
   ],
   "hasMore": true,
-  "nextBefore": { "createdAt": "2026-10-25T01:00:00Z", "kind": "description_change", "id": 8 }
+  "nextBefore": {
+    "createdAt": "2026-10-25T01:00:00Z",
+    "kind": "description_change",
+    "id": 8
+  }
 }
 ```
 
@@ -544,10 +553,10 @@ E_member(n) = 本节点及所有后代的直接成员（含负责人）∪ E_lea
 
 要求节点有效成员或系统管理员 + CSRF。JSON 请求体：
 
-| 字段 | 说明 |
-| --- | --- |
-| `body` | 纯文本，≤ 5000 字，可为空但必须至少有一张图片 |
-| `attachmentIds` | 0–4 个已上传图片 ID，按展示顺序排列 |
+| 字段            | 说明                                          |
+| --------------- | --------------------------------------------- |
+| `body`          | 纯文本，≤ 5000 字，可为空但必须至少有一张图片 |
+| `attachmentIds` | 0–4 个已上传图片 ID，按展示顺序排列           |
 
 图片必须由当前用户上传到当前节点，尚未用于其他评论，且上传未超过 24 小时。
 评论与图片关联在同一事务中完成；失败时保留已上传图片，重试发表无需再次上传。成功 201 + `Comment`。
@@ -586,9 +595,7 @@ thumbs_up, thumbs_down, laugh, hooray, confused, heart, rocket, eyes
 
 ```json
 {
-  "reactions": [
-    {"emoji": "thumbs_up", "count": 2, "reactedByMe": true}
-  ]
+  "reactions": [{ "emoji": "thumbs_up", "count": 2, "reactedByMe": true }]
 }
 ```
 
@@ -610,7 +617,7 @@ thumbs_up, thumbs_down, laugh, hooray, confused, heart, rocket, eyes
 公开。数据库可达时：
 
 ```json
-{"status":"ok"}
+{ "status": "ok" }
 ```
 
 不可达时 503。
@@ -657,17 +664,17 @@ thumbs_up, thumbs_down, laugh, hooray, confused, heart, rocket, eyes
 
 ## 权限速查
 
-| 操作 | 条件 |
-| --- | --- |
-| 查看节点/描述历史/评论/附件 | 任意准入成员 |
-| 加/取消表情 | 任意准入成员 |
-| 创建根节点、根排序 | manager 或系统管理员 |
-| 创建子节点 | 父节点 `E_leader` 或系统管理员 |
-| 编辑/完成/标签/预期完成时间 | 节点 `E_leader` 或系统管理员 |
-| 删除节点 | 节点 `E_leader` 或系统管理员 |
-| 管理直接负责人/成员 | 节点 `E_leader` 或系统管理员 |
-| 调整直接子节点顺序 | 节点 `E_leader` 或系统管理员 |
-| 发表评论 | 节点 `E_member` 或系统管理员 |
-| 删除评论 | 评论作者或系统管理员 |
+| 操作                        | 条件                           |
+| --------------------------- | ------------------------------ |
+| 查看节点/描述历史/评论/附件 | 任意准入成员                   |
+| 加/取消表情                 | 任意准入成员                   |
+| 创建根节点、根排序          | manager 或系统管理员           |
+| 创建子节点                  | 父节点 `E_leader` 或系统管理员 |
+| 编辑/完成/标签/预期完成时间 | 节点 `E_leader` 或系统管理员   |
+| 删除节点                    | 节点 `E_leader` 或系统管理员   |
+| 管理直接负责人/成员         | 节点 `E_leader` 或系统管理员   |
+| 调整直接子节点顺序          | 节点 `E_leader` 或系统管理员   |
+| 发表评论                    | 节点 `E_member` 或系统管理员   |
+| 删除评论                    | 评论作者或系统管理员           |
 
 有效关系只存直接成员，继承关系实时计算。`position-*` 只用于展示，永远不授权。

@@ -4,7 +4,6 @@ package apperr
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 )
 
@@ -44,11 +43,6 @@ func NotFound(message string) *Error {
 	return New(http.StatusNotFound, "NOT_FOUND", message)
 }
 
-// Conflict reports a uniqueness or state conflict.
-func Conflict(message string) *Error {
-	return New(http.StatusConflict, "CONFLICT", message)
-}
-
 // TooLarge reports an oversized request or attachment.
 func TooLarge(message string) *Error {
 	return New(http.StatusRequestEntityTooLarge, "CONTENT_TOO_LARGE", message)
@@ -66,12 +60,4 @@ func From(err error) *Error {
 		return app
 	}
 	return Internal()
-}
-
-// Wrap adds context while preserving the original message.
-func Wrap(err error, message string) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%s: %w", message, err)
 }

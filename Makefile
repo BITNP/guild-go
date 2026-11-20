@@ -1,21 +1,27 @@
-.PHONY: dev-backend dev-frontend build test fmt tidy docker
+.PHONY: dev-backend dev-frontend build check test fmt tidy docker
 
 dev-backend:
 	go run ./cmd/guild
 
 dev-frontend:
-	cd web && pnpm dev
+	pnpm dev
 
 build:
-	cd web && pnpm build
+	pnpm build
 	CGO_ENABLED=0 go build -trimpath -o guild ./cmd/guild
 
 test:
 	go test ./...
-	cd web && pnpm build
+	pnpm build
+
+check:
+	go test ./...
+	pnpm check
 
 fmt:
 	gofmt -w cmd internal
+	pnpm format
+	pnpm lint:fix
 
 tidy:
 	go mod tidy

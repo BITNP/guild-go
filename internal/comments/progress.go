@@ -98,12 +98,7 @@ func (s *Service) Progress(ctx context.Context, session auth.Session, nodeID int
 	if !exists {
 		return ProgressList{}, apperr.NotFound("节点不存在")
 	}
-	if limit <= 0 {
-		limit = defaultPageSize
-	}
-	if limit > maxPageSize {
-		limit = maxPageSize
-	}
+	limit = clampPageSize(limit)
 	rows, hasMore, err := s.repo.progress(ctx, nodeID, before, limit)
 	if err != nil {
 		return ProgressList{}, err
@@ -133,7 +128,7 @@ func (s *Service) Progress(ctx context.Context, session auth.Session, nodeID int
 			item.Comment = commentsByID[row.ID]
 		} else {
 			item.DescriptionChange = &DescriptionChange{
-				ID: row.ID, NodeID: row.NodeID, Author: authors[row.Author],
+				ID: row.ID, NodeID: row.NodeID, Author: authors.For(row.Author),
 				Before: row.Before, After: row.After, CreatedAt: row.CreatedAt,
 			}
 		}

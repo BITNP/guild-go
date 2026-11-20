@@ -1,0 +1,23 @@
+{
+  "name": "guild-go-workspace",
+  "private": true,
+  "packageManager": "pnpm@11.21.0",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -C web build",
+    "check": "pnpm -C web typecheck && eslint . && prettier . --check",
+    "dev": "pnpm -C web dev",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "pnpm -C web typecheck"
+  },
+  "devDependencies": {
+    "@so1ve/eslint-config": "^4.7.0",
+    "@so1ve/prettier-config": "^4.7.0",
+    "eslint": "^10.14.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5.7.2"
+  }
+}

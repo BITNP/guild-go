@@ -69,12 +69,16 @@ var EmojiKeys = []string{
 	"confused", "heart", "rocket", "eyes",
 }
 
+var emojiOrder = func() map[string]int {
+	order := make(map[string]int, len(EmojiKeys))
+	for index, key := range EmojiKeys {
+		order[key] = index
+	}
+	return order
+}()
+
 // ValidEmoji reports whether key is in the fixed reaction set.
 func ValidEmoji(key string) bool {
-	for _, emoji := range EmojiKeys {
-		if emoji == key {
-			return true
-		}
-	}
-	return false
+	_, ok := emojiOrder[key]
+	return ok
 }

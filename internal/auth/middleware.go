@@ -52,27 +52,6 @@ func (s *Service) RequireCSRF(next http.Handler) http.Handler {
 	})
 }
 
-// RequireSystemAdmin rejects callers without the system-admin permission.
-func RequireSystemAdmin(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		session, ok := SessionFrom(r.Context())
-		if !ok {
-			writeAuthError(w, http.StatusUnauthorized, "UNAUTHORIZED", "需要登录")
-			return
-		}
-		if !session.Permissions.SystemAdmin {
-			writeAuthError(w, http.StatusForbidden, "FORBIDDEN", "需要系统管理员权限")
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-// WithSession returns a child context carrying session.
-func WithSession(ctx context.Context, session Session) context.Context {
-	return context.WithValue(ctx, sessionContextKey, session)
-}
-
 // SessionFrom returns the session stored by RequireSession.
 func SessionFrom(ctx context.Context) (Session, bool) {
 	session, ok := ctx.Value(sessionContextKey).(Session)

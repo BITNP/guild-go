@@ -2,10 +2,7 @@ package nodes
 
 import (
 	"context"
-	"log/slog"
-	"sort"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
@@ -20,15 +17,16 @@ import (
 
 // Service implements node use cases.
 type Service struct {
-	repo   *Repository
-	users  *users.Service
-	access *access.Checker
-	store  storage.Store
+	repo     *Repository
+	users    *users.Service
+	comments *comments.Service
+	access   *access.Checker
+	store    storage.Store
 }
 
 // NewService creates a node service.
-func NewService(repo *Repository, userService *users.Service, checker *access.Checker, store storage.Store) *Service {
-	return &Service{repo: repo, users: userService, access: checker, store: store}
+func NewService(repo *Repository, userService *users.Service, commentService *comments.Service, checker *access.Checker, store storage.Store) *Service {
+	return &Service{repo: repo, users: userService, comments: commentService, access: checker, store: store}
 }
 
 // List returns the flat tree used by the sidebar.
@@ -83,15 +81,18 @@ func (s *Service) Overview(ctx context.Context, session auth.Session, relatedOnl
 	if err != nil {
 		return Overview{}, err
 	}
+	var allLeaderSubjects []string
+	for _, view := range rootViews {
+		allLeaderSubjects = append(allLeaderSubjects, rootLeaders[view.ID]...)
+	}
+	leaderMap := s.users.Summaries(ctx, session, allLeaderSubjects)
+
 	rootSummaries := make([]RootSummary, 0, len(rootViews))
 	for _, view := range rootViews {
 		leaderSubjects := rootLeaders[view.ID]
-		leaderMap := s.users.Summaries(ctx, session, leaderSubjects)
 		leaders := make([]users.Summary, 0, len(leaderSubjects))
 		for _, subject := range leaderSubjects {
-			if summary, ok := leaderMap[subject]; ok {
-				leaders = append(leaders, summary)
-			}
+			leaders = append(leaders, leaderMap.For(subject))
 		}
 		rootSummaries = append(rootSummaries, RootSummary{
 			Summary:       view.Summary,
@@ -100,16 +101,9 @@ func (s *Service) Overview(ctx context.Context, session auth.Session, relatedOnl
 		})
 	}
 
-	recentRows, err := s.repo.RecentComments(ctx, 50)
+	recentViews, err := s.comments.Recent(ctx, session, 50)
 	if err != nil {
 		return Overview{}, err
-	}
-	recentViews, err := s.recentViews(ctx, session, recentRows)
-	if err != nil {
-		return Overview{}, err
-	}
-	if rootSummaries == nil {
-		rootSummaries = []RootSummary{}
 	}
 	relatedIDs := make([]int64, 0, len(relatedMembers))
 	for id := range relatedMembers {
@@ -177,14 +171,8 @@ func (s *Service) Get(ctx context.Context, session auth.Session, id int64) (Deta
 	structural := isLeader || session.Permissions.SystemAdmin
 	canComment := isMember || session.Permissions.SystemAdmin
 
-	inheritedLeaderCount := len(effectiveLeaderSet) - len(intersect(effectiveLeaderSet, directSubjects))
-	inheritedMemberCount := len(effectiveMemberSet) - len(intersect(effectiveMemberSet, directSubjects))
-	if inheritedLeaderCount < 0 {
-		inheritedLeaderCount = 0
-	}
-	if inheritedMemberCount < 0 {
-		inheritedMemberCount = 0
-	}
+	inheritedLeaderCount := max(0, len(effectiveLeaderSet)-intersectCount(effectiveLeaderSet, directSubjects))
+	inheritedMemberCount := max(0, len(effectiveMemberSet)-intersectCount(effectiveMemberSet, directSubjects))
 
 	return Detail{
 		Node:                   node,
@@ -217,21 +205,15 @@ func (s *Service) Create(ctx context.Context, session auth.Session, req CreateRe
 		return Detail{}, err
 	}
 	if req.ParentID == nil {
-		if !session.Permissions.Manager {
+		if !canManageRoots(session) {
 			return Detail{}, apperr.Forbidden("只有 manager 可以创建根节点")
 		}
 	} else {
 		if _, err := s.repo.Get(ctx, *req.ParentID); err != nil {
 			return Detail{}, err
 		}
-		if !session.Permissions.SystemAdmin {
-			allowed, err := s.access.IsEffectiveLeader(ctx, *req.ParentID, session.Subject)
-			if err != nil {
-				return Detail{}, err
-			}
-			if !allowed {
-				return Detail{}, apperr.Forbidden("只有父节点负责人可以创建子节点")
-			}
+		if err := s.requireStructural(ctx, session, *req.ParentID, "只有父节点负责人可以创建子节点"); err != nil {
+			return Detail{}, err
 		}
 	}
 	leaders, members, err := s.normalizeMembers(ctx, req.LeaderSubjects, req.MemberSubjects, session.Subject)
@@ -285,7 +267,7 @@ func (s *Service) Move(ctx context.Context, session auth.Session, id int64, req 
 		return s.Get(ctx, session, id)
 	}
 	if req.ParentID == nil {
-		if !session.Permissions.Manager && !session.Permissions.SystemAdmin {
+		if !canManageRoots(session) {
 			return Detail{}, apperr.Forbidden("只有 manager 或系统管理员可以移动为根节点")
 		}
 	} else {
@@ -338,20 +320,14 @@ func (s *Service) Delete(ctx context.Context, session auth.Session, id int64) er
 	if err := s.repo.Delete(ctx, id, session.Subject); err != nil {
 		return err
 	}
-	for _, key := range keys {
-		deleteCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if err := s.store.Delete(deleteCtx, key); err != nil {
-			slog.Warn("delete node attachment failed", "key", key, "error", err)
-		}
-		cancel()
-	}
+	storage.DeleteBestEffort(s.store, keys)
 	return nil
 }
 
 // Reorder rewrites sibling order.
 func (s *Service) Reorder(ctx context.Context, session auth.Session, parentID *int64, ids []int64) error {
 	if parentID == nil {
-		if !session.Permissions.Manager {
+		if !canManageRoots(session) {
 			return apperr.Forbidden("只有 manager 可以调整根节点顺序")
 		}
 		return s.repo.Reorder(ctx, nil, ids)
@@ -365,86 +341,8 @@ func (s *Service) Reorder(ctx context.Context, session auth.Session, parentID *i
 	return s.repo.Reorder(ctx, parentID, ids)
 }
 
-// ReplaceMembers replaces direct leaders and members.
-func (s *Service) ReplaceMembers(ctx context.Context, session auth.Session, id int64, req MembersRequest) (Detail, error) {
-	if _, err := s.repo.Get(ctx, id); err != nil {
-		return Detail{}, err
-	}
-	if err := s.requireStructural(ctx, session, id, "只有节点负责人可以管理成员"); err != nil {
-		return Detail{}, err
-	}
-	leaders, members, err := s.normalizeMembers(ctx, req.Leaders, req.Members, "")
-	if err != nil {
-		return Detail{}, err
-	}
-	if len(leaders) == 0 {
-		return Detail{}, apperr.BadRequest("节点至少需要一个直接负责人")
-	}
-	if err := s.repo.ReplaceMembers(ctx, id, leaders, members, session.Subject); err != nil {
-		return Detail{}, err
-	}
-	return s.Get(ctx, session, id)
-}
-
-// EffectiveMembers returns inherited members and their source nodes.
-func (s *Service) EffectiveMembers(ctx context.Context, session auth.Session, id int64) (EffectiveMembers, error) {
-	if _, err := s.repo.Get(ctx, id); err != nil {
-		return EffectiveMembers{}, err
-	}
-	details, err := s.access.EffectiveMemberDetails(ctx, id)
-	if err != nil {
-		return EffectiveMembers{}, err
-	}
-	type aggregate struct {
-		leader  bool
-		direct  bool
-		sources map[int64]string
-	}
-	bySubject := make(map[string]*aggregate)
-	for _, detail := range details {
-		item, ok := bySubject[detail.Subject]
-		if !ok {
-			item = &aggregate{sources: make(map[int64]string)}
-			bySubject[detail.Subject] = item
-		}
-		if detail.Role == "leader" {
-			item.leader = true
-		}
-		if detail.NodeID == id {
-			item.direct = true
-		} else {
-			item.sources[detail.NodeID] = detail.NodeTitle
-		}
-	}
-	subjects := make([]string, 0, len(bySubject))
-	for subject := range bySubject {
-		subjects = append(subjects, subject)
-	}
-	summaries := s.users.Summaries(ctx, session, subjects)
-	leaders := make([]EffectiveMember, 0)
-	members := make([]EffectiveMember, 0)
-	for subject, item := range bySubject {
-		sources := make([]Source, 0, len(item.sources))
-		if !item.direct {
-			for sourceID, title := range item.sources {
-				sources = append(sources, Source{ID: sourceID, Title: title})
-			}
-			sort.Slice(sources, func(i, j int) bool { return sources[i].ID < sources[j].ID })
-		}
-		summary, ok := summaries[subject]
-		if !ok {
-			summary = users.Summary{Subject: subject, UserName: subject, Positions: []users.Position{}}
-		}
-		entry := EffectiveMember{User: summary, Direct: item.direct, Sources: sources}
-		if item.leader {
-			leaders = append(leaders, entry)
-		} else {
-			members = append(members, entry)
-		}
-	}
-	sortMembers(leaders)
-	sortMembers(members)
-	return EffectiveMembers{Leaders: leaders, Members: members}, nil
+func canManageRoots(session auth.Session) bool {
+	return session.Permissions.Manager || session.Permissions.SystemAdmin
 }
 
 func (s *Service) requireStructural(ctx context.Context, session auth.Session, nodeID int64, message string) error {
@@ -461,54 +359,6 @@ func (s *Service) requireStructural(ctx context.Context, session auth.Session, n
 	return nil
 }
 
-func (s *Service) normalizeMembers(ctx context.Context, leaderInput, memberInput []string, fallbackLeader string) ([]string, []string, error) {
-	leaders := normalizeSubjects(leaderInput)
-	members := normalizeSubjects(memberInput)
-	if len(leaders) == 0 && fallbackLeader != "" {
-		leaders = []string{fallbackLeader}
-	}
-	if len(leaders) == 0 {
-		return nil, nil, apperr.BadRequest("节点至少需要一个直接负责人")
-	}
-	leaderSet := stringSet(leaders)
-	for _, member := range members {
-		if _, ok := leaderSet[member]; ok {
-			return nil, nil, apperr.BadRequest("负责人和成员不能重叠")
-		}
-	}
-	all := append(append([]string{}, leaders...), members...)
-	exists, err := s.users.AllExist(ctx, all)
-	if err != nil {
-		return nil, nil, err
-	}
-	if !exists {
-		return nil, nil, apperr.BadRequest("包含不存在的用户")
-	}
-	return leaders, members, nil
-}
-
-func (s *Service) resolveDirectMembers(ctx context.Context, session auth.Session, rows []MemberRow) ([]users.Summary, []users.Summary) {
-	subjects := make([]string, 0, len(rows))
-	for _, row := range rows {
-		subjects = append(subjects, row.Subject)
-	}
-	summaries := s.users.Summaries(ctx, session, subjects)
-	leaders := make([]users.Summary, 0)
-	members := make([]users.Summary, 0)
-	for _, row := range rows {
-		summary, ok := summaries[row.Subject]
-		if !ok {
-			summary = users.Summary{Subject: row.Subject, UserName: row.Subject, Positions: []users.Position{}}
-		}
-		if row.Role == "leader" {
-			leaders = append(leaders, summary)
-		} else {
-			members = append(members, summary)
-		}
-	}
-	return leaders, members
-}
-
 func (s *Service) childViews(ctx context.Context, session auth.Session, rows []ChildRow, leaders, members map[int64]struct{}) ([]Child, error) {
 	if len(rows) == 0 {
 		return []Child{}, nil
@@ -522,7 +372,7 @@ func (s *Service) childViews(ctx context.Context, session auth.Session, rows []C
 		}
 	}
 	authors := s.users.Summaries(ctx, session, authorSubjects)
-	reactions, err := s.repo.ReactionsForComments(ctx, latestIDs, session.Subject)
+	reactions, err := s.comments.ReactionsForComments(ctx, latestIDs, session.Subject)
 	if err != nil {
 		return nil, err
 	}
@@ -543,55 +393,12 @@ func (s *Service) childViews(ctx context.Context, session auth.Session, rows []C
 		}
 		child := Child{Summary: summary}
 		if row.Latest != nil {
-			author, ok := authors[row.Latest.Author]
-			if !ok {
-				author = users.Summary{Subject: row.Latest.Author, UserName: row.Latest.Author, Positions: []users.Position{}}
-			}
-			preview := comments.BuildPreview(row.Latest.ID, author, row.Latest.Body, row.Latest.CreatedAt, reactions[row.Latest.ID], row.Latest.AttachmentCount)
+			preview := comments.BuildPreview(row.Latest.ID, authors.For(row.Latest.Author), row.Latest.Body, row.Latest.CreatedAt, reactions[row.Latest.ID], row.Latest.AttachmentCount)
 			child.LatestComment = &preview
 			latestAt := row.Latest.CreatedAt
 			child.Summary.LatestCommentAt = &latestAt
 		}
 		result = append(result, child)
-	}
-	return result, nil
-}
-
-func (s *Service) recentViews(ctx context.Context, session auth.Session, rows []RecentRow) ([]comments.Recent, error) {
-	if len(rows) == 0 {
-		return []comments.Recent{}, nil
-	}
-	ids := make([]int64, 0, len(rows))
-	subjects := make([]string, 0, len(rows))
-	for _, row := range rows {
-		ids = append(ids, row.ID)
-		subjects = append(subjects, row.Author)
-	}
-	authors := s.users.Summaries(ctx, session, subjects)
-	reactions, err := s.repo.ReactionsForComments(ctx, ids, session.Subject)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]comments.Recent, 0, len(rows))
-	for _, row := range rows {
-		author, ok := authors[row.Author]
-		if !ok {
-			author = users.Summary{Subject: row.Author, UserName: row.Author, Positions: []users.Position{}}
-		}
-		summary := reactions[row.ID]
-		if summary == nil {
-			summary = []comments.Reaction{}
-		}
-		result = append(result, comments.Recent{
-			ID:              row.ID,
-			NodeID:          row.NodeID,
-			NodeTitle:       row.NodeTitle,
-			RootTitle:       row.RootTitle,
-			Author:          author,
-			BodyPreview:     comments.TextPreview(row.Body, 120),
-			CreatedAt:       row.CreatedAt,
-			ReactionSummary: summary,
-		})
 	}
 	return result, nil
 }
@@ -635,23 +442,6 @@ func normalizeTags(tags []string) ([]string, error) {
 	return result, nil
 }
 
-func normalizeSubjects(subjects []string) []string {
-	result := make([]string, 0, len(subjects))
-	seen := make(map[string]struct{}, len(subjects))
-	for _, subject := range subjects {
-		subject = strings.TrimSpace(subject)
-		if subject == "" {
-			continue
-		}
-		if _, ok := seen[subject]; ok {
-			continue
-		}
-		seen[subject] = struct{}{}
-		result = append(result, subject)
-	}
-	return result
-}
-
 func relationFor(id int64, leaders, members map[int64]struct{}) *string {
 	if leaders != nil {
 		if _, ok := leaders[id]; ok {
@@ -676,14 +466,14 @@ func stringSet(values []string) map[string]struct{} {
 	return result
 }
 
-func intersect(a, b map[string]struct{}) map[string]struct{} {
-	result := make(map[string]struct{})
+func intersectCount(a, b map[string]struct{}) int {
+	count := 0
 	for value := range a {
 		if _, ok := b[value]; ok {
-			result[value] = struct{}{}
+			count++
 		}
 	}
-	return result
+	return count
 }
 
 func nonNil(values []string) []string {
@@ -698,13 +488,4 @@ func nonNilBreadcrumb(values []Breadcrumb) []Breadcrumb {
 		return []Breadcrumb{}
 	}
 	return values
-}
-
-func sortMembers(members []EffectiveMember) {
-	sort.SliceStable(members, func(i, j int) bool {
-		if members[i].Direct != members[j].Direct {
-			return members[i].Direct
-		}
-		return strings.ToLower(members[i].User.UserName) < strings.ToLower(members[j].User.UserName)
-	})
 }

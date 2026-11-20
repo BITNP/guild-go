@@ -17,8 +17,8 @@ import (
 	"git.bitnp.net/BITNP/guild-go/internal/nodes"
 )
 
-func (s *Server) internalAuth(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleInternal(mux *http.ServeMux, pattern string, fn sessionHandler) {
+	mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 		if s.internalToken == "" || s.internalAuthz == nil {
 			writeJSON(w, http.StatusNotFound, errorResponse{
 				Status:  http.StatusNotFound,
@@ -46,7 +46,7 @@ func (s *Server) internalAuth(next http.Handler) http.Handler {
 			return
 		}
 
-		next.ServeHTTP(w, r.WithContext(auth.WithSession(r.Context(), session)))
+		fn(w, r, session)
 	})
 }
 
@@ -71,13 +71,7 @@ func (s *Server) internalServiceAuth(next http.Handler) http.Handler {
 	})
 }
 
-func (s *Server) createNodeInternal(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
-
+func (s *Server) createNodeInternal(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	var request nodes.CreateRequest
 	if err := decodeJSON(w, r, &request); err != nil {
 		writeError(w, r, err)
@@ -100,13 +94,7 @@ func (s *Server) createNodeInternal(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, result)
 }
 
-func (s *Server) replaceMembersInternal(w http.ResponseWriter, r *http.Request) {
-	session, ok := currentSession(r)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Status: 401, Error: "UNAUTHORIZED", Message: "需要登录"})
-		return
-	}
-
+func (s *Server) replaceMembersInternal(w http.ResponseWriter, r *http.Request, session auth.Session) {
 	id, err := parseID(r, "id")
 	if err != nil {
 		writeError(w, r, err)

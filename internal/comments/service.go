@@ -86,12 +86,7 @@ func (s *Service) List(ctx context.Context, session auth.Session, nodeID int64, 
 	if !exists {
 		return List{}, apperr.NotFound("节点不存在")
 	}
-	if limit <= 0 {
-		limit = defaultPageSize
-	}
-	if limit > maxPageSize {
-		limit = maxPageSize
-	}
+	limit = clampPageSize(limit)
 	rows, hasMore, err := s.repo.List(ctx, nodeID, before, limit)
 	if err != nil {
 		return List{}, err
@@ -128,36 +123,41 @@ func (s *Service) Delete(ctx context.Context, session auth.Session, commentID in
 	if err != nil {
 		return err
 	}
-	s.deleteObjects(keys)
+	storage.DeleteBestEffort(s.store, keys)
+	return nil
+}
+
+// ReactionsForComments returns aggregated reactions grouped by comment id.
+func (s *Service) ReactionsForComments(ctx context.Context, commentIDs []int64, viewer string) (map[int64][]Reaction, error) {
+	return s.repo.ReactionsForComments(ctx, commentIDs, viewer)
+}
+
+func (s *Service) validateReactionTarget(ctx context.Context, commentID int64, emoji string) error {
+	if !ValidEmoji(emoji) {
+		return apperr.BadRequest("不支持的表情")
+	}
+	exists, err := s.repo.Exists(ctx, commentID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return apperr.NotFound("进展不存在")
+	}
 	return nil
 }
 
 // ToggleReaction toggles one emoji. Every admitted user may react.
 func (s *Service) ToggleReaction(ctx context.Context, commentID int64, subject, emoji string) ([]Reaction, error) {
-	if !ValidEmoji(emoji) {
-		return nil, apperr.BadRequest("不支持的表情")
-	}
-	exists, err := s.repo.Exists(ctx, commentID)
-	if err != nil {
+	if err := s.validateReactionTarget(ctx, commentID, emoji); err != nil {
 		return nil, err
-	}
-	if !exists {
-		return nil, apperr.NotFound("进展不存在")
 	}
 	return s.repo.ToggleReaction(ctx, commentID, subject, emoji)
 }
 
 // ReactionUsers lists the people who used an emoji. Every admitted user may view them.
 func (s *Service) ReactionUsers(ctx context.Context, session auth.Session, commentID int64, emoji string) ([]users.Summary, error) {
-	if !ValidEmoji(emoji) {
-		return nil, apperr.BadRequest("不支持的表情")
-	}
-	exists, err := s.repo.Exists(ctx, commentID)
-	if err != nil {
+	if err := s.validateReactionTarget(ctx, commentID, emoji); err != nil {
 		return nil, err
-	}
-	if !exists {
-		return nil, apperr.NotFound("进展不存在")
 	}
 	subjects, err := s.repo.ReactionSubjects(ctx, commentID, emoji)
 	if err != nil {
@@ -218,10 +218,6 @@ func (s *Service) assemble(ctx context.Context, session auth.Session, rows []Com
 	}
 	result := make([]Comment, 0, len(rows))
 	for _, row := range rows {
-		author, ok := authors[row.Author]
-		if !ok {
-			author = users.Summary{Subject: row.Author, UserName: row.Author, Positions: []users.Position{}}
-		}
 		attachmentViews := make([]Attachment, 0, len(attachments[row.ID]))
 		for _, attachment := range attachments[row.ID] {
 			attachmentViews = append(attachmentViews, Attachment{
@@ -238,7 +234,7 @@ func (s *Service) assemble(ctx context.Context, session auth.Session, rows []Com
 		result = append(result, Comment{
 			ID:          row.ID,
 			NodeID:      row.NodeID,
-			Author:      author,
+			Author:      authors.For(row.Author),
 			Body:        row.Body,
 			CreatedAt:   row.CreatedAt,
 			Attachments: attachmentViews,
@@ -247,4 +243,14 @@ func (s *Service) assemble(ctx context.Context, session auth.Session, rows []Com
 		})
 	}
 	return result, nil
+}
+
+func clampPageSize(limit int) int {
+	if limit <= 0 {
+		return defaultPageSize
+	}
+	if limit > maxPageSize {
+		return maxPageSize
+	}
+	return limit
 }

@@ -1,106 +1,151 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { NAlert, NButton, NCard, NEmpty, NRadioButton, NRadioGroup, NSpin } from 'naive-ui'
-import ActivityPreview from '@/components/ActivityPreview.vue'
-import SectionHeading from '@/components/SectionHeading.vue'
-import type { ActivityScope, RecentActivity } from '@/lib/api'
+import {
+  NAlert,
+  NButton,
+  NCard,
+  NEmpty,
+  NRadioButton,
+  NRadioGroup,
+  NSpin,
+} from "naive-ui";
+import { computed, ref, watch } from "vue";
 
+import ActivityPreview from "@/components/ActivityPreview.vue";
+import SectionHeading from "@/components/SectionHeading.vue";
+import type { ActivityScope, RecentActivity } from "@/lib/api";
+
+const emit = defineEmits<{ retry: [] }>();
 const props = defineProps<{
-  activities: RecentActivity[]
-  rootIds: ReadonlySet<number>
-  loading: boolean
-  error: string | null
-}>()
-const scope = defineModel<ActivityScope>('scope', { required: true })
-const emit = defineEmits<{ retry: [] }>()
+  activities: RecentActivity[];
+  rootIds: ReadonlySet<number>;
+  loading: boolean;
+  error: string | null;
+}>();
+const scope = defineModel<ActivityScope>("scope", { required: true });
 
 interface ProgressEntry {
-  activity: RecentActivity
-  occurredAt: Date
+  activity: RecentActivity;
+  occurredAt: Date;
 }
 
 interface ProgressGroup {
-  nodeId: number
-  latest: ProgressEntry
-  earlier: ProgressEntry[]
+  nodeId: number;
+  latest: ProgressEntry;
+  earlier: ProgressEntry[];
 }
 
-const groupsPerPage = 5
-const visibleGroupCount = ref(groupsPerPage)
-const shortDate = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric' })
-const fullDate = new Intl.DateTimeFormat('zh-CN', {
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-})
+const groupsPerPage = 5;
+const visibleGroupCount = ref(groupsPerPage);
+const shortDate = new Intl.DateTimeFormat("zh-CN", {
+  month: "long",
+  day: "numeric",
+});
+const fullDate = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
 
 const days = computed(() => {
   const entries = props.activities.flatMap((activity): ProgressEntry[] => {
-    const timestamp = activity.kind === 'node_updated' ? activity.completedAt : activity.createdAt
-    if (!timestamp) return []
-    const occurredAt = new Date(timestamp)
-    return Number.isNaN(occurredAt.getTime()) ? [] : [{ activity, occurredAt }]
-  })
-  entries.sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
+    const timestamp =
+      activity.kind === "node_updated"
+        ? activity.completedAt
+        : activity.createdAt;
+    if (!timestamp) {
+      return [];
+    }
+    const occurredAt = new Date(timestamp);
 
-  const today = new Date()
-  const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1)
-  const todayKey = today.toDateString()
-  const yesterdayKey = yesterday.toDateString()
-  const byDay = new Map<string, { label: string; nodes: Map<number, ProgressGroup> }>()
+    return Number.isNaN(occurredAt.getTime()) ? [] : [{ activity, occurredAt }];
+  });
+  entries.sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
+
+  const today = new Date();
+  const yesterday = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate() - 1,
+  );
+  const todayKey = today.toDateString();
+  const yesterdayKey = yesterday.toDateString();
+  const byDay = new Map<
+    string,
+    { label: string; nodes: Map<number, ProgressGroup> }
+  >();
 
   for (const entry of entries) {
-    const { activity, occurredAt } = entry
-    const key = occurredAt.toDateString()
-    let day = byDay.get(key)
+    const { activity, occurredAt } = entry;
+    const key = occurredAt.toDateString();
+    let day = byDay.get(key);
     if (!day) {
-      const formatter = occurredAt.getFullYear() === today.getFullYear() ? shortDate : fullDate
-      const label = key === todayKey ? '今天' : key === yesterdayKey ? '昨天' : formatter.format(occurredAt)
-      day = { label, nodes: new Map() }
-      byDay.set(key, day)
+      const formatter =
+        occurredAt.getFullYear() === today.getFullYear() ? shortDate : fullDate;
+      const label =
+        key === todayKey
+          ? "今天"
+          : key === yesterdayKey
+            ? "昨天"
+            : formatter.format(occurredAt);
+      day = { label, nodes: new Map() };
+      byDay.set(key, day);
     }
-    const { nodeId } = activity
-    const group = day.nodes.get(nodeId)
-    if (group) group.earlier.push(entry)
-    else day.nodes.set(nodeId, { nodeId, latest: entry, earlier: [] })
+    const { nodeId } = activity;
+    const group = day.nodes.get(nodeId);
+    if (group) {
+      group.earlier.push(entry);
+    } else {
+      day.nodes.set(nodeId, { nodeId, latest: entry, earlier: [] });
+    }
   }
+
   return Array.from(byDay, ([key, day]) => ({
     key,
     label: day.label,
     groups: [...day.nodes.values()],
-  }))
-})
+  }));
+});
 
 const visibleDays = computed(() => {
-  let remaining = visibleGroupCount.value
-  const visible = []
+  let remaining = visibleGroupCount.value;
+  const visible = [];
   for (const day of days.value) {
-    if (remaining <= 0) break
-    const groups = day.groups.slice(0, remaining)
-    visible.push({ ...day, groups })
-    remaining -= groups.length
+    if (remaining <= 0) {
+      break;
+    }
+    const groups = day.groups.slice(0, remaining);
+    visible.push({ ...day, groups });
+    remaining -= groups.length;
   }
-  return visible
-})
+
+  return visible;
+});
 const hasMore = computed(
-  () => days.value.reduce((total, day) => total + day.groups.length, 0) > visibleGroupCount.value,
-)
+  () =>
+    days.value.reduce((total, day) => total + day.groups.length, 0) >
+    visibleGroupCount.value,
+);
 
 watch(scope, () => {
-  visibleGroupCount.value = groupsPerPage
-})
+  visibleGroupCount.value = groupsPerPage;
+});
 </script>
 
 <template>
-  <section class="recent-progress" aria-label="最近进展">
+  <section aria-label="最近进展" class="recent-progress">
     <SectionHeading title="最近进展">
-      <NRadioGroup v-model:value="scope" size="small" aria-label="动态范围">
+      <NRadioGroup v-model:value="scope" aria-label="动态范围" size="small">
         <NRadioButton value="related">与我有关</NRadioButton>
         <NRadioButton value="all">全部</NRadioButton>
       </NRadioGroup>
     </SectionHeading>
-    <NCard size="small" :aria-busy="loading">
-      <div v-if="loading" class="progress-placeholder" role="status" aria-label="正在加载进展">
+    <NCard :aria-busy="loading" size="small">
+      <div
+        v-if="loading"
+        aria-label="正在加载进展"
+        class="progress-placeholder"
+        role="status"
+      >
         <NSpin size="small" />
       </div>
       <NAlert v-else-if="error" type="error">
@@ -108,28 +153,43 @@ watch(scope, () => {
         <NButton text @click="emit('retry')">重试</NButton>
       </NAlert>
       <NEmpty
-        v-else-if="!days.length"
+        v-else-if="days.length === 0"
         class="progress-placeholder"
-        size="small"
         :description="scope === 'related' ? '暂无与我有关的进展' : '暂无进展'"
+        size="small"
       />
       <template v-else>
         <section v-for="day in visibleDays" :key="day.key" class="progress-day">
           <h3>{{ day.label }}</h3>
           <ul class="progress-groups">
-            <li v-for="{ nodeId, latest, earlier } in day.groups" :key="nodeId" class="progress-group">
+            <li
+              v-for="{ nodeId, latest, earlier } in day.groups"
+              :key="nodeId"
+              class="progress-group"
+            >
               <div class="progress-node">
                 <RouterLink :to="{ name: 'node', params: { id: nodeId } }">
                   {{ latest.activity.nodeTitle }}
                 </RouterLink>
-                <span v-if="!rootIds.has(nodeId)">{{ latest.activity.rootTitle }}</span>
+                <span v-if="!rootIds.has(nodeId)">
+                  {{ latest.activity.rootTitle }}
+                </span>
               </div>
-              <ActivityPreview :activity="latest.activity" :occurred-at="latest.occurredAt" />
-              <details v-if="earlier.length" class="progress-more">
+              <ActivityPreview
+                :activity="latest.activity"
+                :occurred-at="latest.occurredAt"
+              />
+              <details v-if="earlier.length > 0" class="progress-more">
                 <summary>另有 {{ earlier.length }} 条动态</summary>
                 <ul class="earlier-entries">
-                  <li v-for="entry in earlier" :key="`${entry.activity.kind}-${entry.activity.id}`">
-                    <ActivityPreview :activity="entry.activity" :occurred-at="entry.occurredAt" />
+                  <li
+                    v-for="entry in earlier"
+                    :key="`${entry.activity.kind}-${entry.activity.id}`"
+                  >
+                    <ActivityPreview
+                      :activity="entry.activity"
+                      :occurred-at="entry.occurredAt"
+                    />
                   </li>
                 </ul>
               </details>
@@ -137,7 +197,11 @@ watch(scope, () => {
           </ul>
         </section>
         <div v-if="hasMore" class="progress-footer">
-          <NButton text type="primary" @click="visibleGroupCount += groupsPerPage">
+          <NButton
+            text
+            type="primary"
+            @click="visibleGroupCount += groupsPerPage"
+          >
             查看更多进展
           </NButton>
         </div>
@@ -171,7 +235,7 @@ watch(scope, () => {
 .progress-day h3::after {
   flex: 1;
   border-top: 1px solid var(--guild-border);
-  content: '';
+  content: "";
 }
 .progress-groups,
 .earlier-entries {

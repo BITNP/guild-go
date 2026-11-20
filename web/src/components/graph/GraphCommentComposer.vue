@@ -1,249 +1,178 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, useId } from 'vue'
-import {
-  ImagePlus,
-  Loader2,
-  RotateCcw,
-  Send,
-  X,
-} from '@lucide/vue'
+import { ImagePlus, Loader2, RotateCcw, Send, X } from "@lucide/vue";
+import { ref, useId } from "vue";
+
+import { useCommentComposer } from "@/composables/useCommentComposer";
 import {
   COMMENT_IMAGE_ACCEPT,
   COMMENT_IMAGE_LIMIT,
-  filesFromClipboard,
-  filesFromDataTransfer,
-  hasFileDrag,
-  useCommentImageDrafts,
-} from '@/composables/useCommentImageDrafts'
-import { createComment, type Comment } from '@/lib/api'
-import { errorMessage } from '@/lib/utils'
+} from "@/composables/useCommentImageDrafts";
+import type { Comment } from "@/lib/api";
+
+const emit = defineEmits<{ created: [comment: Comment] }>();
 
 const props = defineProps<{
-  nodeId: number
-}>()
+  nodeId: number;
+}>();
 
-const emit = defineEmits<{ created: [comment: Comment] }>()
-const body = ref('')
-const submitting = ref(false)
-const error = ref<string | null>(null)
-const fileInput = ref<HTMLInputElement | null>(null)
-const textarea = ref<HTMLTextAreaElement | null>(null)
-const dragging = ref(false)
-const bodyId = useId()
-const { images, pending, addFiles, retry, remove, clear, dispose } =
-  useCommentImageDrafts(() => props.nodeId)
-const canSubmit = computed(() =>
-  !submitting.value &&
-  !pending.value &&
-  (body.value.trim().length > 0 || images.value.length > 0),
-)
-let dragDepth = 0
-
-function acceptFiles(files: File[]) {
-  error.value = null
-  error.value = addFiles(files)
-}
-
-function selectFiles(event: Event) {
-  const input = event.target as HTMLInputElement
-  const selected = [...(input.files ?? [])]
-  input.value = ''
-  acceptFiles(selected)
-}
-
-function pasteImages(event: ClipboardEvent) {
-  const files = filesFromClipboard(event.clipboardData)
-  if (!files.length) return
-  event.preventDefault()
-  acceptFiles(files)
-}
-
-function dragEnter(event: DragEvent) {
-  if (submitting.value || !hasFileDrag(event.dataTransfer)) return
-  event.preventDefault()
-  event.stopPropagation()
-  dragDepth += 1
-  dragging.value = true
-}
-
-function dragOver(event: DragEvent) {
-  if (submitting.value || !hasFileDrag(event.dataTransfer)) return
-  event.preventDefault()
-  event.stopPropagation()
-  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
-  dragging.value = true
-}
-
-function dragLeave(event: DragEvent) {
-  if (!dragging.value) return
-  event.preventDefault()
-  event.stopPropagation()
-  dragDepth = Math.max(0, dragDepth - 1)
-  if (dragDepth === 0) dragging.value = false
-}
-
-function dropFiles(event: DragEvent) {
-  const files = filesFromDataTransfer(event.dataTransfer)
-  if (!files.length) return
-  event.preventDefault()
-  event.stopPropagation()
-  dragDepth = 0
-  dragging.value = false
-  if (!submitting.value) acceptFiles(files)
-}
-
-async function submit() {
-  if (!canSubmit.value) {
-    if (!body.value.trim() && !images.value.length) {
-      error.value = '写下一步进展或添加一张图片'
-    }
-    return
-  }
-  error.value = null
-  submitting.value = true
-  try {
-    const attachmentIds = images.value.flatMap((image) =>
-      image.status.state === 'uploaded' ? [image.status.id] : [],
-    )
-    const comment = await createComment(props.nodeId, body.value, attachmentIds)
-    body.value = ''
-    clear(false)
-    emit('created', comment)
-  } catch (err) {
-    error.value = errorMessage(err, '进展发送失败，请重试')
-  } finally {
-    submitting.value = false
-  }
-}
+const fileInput = ref<HTMLInputElement | null>(null);
+const textarea = ref<HTMLTextAreaElement | null>(null);
+const bodyId = useId();
+const {
+  body,
+  submitting,
+  error,
+  dragging,
+  images,
+  pending,
+  retry,
+  remove,
+  selectFiles,
+  pasteImages,
+  dragEnter,
+  dragOver,
+  dragLeave,
+  dropFiles,
+  submit,
+} = useCommentComposer(() => props.nodeId, {
+  emptyMessage: "写下一步进展或添加一张图片",
+  submitErrorFallback: "进展发送失败，请重试",
+  onCreated: (comment) => emit("created", comment),
+});
 
 function shortcut(event: KeyboardEvent) {
   if (
-    event.key !== 'Enter' ||
-    event.shiftKey ||
+    event.key !== "Enter" ||
+    (!event.ctrlKey && !event.metaKey) ||
     event.isComposing ||
     event.keyCode === 229
   ) {
-    return
+    return;
   }
-  event.preventDefault()
-  void submit()
+  event.preventDefault();
+  void submit();
 }
 
 function focusComposer(event: PointerEvent) {
-  event.stopPropagation()
-  const target = event.target
-  if (target instanceof HTMLTextAreaElement) return
-  if (
-    target instanceof Element &&
-    target.closest('button, input')
-  ) {
-    return
+  event.stopPropagation();
+  const target = event.target;
+  if (target instanceof HTMLTextAreaElement) {
+    return;
   }
-  event.preventDefault()
-  textarea.value?.focus({ preventScroll: true })
+  if (target instanceof Element && target.closest("button, input")) {
+    return;
+  }
+  event.preventDefault();
+  textarea.value?.focus({ preventScroll: true });
 }
-
-onBeforeUnmount(() => dispose(!submitting.value))
 </script>
 
 <template>
   <section
+    aria-label="输入进展"
     class="graph-comment-composer"
     data-graph-comment-composer
-    aria-label="输入进展"
-    @pointerdown.capture="focusComposer"
-    @pointermove.stop
-    @pointerup.stop
     @click.stop
     @dblclick.stop
     @dragenter="dragEnter"
-    @dragover="dragOver"
     @dragleave="dragLeave"
+    @dragover="dragOver"
     @drop="dropFiles"
+    @pointerdown.capture="focusComposer"
+    @pointermove.stop
+    @pointerup.stop
   >
     <textarea
+      v-model="body"
       ref="textarea"
       :id="bodyId"
-      v-model="body"
-      class="composer-input"
-      :class="{ 'has-images': images.length > 0 }"
-      rows="2"
-      maxlength="5000"
-      :disabled="submitting"
       :aria-invalid="!!error"
       aria-label="请输入进展"
-      placeholder="输入进展，可粘贴或拖拽图片"
+      class="composer-input"
+      :class="{ 'has-images': images.length > 0 }"
+      :disabled="submitting"
+      maxlength="5000"
+      placeholder="输入进展，可粘贴或拖拽图片（Ctrl / ⌘ + Enter 发布）"
+      rows="2"
       @keydown="shortcut"
       @paste="pasteImages"
     />
 
-    <div v-if="images.length" class="composer-images" aria-live="polite">
+    <div v-if="images.length > 0" aria-live="polite" class="composer-images">
       <div v-for="image in images" :key="image.src" class="image-slot">
-        <img :src="image.src" :alt="image.file.name" />
+        <img :alt="image.file.name" :src="image.src" />
         <div
           v-if="image.status.state === 'uploading'"
+          :aria-label="`正在上传：${image.file.name}`"
           class="image-overlay"
           role="progressbar"
-          :aria-label="`正在上传：${image.file.name}`"
         >
-          <Loader2 :size="18" class="spin" />
+          <Loader2 class="spin" :size="18" />
         </div>
         <button
           v-else-if="image.status.state === 'failed'"
-          type="button"
-          class="image-overlay image-retry"
           :aria-label="`重试上传：${image.file.name}`"
+          class="image-overlay image-retry"
           :title="image.status.message"
+          type="button"
           @click="retry(image)"
         >
           <RotateCcw :size="16" />
         </button>
         <button
           v-if="image.status.state !== 'uploading'"
-          type="button"
-          class="image-remove"
           :aria-label="`移除图片：${image.file.name}`"
+          class="image-remove"
           :disabled="submitting"
+          type="button"
           @click="remove(image)"
         >
-          <X :size="12" />
+          <X :size="14" />
         </button>
       </div>
     </div>
 
     <div class="composer-actions">
       <button
-        type="button"
+        aria-label="添加图片，也可粘贴或拖拽图片"
         class="attach-button"
         :disabled="submitting || images.length >= COMMENT_IMAGE_LIMIT"
-        aria-label="添加图片，也可粘贴或拖拽图片"
         title="添加图片，也可粘贴或拖拽"
+        type="button"
         @click="fileInput?.click()"
       >
-        <ImagePlus :size="15" />
+        <ImagePlus aria-hidden="true" :size="20" />
+        <span>添加图片 {{ images.length }}/{{ COMMENT_IMAGE_LIMIT }}</span>
       </button>
       <button
-        type="button"
+        :aria-label="
+          submitting ? '正在发送进展' : pending ? '正在上传图片' : '发布进展'
+        "
         class="send-button"
-        :disabled="submitting || pending || (!body.trim() && !images.length)"
-        :aria-label="submitting ? '正在发送进展' : pending ? '正在上传图片' : '发送进展'"
-        :title="submitting ? '正在发送进展' : pending ? '正在上传图片' : '发送进展'"
+        :disabled="
+          submitting || pending || (!body.trim() && images.length === 0)
+        "
+        :title="
+          submitting ? '正在发送进展' : pending ? '正在上传图片' : '发布进展'
+        "
+        type="button"
         @click="submit"
       >
-        <Loader2 v-if="submitting" :size="15" class="spin" />
-        <Send v-else :size="15" />
+        <Loader2 v-if="submitting" aria-hidden="true" class="spin" :size="20" />
+        <Send v-else aria-hidden="true" :size="20" />
+        <span>{{ submitting ? "发送中…" : "发布" }}</span>
       </button>
     </div>
 
     <input
       ref="fileInput"
-      type="file"
       :accept="COMMENT_IMAGE_ACCEPT"
-      multiple
       class="file-input"
+      multiple
+      type="file"
       @change="selectFiles"
     />
-    <div v-if="dragging" class="drop-hint" aria-hidden="true">
+    <div v-if="dragging" aria-hidden="true" class="drop-hint">
       <ImagePlus :size="20" />
       <span>松开以添加图片</span>
     </div>
@@ -254,75 +183,52 @@ onBeforeUnmount(() => dispose(!submitting.value))
 </template>
 
 <style scoped>
+/*
+ * CSS3DRenderer owns this element's position and transform. The fixed logical
+ * size keeps it aligned with the 6.2 x 2.36 comment-card plane in the scene.
+ */
 .graph-comment-composer {
-  --composer-accent: #e8b954;
-  position: absolute;
-  z-index: 18;
-  bottom: 82px;
-  left: 30px;
-  width: clamp(300px, calc(100vw - 430px), 440px);
-  padding: 17px 18px 14px 22px;
-  border: 1px solid rgba(226, 178, 76, 0.34);
-  border-left-color: rgba(240, 188, 79, 0.82);
-  border-radius: 3px;
-  background:
-    linear-gradient(135deg, rgba(232, 181, 75, 0.1), transparent 34%),
-    linear-gradient(180deg, rgba(9, 17, 20, 0.94), rgba(5, 11, 14, 0.97));
-  box-shadow:
-    0 26px 70px rgba(0, 0, 0, 0.48),
-    0 0 32px rgba(227, 173, 60, 0.06),
-    inset 0 0 38px rgba(81, 178, 176, 0.025);
-  color: #dce5e4;
+  position: relative;
+  display: flex;
+  width: 620px;
+  height: 260px;
+  margin: 0;
+  padding: 18px 22px 14px 22px;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid var(--graph-panel-border);
+  border-left: 3px solid var(--graph-detail-edge);
+  border-radius: 6px;
+  background: var(--graph-composer-bg);
+  box-shadow: var(--graph-composer-shadow);
+  color: var(--graph-composer-text);
   pointer-events: auto;
   backdrop-filter: blur(22px) saturate(120%);
-  transform:
-    perspective(1100px)
-    rotateX(1.1deg)
-    rotateY(1.4deg);
-  transform-origin: 0 100%;
-}
-
-.graph-comment-composer::before,
-.graph-comment-composer::after {
-  position: absolute;
-  width: 28px;
-  height: 28px;
-  border-color: rgba(239, 188, 80, 0.7);
-  border-style: solid;
-  content: '';
-  pointer-events: none;
-}
-
-.graph-comment-composer::before {
-  top: -1px;
-  left: -1px;
-  border-width: 1px 0 0 1px;
-}
-
-.graph-comment-composer::after {
-  right: -1px;
-  bottom: -1px;
-  border-width: 0 1px 1px 0;
+  transform-origin: 50% 50%;
+  visibility: hidden;
+  opacity: 0;
 }
 
 .composer-input {
   display: block;
   width: 100%;
-  min-height: 82px;
-  max-height: 190px;
-  resize: vertical;
-  border: 1px solid rgba(108, 148, 155, 0.34);
-  border-radius: 2px;
+  min-height: 0;
+  flex: 1 1 auto;
+  resize: none;
+  border: 1px solid var(--graph-composer-input-border);
+  border-radius: 4px;
   outline: none;
-  background:
-    linear-gradient(90deg, rgba(80, 183, 181, 0.05), transparent 34%),
-    rgba(2, 9, 12, 0.58);
-  padding: 11px 12px;
-  color: #eef2ec;
+  background: var(--graph-composer-input-bg);
+  padding: 10px 12px;
+  color: var(--graph-composer-input-color);
   font: inherit;
-  font-size: 13px;
-  line-height: 1.65;
-  caret-color: #f0bd58;
+  font-size: 27px;
+  line-height: 1.55;
+  caret-color: var(--graph-composer-caret);
+  touch-action: auto;
+  user-select: text;
+  -webkit-user-select: text;
   transition:
     border-color 160ms ease,
     box-shadow 160ms ease,
@@ -330,15 +236,13 @@ onBeforeUnmount(() => dispose(!submitting.value))
 }
 
 .composer-input::placeholder {
-  color: rgba(150, 174, 178, 0.58);
+  color: var(--graph-composer-placeholder);
 }
 
 .composer-input:focus {
-  border-color: rgba(239, 188, 80, 0.72);
-  background: rgba(6, 14, 17, 0.78);
-  box-shadow:
-    0 0 0 2px rgba(232, 181, 75, 0.08),
-    inset 0 0 24px rgba(78, 178, 175, 0.035);
+  border-color: var(--graph-composer-focus-border);
+  background: var(--graph-composer-focus-bg);
+  box-shadow: var(--graph-composer-focus-shadow);
 }
 
 .composer-input:disabled {
@@ -348,19 +252,20 @@ onBeforeUnmount(() => dispose(!submitting.value))
 
 .composer-images {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 9px;
+  margin-top: 8px;
 }
 
 .image-slot {
   position: relative;
-  width: 62px;
-  height: 62px;
+  width: 56px;
+  height: 56px;
   overflow: hidden;
-  border: 1px solid rgba(108, 148, 155, 0.34);
-  border-radius: 2px;
-  background: #0b1418;
+  border: 1px solid var(--graph-slot-border);
+  border-radius: 4px;
+  background: var(--graph-slot-bg);
 }
 
 .image-slot img {
@@ -374,11 +279,10 @@ onBeforeUnmount(() => dispose(!submitting.value))
   inset: 0;
   display: grid;
   place-content: center;
-  gap: 3px;
   border: 0;
-  background: rgba(3, 10, 13, 0.76);
-  color: #d7e4e2;
-  font-size: 12px;
+  background: var(--graph-slot-overlay-bg);
+  color: var(--graph-slot-overlay-color);
+  font-size: 14px;
   text-align: center;
 }
 
@@ -395,34 +299,37 @@ onBeforeUnmount(() => dispose(!submitting.value))
   top: 2px;
   right: 2px;
   display: grid;
-  width: 19px;
-  height: 19px;
+  width: 22px;
+  height: 22px;
   place-items: center;
-  border: 1px solid rgba(218, 185, 119, 0.3);
+  border: 1px solid var(--graph-slot-remove-border);
   border-radius: 50%;
-  background: rgba(4, 10, 12, 0.84);
-  color: #cad7d5;
+  background: var(--graph-slot-remove-bg);
+  color: var(--graph-slot-remove-color);
   cursor: pointer;
 }
 
 .composer-actions {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-top: 11px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--graph-panel-divider);
 }
 
 .attach-button,
 .send-button {
   display: inline-flex;
-  min-height: 32px;
+  min-height: 42px;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  border-radius: 2px;
-  padding: 0 11px;
-  font-size: 13px;
+  gap: 8px;
+  padding: 0 16px;
+  border-radius: 4px;
+  font-size: 18px;
   cursor: pointer;
   transition:
     border-color 150ms ease,
@@ -432,37 +339,22 @@ onBeforeUnmount(() => dispose(!submitting.value))
 }
 
 .attach-button {
-  border: 1px solid rgba(113, 148, 154, 0.34);
-  background: rgba(10, 19, 22, 0.58);
-  color: #adbec0;
-}
-
-.attach-button span {
-  color: rgba(225, 181, 90, 0.72);
-  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--graph-attach-border);
+  background: var(--graph-attach-bg);
+  color: var(--graph-attach-color);
 }
 
 .send-button {
-  border: 1px solid rgba(239, 188, 80, 0.66);
-  background:
-    linear-gradient(135deg, rgba(239, 188, 80, 0.2), transparent),
-    rgba(37, 31, 15, 0.76);
-  color: #f6d58f;
+  border: 1px solid var(--graph-send-border);
+  background: var(--graph-send-bg);
+  color: var(--graph-send-color);
   font-weight: 650;
-  letter-spacing: 0.04em;
-  box-shadow: 0 0 18px rgba(234, 179, 65, 0.08);
 }
 
 .attach-button:hover:not(:disabled),
 .send-button:hover:not(:disabled) {
   border-color: rgba(247, 201, 103, 0.92);
-  color: #fff0c8;
-}
-
-.send-button:hover:not(:disabled) {
-  background:
-    linear-gradient(135deg, rgba(239, 188, 80, 0.28), transparent),
-    rgba(47, 38, 17, 0.88);
+  color: var(--graph-link-hover-color);
 }
 
 .attach-button:disabled,
@@ -472,10 +364,11 @@ onBeforeUnmount(() => dispose(!submitting.value))
 }
 
 .composer-error {
-  margin: 8px 0 0;
-  color: #f2a18c;
-  font-size: 13px;
-  line-height: 1.5;
+  flex: none;
+  margin: 6px 0 0;
+  color: var(--graph-composer-error);
+  font-size: 16px;
+  line-height: 1.3;
 }
 
 .drop-hint {
@@ -486,10 +379,10 @@ onBeforeUnmount(() => dispose(!submitting.value))
   align-items: center;
   justify-content: center;
   gap: 10px;
-  border: 1px dashed rgba(240, 188, 79, 0.82);
-  border-radius: 2px;
-  background: rgba(4, 11, 14, 0.9);
-  color: #f5d28b;
+  border: 1px dashed var(--graph-drop-border);
+  border-radius: 4px;
+  background: var(--graph-drop-bg);
+  color: var(--graph-drop-color);
   font-size: 20px;
   font-weight: 600;
   pointer-events: none;
@@ -510,204 +403,12 @@ onBeforeUnmount(() => dispose(!submitting.value))
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spin {
-    animation: none;
-  }
-}
-
-@media (max-width: 720px) {
-  .graph-comment-composer {
-    bottom: 74px;
-    left: 14px;
-    width: calc(100vw - 374px);
-    min-width: 264px;
-    padding: 14px 14px 12px 18px;
-  }
-}
-
-@media (max-width: 560px) {
-  .graph-comment-composer {
-    right: 14px;
-    bottom: 70px;
-    width: auto;
-    min-width: 0;
-  }
-}
-
-/*
- * CSS3DRenderer owns this element's position and transform. The fixed logical
- * size keeps it aligned with the 6.2 x 2.36 comment-card plane in the scene.
- */
-.graph-comment-composer {
-  top: auto;
-  right: auto;
-  bottom: auto;
-  left: auto;
-  display: flex;
-  width: 620px;
-  height: 260px;
-  min-width: 0;
-  margin: 0;
-  padding: 18px 22px 14px 26px;
-  flex-direction: column;
-  overflow: hidden;
-  box-sizing: border-box;
-  border-radius: 0;
-  transform-origin: 50% 50%;
-  visibility: hidden;
-  opacity: 0;
-}
-
-.composer-input {
-  min-height: 0;
-  height: auto;
-  max-height: none;
-  flex: 1 1 auto;
-  margin-top: 0;
-  padding: 10px 12px;
-  resize: none;
-  font-size: 27px;
-  line-height: 1.55;
-  touch-action: auto;
-  user-select: text;
-  -webkit-user-select: text;
-}
-
-.composer-input.has-images {
-  height: auto;
-  max-height: none;
-}
-
-.composer-images {
-  flex: none;
-  gap: 5px;
-  margin-top: 6px;
-}
-
-.image-slot {
-  width: 34px;
-  height: 34px;
-}
-
-.image-overlay {
-  gap: 0;
-  font-size: 12px;
-}
-
-.image-overlay svg {
-  width: 13px;
-  height: 13px;
-}
-
-.image-remove {
-  width: 16px;
-  height: 16px;
-}
-
-.composer-actions {
-  flex: none;
-  justify-content: flex-end;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(139, 166, 171, 0.17);
-}
-
-.attach-button,
-.send-button {
-  width: 38px;
-  min-height: 34px;
-  padding: 0;
-}
-
-.composer-error {
-  flex: none;
-  margin-top: 4px;
-  font-size: 16px;
-  line-height: 1.3;
-}
-
-:global([data-theme='light'] .graph-comment-composer) {
-  border-color: rgba(160, 105, 20, 0.28);
-  border-left-color: rgba(147, 90, 8, 0.62);
-  background:
-    linear-gradient(135deg, rgba(193, 128, 29, 0.08), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(246, 249, 250, 0.98));
-  box-shadow:
-    0 26px 70px rgba(48, 63, 72, 0.2),
-    0 0 32px rgba(180, 118, 20, 0.05),
-    inset 0 0 38px rgba(55, 137, 135, 0.02);
-  color: #2a3942;
-}
-
-:global([data-theme='light'] .composer-input) {
-  border-color: rgba(79, 108, 120, 0.28);
-  background:
-    linear-gradient(90deg, rgba(58, 143, 142, 0.04), transparent 34%),
-    rgba(255, 255, 255, 0.84);
-  color: #17242c;
-  caret-color: #9a620e;
-}
-
-:global([data-theme='light'] .composer-input::placeholder) {
-  color: rgba(73, 94, 106, 0.58);
-}
-
-:global([data-theme='light'] .composer-input:focus) {
-  border-color: rgba(158, 101, 16, 0.58);
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow:
-    0 0 0 2px rgba(178, 116, 22, 0.07),
-    inset 0 0 24px rgba(58, 143, 142, 0.03);
-}
-
-:global([data-theme='light'] .image-slot) {
-  border-color: rgba(80, 108, 120, 0.26);
-  background: #eef3f5;
-}
-
-:global([data-theme='light'] .image-overlay) {
-  background: rgba(238, 244, 246, 0.86);
-  color: #455b66;
-}
-
-:global([data-theme='light'] .image-remove) {
-  border-color: rgba(121, 91, 47, 0.28);
-  background: rgba(255, 255, 255, 0.9);
-  color: #506570;
-}
-
-:global([data-theme='light'] .composer-actions) {
-  border-top-color: rgba(80, 108, 120, 0.18);
-}
-
-:global([data-theme='light'] .attach-button) {
-  border-color: rgba(78, 109, 121, 0.28);
-  background: rgba(255, 255, 255, 0.72);
-  color: #536a75;
-}
-
-:global([data-theme='light'] .send-button) {
-  border-color: rgba(157, 101, 18, 0.48);
-  background:
-    linear-gradient(135deg, rgba(189, 124, 27, 0.14), transparent),
-    rgba(255, 249, 236, 0.88);
-  color: #7f4f0a;
-  box-shadow: 0 0 18px rgba(176, 112, 18, 0.05);
-}
-
-:global([data-theme='light'] .composer-error) {
-  color: #a33f36;
-}
-
-:global([data-theme='light'] .drop-hint) {
-  border-color: rgba(147, 90, 8, 0.62);
-  background: rgba(250, 246, 237, 0.94);
-  color: #7f4f0a;
-}
-
-@media (prefers-reduced-motion: reduce) {
   .graph-comment-composer {
     backdrop-filter: none;
+  }
+
+  .spin {
+    animation: none;
   }
 }
 </style>

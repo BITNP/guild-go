@@ -1,208 +1,111 @@
 <script setup lang="ts">
 import {
-  computed,
-  onBeforeUnmount,
-  onMounted,
-  ref,
-  watch,
-} from 'vue'
-import { RouterLink } from 'vue-router'
-import {
-  NAlert,
-  NDatePicker,
-} from 'naive-ui'
-import {
   ArrowUpDown,
-  CalendarClock,
+  Check,
   ChevronRight,
+  Circle,
   ExternalLink,
   FolderInput,
   Pencil,
   Plus,
   Trash2,
   X,
-} from '@lucide/vue'
-import MembersDialog from '@/components/MembersDialog.vue'
-import NodeStatusTag from '@/components/NodeStatusTag.vue'
-import UserIdentity from '@/components/UserIdentity.vue'
-import type { GraphNode } from '@/graph/types'
-import { updateNode, type NodeDetail } from '@/lib/api'
-import { errorMessage, formatDateTime, timeAgo } from '@/lib/utils'
+} from "@lucide/vue";
+import { computed, ref, watch } from "vue";
+import { RouterLink } from "vue-router";
 
-const props = defineProps<{
-  selected: GraphNode
-  detail: NodeDetail | null
-  parentId: number | null
-  parentTitle: string | null
-  loading: boolean
-  error: string | null
-  isVirtualRoot: boolean
-}>()
+import MembersDialog from "@/components/MembersDialog.vue";
+import NodeStatusTag from "@/components/NodeStatusTag.vue";
+import GraphNodeMetaSection from "@/components/graph/GraphNodeMetaSection.vue";
+import GraphNodePeopleSection from "@/components/graph/GraphNodePeopleSection.vue";
+import type { GraphNode } from "@/graph/types";
+import type { NodeDetail } from "@/lib/api";
+import { updateNodeFromDetail } from "@/lib/api";
+import { errorMessage, isOverdue, linkify } from "@/lib/utils";
 
 const emit = defineEmits<{
-  close: []
-  navigate: [id: number]
-  retry: []
-  updated: [node: NodeDetail]
-  edit: []
-  move: []
-  createChild: []
-  createRoot: []
-  remove: []
-  reorder: []
-}>()
+  close: [];
+  navigate: [id: number];
+  retry: [];
+  updated: [node: NodeDetail];
+  edit: [];
+  move: [];
+  createChild: [];
+  createRoot: [];
+  remove: [];
+  reorder: [];
+}>();
 
-const membersOpen = ref(false)
-const editingMeta = ref(false)
-const quickDue = ref<number | null>(null)
-const savingMeta = ref(false)
-const metaError = ref<string | null>(null)
-const savingStatus = ref(false)
-const statusError = ref<string | null>(null)
-const panel = ref<HTMLElement | null>(null)
-const title = computed(() => props.detail?.title ?? props.selected.title)
-let pointerTargetX = 0
-let pointerTargetY = 0
-let pointerX = 0
-let pointerY = 0
-let tiltFrame = 0
-let lastTiltFrame = performance.now()
-let reduceMotion = false
+const props = defineProps<{
+  selected: GraphNode;
+  detail: NodeDetail | null;
+  parentId: number | null;
+  parentTitle: string | null;
+  loading: boolean;
+  error: string | null;
+  isVirtualRoot: boolean;
+}>();
 
-function updatePointerTilt(event: PointerEvent) {
-  pointerTargetX = (event.clientX / Math.max(window.innerWidth, 1)) * 2 - 1
-  pointerTargetY = (event.clientY / Math.max(window.innerHeight, 1)) * 2 - 1
-}
-
-function animateTilt(now: number) {
-  const delta = Math.min(0.05, (now - lastTiltFrame) / 1000)
-  lastTiltFrame = now
-  const damping = 1 - Math.exp(-delta * 5)
-  pointerX += (pointerTargetX - pointerX) * damping
-  pointerY += (pointerTargetY - pointerY) * damping
-  panel.value?.style.setProperty('--panel-tilt-x', `${pointerY * 0.8}deg`)
-  panel.value?.style.setProperty('--panel-tilt-y', `${-pointerX * 1.15}deg`)
-  tiltFrame = requestAnimationFrame(animateTilt)
-}
-
-onMounted(() => {
-  reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  window.addEventListener('pointermove', updatePointerTilt, { passive: true })
-  if (!reduceMotion) {
-    lastTiltFrame = performance.now()
-    tiltFrame = requestAnimationFrame(animateTilt)
-  }
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('pointermove', updatePointerTilt)
-  cancelAnimationFrame(tiltFrame)
-})
+const membersOpen = ref(false);
+const savingStatus = ref(false);
+const statusError = ref<string | null>(null);
+const title = computed(() => props.detail?.title ?? props.selected.title);
+const descriptionSegments = computed(() =>
+  linkify(props.detail?.description ?? ""),
+);
 
 watch(
   () => props.selected.id,
   () => {
-    membersOpen.value = false
-    editingMeta.value = false
-    metaError.value = null
-    statusError.value = null
+    membersOpen.value = false;
+    statusError.value = null;
   },
-)
+);
 
 function onMembersSaved(node: NodeDetail) {
-  membersOpen.value = false
-  emit('updated', node)
+  membersOpen.value = false;
+  emit("updated", node);
 }
 
 function createNode() {
   if (props.isVirtualRoot) {
-    emit('createRoot')
+    emit("createRoot");
   } else {
-    emit('createChild')
-  }
-}
-
-function startMetaEdit() {
-  if (!props.detail || savingStatus.value) return
-  quickDue.value = props.detail.dueAt
-    ? new Date(props.detail.dueAt).getTime()
-    : null
-  metaError.value = null
-  editingMeta.value = true
-}
-
-function cancelMetaEdit() {
-  if (savingMeta.value) return
-  editingMeta.value = false
-  metaError.value = null
-}
-
-async function saveMetaEdit() {
-  const node = props.detail
-  if (!node || savingMeta.value) return
-  savingMeta.value = true
-  metaError.value = null
-  try {
-    const updated = await updateNode(node.id, {
-      title: node.title,
-      description: node.description,
-      dueAt: quickDue.value === null
-        ? null
-        : new Date(quickDue.value).toISOString(),
-      tags: node.tags,
-      completed: !!node.completedAt,
-    })
-    editingMeta.value = false
-    emit('updated', updated)
-  } catch (err) {
-    metaError.value = errorMessage(err, '保存到期时间失败')
-  } finally {
-    savingMeta.value = false
+    emit("createChild");
   }
 }
 
 async function toggleCompletion() {
-  const node = props.detail
-  if (
-    !node ||
-    !node.permissions.canEdit ||
-    savingStatus.value ||
-    editingMeta.value ||
-    savingMeta.value
-  ) {
-    return
+  const node = props.detail;
+  if (!node || !node.permissions.canEdit || savingStatus.value) {
+    return;
   }
-  savingStatus.value = true
-  statusError.value = null
+  savingStatus.value = true;
+  statusError.value = null;
   try {
-    const updated = await updateNode(node.id, {
-      title: node.title,
-      description: node.description,
-      dueAt: node.dueAt,
-      tags: node.tags,
+    const updated = await updateNodeFromDetail(node, {
       completed: !node.completedAt,
-    })
-    emit('updated', updated)
+    });
+    emit("updated", updated);
   } catch (err) {
-    statusError.value = errorMessage(err, '更新完成状态失败')
+    statusError.value = errorMessage(err, "更新完成状态失败");
   } finally {
-    savingStatus.value = false
+    savingStatus.value = false;
   }
 }
 </script>
 
 <template>
   <aside
-    ref="panel"
+    aria-label="节点控制面板"
     class="node-control-panel"
     data-graph-node-panel
-    aria-label="节点控制面板"
   >
     <header class="panel-header">
       <button
-        type="button"
-        class="panel-close"
         aria-label="关闭节点面板"
+        class="panel-close"
+        type="button"
         @click="emit('close')"
       >
         <X :size="17" />
@@ -210,23 +113,23 @@ async function toggleCompletion() {
       <h2>{{ title }}</h2>
       <div v-if="detail && !isVirtualRoot" class="panel-status-row">
         <NodeStatusTag
-          :due-at="detail.dueAt"
           :completed-at="detail.completedAt"
+          :due-at="detail.dueAt"
         />
         <button
           v-if="detail.permissions.canEdit"
-          type="button"
-          class="status-toggle"
-          :disabled="savingStatus || editingMeta || savingMeta"
           :aria-pressed="!!detail.completedAt"
+          class="status-toggle"
+          :disabled="savingStatus"
+          type="button"
           @click="toggleCompletion"
         >
           {{
             savingStatus
-              ? '正在更新…'
+              ? "正在更新…"
               : detail.completedAt
-                ? '标记为未完成'
-                : '标记为已完成'
+                ? "标记为未完成"
+                : "标记为已完成"
           }}
         </button>
       </div>
@@ -241,8 +144,8 @@ async function toggleCompletion() {
       <div v-if="detail && !isVirtualRoot" class="panel-node-actions">
         <button
           v-if="detail.permissions.canEdit"
-          type="button"
           class="panel-edit-button"
+          type="button"
           @click="emit('edit')"
         >
           <Pencil :size="12" />
@@ -250,8 +153,8 @@ async function toggleCompletion() {
         </button>
         <button
           v-if="detail.permissions.canEdit"
-          type="button"
           class="panel-edit-button"
+          type="button"
           @click="emit('move')"
         >
           <FolderInput :size="12" />
@@ -259,8 +162,8 @@ async function toggleCompletion() {
         </button>
         <button
           v-if="detail.permissions.canDelete"
-          type="button"
           class="panel-delete-button"
+          type="button"
           @click="emit('remove')"
         >
           <Trash2 :size="12" />
@@ -272,8 +175,8 @@ async function toggleCompletion() {
     <div class="panel-scroll">
       <div
         v-if="!detail && (loading || !error)"
-        class="panel-loading"
         aria-live="polite"
+        class="panel-loading"
       >
         <span class="panel-loading-mark" />
         正在加载节点…
@@ -285,16 +188,16 @@ async function toggleCompletion() {
       </div>
 
       <template v-else-if="detail">
-        <section class="panel-section" aria-labelledby="panel-structure-title">
+        <section aria-labelledby="panel-structure-title" class="panel-section">
           <h3 id="panel-structure-title">
-            {{ isVirtualRoot ? '全部根节点' : '层级关系' }}
+            {{ isVirtualRoot ? "全部根节点" : "层级关系" }}
           </h3>
           <div v-if="!isVirtualRoot" class="panel-relation">
             <span class="relation-label">父节点</span>
             <button
               v-if="parentId != null"
-              type="button"
               class="relation-link"
+              type="button"
               @click="emit('navigate', parentId)"
             >
               <span>{{ parentTitle ?? `节点 #${parentId}` }}</span>
@@ -305,7 +208,7 @@ async function toggleCompletion() {
 
           <div class="panel-children">
             <div class="children-heading">
-              <span>{{ isVirtualRoot ? '根节点' : '子节点' }}</span>
+              <span>{{ isVirtualRoot ? "根节点" : "子节点" }}</span>
               <span>{{ detail.children.length }}</span>
             </div>
             <div class="children-actions">
@@ -314,204 +217,108 @@ async function toggleCompletion() {
                   detail.permissions.canReorderChildren &&
                   detail.children.length > 1
                 "
-                type="button"
                 class="panel-edit-button"
+                type="button"
                 @click="emit('reorder')"
               >
                 <ArrowUpDown :size="12" />
-                {{ isVirtualRoot ? '调整根节点顺序' : '调整子节点顺序' }}
+                {{ isVirtualRoot ? "调整根节点顺序" : "调整子节点顺序" }}
               </button>
               <button
                 v-if="detail.permissions.canAddChild"
-                type="button"
                 class="panel-edit-button is-primary"
+                type="button"
                 @click="createNode"
               >
                 <Plus :size="12" />
-                {{ isVirtualRoot ? '新建根节点' : '新建子节点' }}
+                {{ isVirtualRoot ? "新建根节点" : "新建子节点" }}
               </button>
             </div>
-            <div v-if="detail.children.length" class="children-list">
+            <div v-if="detail.children.length > 0" class="children-list">
               <button
                 v-for="child in detail.children"
                 :key="child.id"
-                type="button"
                 class="child-link"
+                type="button"
                 @click="emit('navigate', child.id)"
               >
-                <span class="child-orb" aria-hidden="true" />
+                <Check
+                  v-if="child.completedAt"
+                  aria-label="已完成"
+                  class="child-icon is-completed"
+                  :size="14"
+                />
+                <Circle
+                  v-else
+                  aria-label="未完成"
+                  class="child-icon"
+                  :class="[
+                    { 'is-overdue': isOverdue(child.dueAt, child.completedAt) },
+                  ]"
+                  :size="14"
+                />
                 <span class="child-title">{{ child.title }}</span>
-                <span v-if="child.childCount" class="child-count"
-                  >{{ child.childCount }} 个子节点</span
-                >
+                <span v-if="child.childCount" class="child-count">
+                  {{ child.childCount }} 个子节点
+                </span>
                 <ChevronRight :size="13" />
               </button>
             </div>
             <p v-else class="relation-empty">
-              {{ isVirtualRoot ? '暂无根节点' : '暂无子节点' }}
+              {{ isVirtualRoot ? "暂无根节点" : "暂无子节点" }}
             </p>
           </div>
         </section>
 
         <section
           v-if="!isVirtualRoot"
-          class="panel-section"
           aria-labelledby="panel-description-title"
+          class="panel-section"
         >
           <h3 id="panel-description-title">节点描述</h3>
           <p v-if="detail.description" class="panel-description">
-            {{ detail.description }}
+            <template
+              v-for="(segment, index) in descriptionSegments"
+              :key="index"
+            >
+              <a
+                v-if="segment.type === 'link'"
+                :href="segment.href"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                {{ segment.value }}
+              </a>
+              <template v-else>{{ segment.value }}</template>
+            </template>
           </p>
           <p v-else class="panel-empty-copy">暂无节点描述</p>
         </section>
 
-        <section
+        <GraphNodeMetaSection v-if="!isVirtualRoot" :detail />
+
+        <GraphNodePeopleSection
           v-if="!isVirtualRoot"
-          class="panel-section"
-          aria-labelledby="panel-meta-title"
-        >
-          <div class="panel-section-heading">
-            <h3 id="panel-meta-title">节点信息</h3>
-            <button
-              v-if="detail.permissions.canEdit && !editingMeta"
-              type="button"
-              class="panel-edit-button"
-              :disabled="savingStatus"
-              @click="startMetaEdit"
-            >
-              <Pencil :size="12" />
-              修改预期完成
-            </button>
-          </div>
-
-          <div v-if="editingMeta" class="meta-editor">
-            <label class="meta-editor-field">
-              <span>预期完成时间</span>
-              <NDatePicker
-                v-model:value="quickDue"
-                type="datetime"
-                format="yyyy-MM-dd HH:mm"
-                :time-picker-props="{ format: 'HH:mm' }"
-                clearable
-                :disabled="savingMeta"
-              />
-            </label>
-            <NAlert v-if="metaError" type="error" role="alert">
-              {{ metaError }}
-            </NAlert>
-            <div class="meta-editor-actions">
-              <button
-                type="button"
-                :disabled="savingMeta"
-                @click="cancelMetaEdit"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                class="is-primary"
-                :disabled="savingMeta"
-                @click="saveMetaEdit"
-              >
-                {{ savingMeta ? '保存中…' : '保存修改' }}
-              </button>
-            </div>
-          </div>
-
-          <dl v-else class="panel-meta-grid">
-            <div>
-              <dt><CalendarClock :size="13" />预期完成</dt>
-              <dd>{{ formatDateTime(detail.dueAt) }}</dd>
-            </div>
-            <div>
-              <dt>创建时间</dt>
-              <dd>{{ formatDateTime(detail.createdAt) }}</dd>
-            </div>
-            <div>
-              <dt>最近更新</dt>
-              <dd :title="formatDateTime(detail.updatedAt)">
-                {{ timeAgo(detail.updatedAt) }}
-              </dd>
-            </div>
-            <div>
-              <dt>下级节点</dt>
-              <dd>{{ detail.subtreeNodeCount }}</dd>
-            </div>
-            <div>
-              <dt>有效成员</dt>
-              <dd>{{ detail.effectiveMemberCount }}</dd>
-            </div>
-            <div>
-              <dt>进展</dt>
-              <dd>{{ detail.subtreeCommentCount }}</dd>
-            </div>
-          </dl>
-        </section>
-
-        <section
-          v-if="!isVirtualRoot"
-          class="panel-section panel-people"
-          aria-labelledby="panel-people-title"
-        >
-          <div class="people-heading">
-            <h3 id="panel-people-title">参与人员</h3>
-            <button
-              v-if="detail.permissions.canManageMembers"
-              type="button"
-              class="panel-edit-button"
-              @click="membersOpen = true"
-            >
-              <Pencil :size="12" />
-              管理成员
-            </button>
-          </div>
-
-          <div class="people-group">
-            <h4>直接负责人</h4>
-            <ul v-if="detail.directLeaders.length" class="people-list">
-              <li v-for="person in detail.directLeaders" :key="person.subject">
-                <UserIdentity :user="person" :size="24" />
-              </li>
-            </ul>
-            <p v-else class="panel-empty-copy">暂无直接负责人</p>
-          </div>
-
-          <div class="people-group">
-            <h4>直接成员</h4>
-            <ul v-if="detail.directMembers.length" class="people-list">
-              <li v-for="person in detail.directMembers" :key="person.subject">
-                <UserIdentity :user="person" :size="24" />
-              </li>
-            </ul>
-            <p v-else class="panel-empty-copy">暂无直接成员</p>
-          </div>
-
-          <p
-            v-if="detail.inheritedLeaderCount || detail.inheritedMemberCount"
-            class="inherited-count"
-          >
-            另有 {{ detail.inheritedLeaderCount }} 位上级负责人、
-            {{ detail.inheritedMemberCount }} 位继承成员。
-          </p>
-        </section>
+          :detail
+          @manage="membersOpen = true"
+        />
       </template>
     </div>
 
     <footer v-if="!isVirtualRoot" class="panel-footer">
       <RouterLink
-        :to="{ name: 'node', params: { id: selected.id } }"
         class="panel-page-link"
+        :to="{ name: 'node', params: { id: selected.id } }"
       >
         <span>打开节点页面</span>
-        <ExternalLink :size="15" aria-hidden="true" />
+        <ExternalLink aria-hidden="true" :size="15" />
       </RouterLink>
     </footer>
 
     <MembersDialog
       v-if="detail && !isVirtualRoot"
-      :open="membersOpen"
+      v-model:open="membersOpen"
       :node="detail"
-      @close="membersOpen = false"
       @saved="onMembersSaved"
     />
   </aside>
@@ -519,93 +326,56 @@ async function toggleCompletion() {
 
 <style scoped>
 .node-control-panel {
-  --panel-base-rotate-y: -2.4deg;
-  --panel-tilt-x: 0deg;
-  --panel-tilt-y: 0deg;
   position: absolute;
   z-index: 20;
   top: 16px;
   right: 16px;
   bottom: 16px;
   display: flex;
-  width: clamp(330px, 36vw, 620px);
+  width: clamp(320px, 28vw, 400px);
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(222, 174, 69, 0.34);
-  border-right-color: rgba(240, 187, 78, 0.68);
-  border-radius: 4px;
-  background:
-    linear-gradient(155deg, rgba(25, 24, 17, 0.9), transparent 34%),
-    linear-gradient(180deg, rgba(10, 17, 20, 0.97), rgba(5, 10, 13, 0.98));
-  box-shadow:
-    -24px 0 70px rgba(0, 0, 0, 0.42),
-    inset 0 0 50px rgba(225, 173, 70, 0.025);
-  color: #d9e1e1;
+  border: 1px solid var(--graph-panel-border);
+  border-radius: 8px;
+  background: var(--graph-panel-bg);
+  box-shadow: var(--graph-panel-shadow);
+  color: var(--graph-panel-text);
   pointer-events: auto;
   backdrop-filter: blur(22px);
-  transform:
-    perspective(1500px)
-    rotateX(var(--panel-tilt-x))
-    rotateY(calc(var(--panel-base-rotate-y) + var(--panel-tilt-y)));
-  transform-origin: 100% 50%;
-  transform-style: preserve-3d;
   will-change: transform, opacity;
 }
 
 .node-panel-enter-active {
   transition:
-    transform 360ms cubic-bezier(0.22, 0.76, 0.24, 1),
-    opacity 240ms ease-out;
+    transform 260ms cubic-bezier(0.22, 0.76, 0.24, 1),
+    opacity 200ms ease-out;
 }
 
 .node-panel-leave-active {
   transition:
-    transform 300ms cubic-bezier(0.55, 0, 0.8, 0.42),
-    opacity 220ms ease-in;
+    transform 200ms cubic-bezier(0.55, 0, 0.8, 0.42),
+    opacity 180ms ease-in;
 }
 
 .node-panel-enter-from,
 .node-panel-leave-to {
   opacity: 0;
-  transform:
-    perspective(1500px)
-    rotateX(var(--panel-tilt-x))
-    rotateY(calc(var(--panel-base-rotate-y) + var(--panel-tilt-y)))
-    translate3d(calc(100% + 32px), 0, -20px);
+  transform: translateX(calc(100% + 24px));
 }
 
 .node-panel-enter-to,
 .node-panel-leave-from {
   opacity: 1;
-  transform:
-    perspective(1500px)
-    rotateX(var(--panel-tilt-x))
-    rotateY(calc(var(--panel-base-rotate-y) + var(--panel-tilt-y)))
-    translate3d(0, 0, 0);
-}
-
-.node-control-panel::before {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(244, 192, 82, 0.78),
-    transparent
-  );
-  content: '';
+  transform: translateX(0);
 }
 
 .panel-header {
   position: relative;
   flex: none;
   padding: 22px 24px 18px;
-  border-bottom: 1px solid rgba(139, 164, 169, 0.16);
-  background: rgba(8, 14, 17, 0.58);
+  border-bottom: 1px solid var(--graph-panel-divider);
+  background: var(--graph-panel-header-bg);
 }
 
 .panel-close {
@@ -616,21 +386,21 @@ async function toggleCompletion() {
   width: 30px;
   height: 30px;
   place-items: center;
-  border: 1px solid rgba(150, 171, 175, 0.22);
-  border-radius: 2px;
-  background: rgba(10, 16, 19, 0.72);
-  color: #a5b4b7;
+  border: 1px solid var(--graph-close-border);
+  border-radius: 4px;
+  background: var(--graph-close-bg);
+  color: var(--graph-close-color);
   cursor: pointer;
 }
 
 .panel-close:hover {
-  border-color: rgba(238, 185, 77, 0.62);
-  color: #f2c66f;
+  border-color: var(--graph-close-hover-border);
+  color: var(--graph-close-hover-color);
 }
 
 .panel-header h2 {
   margin: 0 40px 0 0;
-  color: #f4f0e6;
+  color: var(--graph-panel-title-color);
   font-size: clamp(22px, 1.7vw, 28px);
   font-weight: 650;
   line-height: 1.35;
@@ -651,17 +421,18 @@ async function toggleCompletion() {
 
 .status-toggle {
   padding: 3px 8px;
-  border: 1px solid rgba(221, 176, 75, 0.34);
-  border-radius: 2px;
-  background: rgba(218, 170, 67, 0.07);
-  color: #e5c47c;
+  border: 1px solid var(--graph-button-border);
+  border-radius: 4px;
+  background: var(--graph-button-bg);
+  color: var(--graph-button-color);
   font-size: 13px;
   cursor: pointer;
 }
 
 .status-toggle:hover {
-  border-color: rgba(241, 190, 80, 0.72);
-  color: #ffe2a3;
+  border-color: var(--graph-button-hover-border);
+  background: var(--graph-button-hover-bg);
+  color: var(--graph-button-hover-color);
 }
 
 .status-toggle:disabled {
@@ -671,7 +442,7 @@ async function toggleCompletion() {
 
 .status-error {
   margin: 8px 0 0;
-  color: #ef9c83;
+  color: var(--graph-status-error-color);
   font-size: 13px;
 }
 
@@ -684,9 +455,9 @@ async function toggleCompletion() {
 
 .panel-tag {
   padding: 2px 7px;
-  border: 1px solid rgba(116, 150, 157, 0.28);
-  border-radius: 2px;
-  color: #9eb2b6;
+  border: 1px solid var(--graph-tag-border);
+  border-radius: 4px;
+  color: var(--graph-tag-color);
   font-size: 13px;
 }
 
@@ -716,27 +487,14 @@ async function toggleCompletion() {
 
 .panel-section {
   padding: 19px 24px;
-  border-bottom: 1px solid rgba(139, 164, 169, 0.13);
+  border-bottom: 1px solid var(--graph-panel-divider-subtle);
 }
 
-.panel-section h3,
-.people-heading h3 {
+.panel-section h3 {
   margin: 0 0 13px;
-  color: #e7c47b;
+  color: var(--graph-section-title-color);
   font-size: 15px;
   font-weight: 700;
-}
-
-.panel-section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 13px;
-}
-
-.panel-section-heading h3 {
-  margin: 0;
 }
 
 .panel-relation {
@@ -747,7 +505,7 @@ async function toggleCompletion() {
 }
 
 .relation-label {
-  color: #84979b;
+  color: var(--graph-muted-label);
   font-size: 13px;
 }
 
@@ -755,7 +513,7 @@ async function toggleCompletion() {
 .child-link {
   border: 0;
   background: transparent;
-  color: inherit;
+  color: var(--graph-link-color);
   cursor: pointer;
 }
 
@@ -766,9 +524,9 @@ async function toggleCompletion() {
   justify-content: space-between;
   gap: 8px;
   padding: 8px 10px;
-  border: 1px solid rgba(221, 176, 75, 0.22);
-  border-radius: 2px;
-  background: rgba(218, 170, 67, 0.055);
+  border: 1px solid var(--graph-link-border);
+  border-radius: 4px;
+  background: var(--graph-link-bg);
   font-size: 14px;
   text-align: left;
 }
@@ -781,15 +539,15 @@ async function toggleCompletion() {
 
 .relation-link:hover,
 .child-link:hover {
-  border-color: rgba(238, 185, 77, 0.56);
-  background: rgba(221, 174, 70, 0.09);
-  color: #f5d38e;
+  border-color: var(--graph-link-hover-border);
+  background: var(--graph-link-hover-bg);
+  color: var(--graph-link-hover-color);
 }
 
 .relation-empty,
 .panel-empty-copy {
   margin: 0;
-  color: #71868b;
+  color: var(--graph-empty-copy);
   font-size: 14px;
 }
 
@@ -802,12 +560,12 @@ async function toggleCompletion() {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 7px;
-  color: #84979b;
+  color: var(--graph-muted-label);
   font-size: 13px;
 }
 
 .children-heading span:last-child {
-  color: #d8b35f;
+  color: var(--graph-count-accent);
   font-variant-numeric: tabular-nums;
 }
 
@@ -818,24 +576,27 @@ async function toggleCompletion() {
 
 .child-link {
   display: grid;
-  grid-template-columns: 7px minmax(0, 1fr) auto 14px;
+  grid-template-columns: 14px minmax(0, 1fr) auto 14px;
   align-items: center;
   gap: 9px;
   width: 100%;
   padding: 8px 9px;
   border: 1px solid transparent;
-  border-radius: 2px;
-  color: #c6d1d2;
+  border-radius: 4px;
   font-size: 15px;
   text-align: left;
 }
 
-.child-orb {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #d9aa49;
-  box-shadow: 0 0 8px rgba(227, 176, 67, 0.72);
+.child-icon {
+  color: var(--graph-child-icon-color);
+}
+
+.child-icon.is-completed {
+  color: var(--graph-child-icon-completed);
+}
+
+.child-icon.is-overdue {
+  color: var(--graph-child-icon-overdue);
 }
 
 .child-title {
@@ -845,7 +606,7 @@ async function toggleCompletion() {
 }
 
 .child-count {
-  color: #70858a;
+  color: var(--graph-empty-copy);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -853,97 +614,17 @@ async function toggleCompletion() {
 
 .panel-description {
   margin: 0;
-  color: #aebbbc;
-  font-size: 16px;
+  color: var(--graph-description-color);
+  font-size: 15px;
   line-height: 1.8;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
-.panel-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 13px 18px;
-  margin: 0;
-}
-
-.panel-meta-grid div {
-  min-width: 0;
-}
-
-.panel-meta-grid dt {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-bottom: 4px;
-  color: #72878b;
-  font-size: 13px;
-}
-
-.panel-meta-grid dd {
-  margin: 0;
-  color: #cad4d4;
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
-
-.meta-editor {
-  display: grid;
-  gap: 14px;
-}
-
-.meta-editor-field {
-  display: grid;
-  gap: 7px;
-  color: #91a4a8;
-  font-size: 14px;
-}
-
-.meta-editor-field :deep(.n-date-picker),
-.meta-editor-field :deep(.n-input) {
-  width: 100%;
-}
-
-.meta-editor-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding-top: 4px;
-}
-
-.meta-editor-actions button {
-  min-height: 32px;
-  padding: 6px 12px;
-  border: 1px solid rgba(139, 164, 169, 0.28);
-  border-radius: 2px;
-  background: rgba(11, 18, 21, 0.72);
-  color: #bdcbcc;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.meta-editor-actions button.is-primary {
-  border-color: rgba(232, 181, 75, 0.62);
-  background: rgba(218, 170, 67, 0.12);
-  color: #f1cb7b;
-}
-
-.meta-editor-actions button:disabled {
-  cursor: wait;
-  opacity: 0.55;
-}
-
-.people-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 13px;
-}
-
-.people-heading h3 {
-  margin: 0;
+.panel-description a {
+  color: var(--graph-content-link-color);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .panel-edit-button {
@@ -951,23 +632,30 @@ async function toggleCompletion() {
   align-items: center;
   gap: 5px;
   padding: 5px 9px;
-  border: 1px solid rgba(221, 176, 75, 0.3);
-  border-radius: 2px;
-  background: transparent;
-  color: #d9b96f;
+  border: 1px solid var(--graph-button-border);
+  border-radius: 4px;
+  background: var(--graph-button-bg);
+  color: var(--graph-button-color);
   font-size: 13px;
   cursor: pointer;
 }
 
 .panel-edit-button:hover {
-  border-color: rgba(240, 187, 78, 0.68);
-  color: #ffe0a2;
+  border-color: var(--graph-button-hover-border);
+  background: var(--graph-button-hover-bg);
+  color: var(--graph-button-hover-color);
 }
 
 .panel-edit-button.is-primary {
-  border-color: rgba(232, 181, 75, 0.58);
-  background: rgba(218, 170, 67, 0.1);
-  color: #f0cb7e;
+  border-color: var(--graph-primary-btn-border);
+  background: var(--graph-primary-btn-bg);
+  color: var(--graph-primary-btn-color);
+}
+
+.panel-edit-button.is-primary:hover {
+  border-color: var(--graph-primary-btn-hover-border);
+  background: var(--graph-primary-btn-hover-bg);
+  color: var(--graph-primary-btn-hover-color);
 }
 
 .panel-delete-button {
@@ -975,51 +663,23 @@ async function toggleCompletion() {
   align-items: center;
   gap: 5px;
   padding: 5px 9px;
-  border: 1px solid rgba(226, 125, 104, 0.34);
-  border-radius: 2px;
+  border: 1px solid var(--graph-danger-border);
+  border-radius: 4px;
   background: transparent;
-  color: #e3a091;
+  color: var(--graph-danger-color);
   font-size: 13px;
   cursor: pointer;
 }
 
 .panel-delete-button:hover {
-  border-color: rgba(241, 143, 119, 0.7);
-  background: rgba(177, 69, 50, 0.12);
-  color: #ffb9a8;
+  border-color: var(--graph-danger-hover-border);
+  background: var(--graph-danger-hover-bg);
+  color: var(--graph-danger-hover-color);
 }
 
 .panel-edit-button:disabled {
   cursor: wait;
   opacity: 0.55;
-}
-
-.people-group + .people-group {
-  margin-top: 15px;
-}
-
-.people-group h4 {
-  margin: 0 0 7px;
-  color: #7e9296;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.people-list {
-  display: grid;
-  gap: 7px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: #c8d2d2;
-  font-size: 15px;
-}
-
-.inherited-count {
-  margin: 15px 0 0;
-  color: #788c90;
-  font-size: 13px;
-  line-height: 1.6;
 }
 
 .panel-loading,
@@ -1029,7 +689,7 @@ async function toggleCompletion() {
   place-content: center;
   gap: 13px;
   padding: 24px;
-  color: #91a5a8;
+  color: var(--graph-panel-muted-color);
   text-align: center;
   font-size: 15px;
 }
@@ -1046,25 +706,32 @@ async function toggleCompletion() {
 
 .panel-error p {
   margin: 0;
-  color: #e0b661;
+  color: var(--graph-panel-error-text);
 }
 
 .panel-error button {
   justify-self: center;
   min-height: 32px;
   padding: 6px 12px;
-  border: 1px solid rgba(230, 180, 75, 0.35);
+  border: 1px solid var(--graph-panel-error-border);
+  border-radius: 4px;
   background: transparent;
-  color: #e5c077;
+  color: var(--graph-panel-error-btn-color);
   font-size: 13px;
   cursor: pointer;
+}
+
+.panel-error button:hover {
+  border-color: var(--graph-panel-error-btn-hover-border);
+  background: var(--graph-panel-error-btn-hover-bg);
+  color: var(--graph-panel-error-btn-hover-color);
 }
 
 .panel-footer {
   flex: none;
   padding: 14px 18px 13px;
-  border-top: 1px solid rgba(222, 174, 69, 0.22);
-  background: rgba(7, 12, 15, 0.92);
+  border-top: 1px solid var(--graph-panel-footer-border);
+  background: var(--graph-panel-footer-bg);
 }
 
 .panel-page-link {
@@ -1073,155 +740,19 @@ async function toggleCompletion() {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px solid rgba(231, 181, 76, 0.52);
-  border-radius: 2px;
-  background:
-    linear-gradient(90deg, rgba(231, 181, 76, 0.16), transparent),
-    rgba(24, 23, 17, 0.8);
-  color: #f0ca79;
+  border: 1px solid var(--graph-page-link-border);
+  border-radius: 6px;
+  background: var(--graph-page-link-bg);
+  color: var(--graph-page-link-color);
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
 }
 
 .panel-page-link:hover {
-  border-color: rgba(246, 198, 92, 0.86);
-  color: #fff0c7;
-}
-
-:global([data-theme='light'] .node-control-panel) {
-  border-color: rgba(157, 105, 25, 0.28);
-  border-right-color: rgba(151, 94, 12, 0.5);
-  background:
-    linear-gradient(155deg, rgba(255, 249, 235, 0.92), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(246, 249, 250, 0.98));
-  box-shadow:
-    -24px 0 70px rgba(51, 66, 75, 0.16),
-    inset 0 0 50px rgba(167, 107, 17, 0.02);
-  color: #263640;
-}
-
-:global([data-theme='light'] .panel-header) {
-  border-bottom-color: rgba(81, 105, 116, 0.15);
-  background: rgba(255, 255, 255, 0.62);
-}
-
-:global([data-theme='light'] .panel-header h2) {
-  color: #17242d;
-}
-
-:global([data-theme='light'] .panel-close) {
-  border-color: rgba(84, 107, 117, 0.22);
-  background: rgba(255, 255, 255, 0.76);
-  color: #5c7079;
-}
-
-:global([data-theme='light'] .status-toggle),
-:global([data-theme='light'] .panel-edit-button) {
-  border-color: rgba(155, 101, 17, 0.3);
-  background: rgba(184, 119, 21, 0.06);
-  color: #80510d;
-}
-
-:global([data-theme='light'] .panel-tag) {
-  border-color: rgba(87, 119, 132, 0.26);
-  color: #607783;
-}
-
-:global([data-theme='light'] .panel-section) {
-  border-bottom-color: rgba(82, 105, 116, 0.13);
-}
-
-:global([data-theme='light'] .panel-section h3),
-:global([data-theme='light'] .people-heading h3) {
-  color: #8e590d;
-}
-
-:global([data-theme='light'] .relation-label),
-:global([data-theme='light'] .children-heading),
-:global([data-theme='light'] .people-group h4),
-:global([data-theme='light'] .panel-meta-grid dt) {
-  color: #607580;
-}
-
-:global([data-theme='light'] .relation-link),
-:global([data-theme='light'] .child-link) {
-  color: #344650;
-}
-
-:global([data-theme='light'] .relation-link) {
-  border-color: rgba(157, 104, 21, 0.22);
-  background: rgba(183, 120, 24, 0.05);
-}
-
-:global([data-theme='light'] .relation-link:hover),
-:global([data-theme='light'] .child-link:hover) {
-  border-color: rgba(157, 100, 17, 0.48);
-  background: rgba(183, 120, 24, 0.08);
-  color: #714707;
-}
-
-:global([data-theme='light'] .relation-empty),
-:global([data-theme='light'] .panel-empty-copy) {
-  color: #758993;
-}
-
-:global([data-theme='light'] .children-heading span:last-child) {
-  color: #936013;
-}
-
-:global([data-theme='light'] .child-count) {
-  color: #758993;
-}
-
-:global([data-theme='light'] .panel-description),
-:global([data-theme='light'] .panel-meta-grid dd),
-:global([data-theme='light'] .people-list) {
-  color: #344650;
-}
-
-:global([data-theme='light'] .inherited-count) {
-  color: #70848e;
-}
-
-:global([data-theme='light'] .meta-editor-field),
-:global([data-theme='light'] .panel-loading),
-:global([data-theme='light'] .panel-error) {
-  color: #627781;
-}
-
-:global([data-theme='light'] .meta-editor-actions button) {
-  border-color: rgba(81, 106, 118, 0.25);
-  background: rgba(255, 255, 255, 0.78);
-  color: #4f6570;
-}
-
-:global([data-theme='light'] .meta-editor-actions button.is-primary) {
-  border-color: rgba(156, 101, 17, 0.46);
-  background: rgba(187, 123, 24, 0.09);
-  color: #7d4e0a;
-}
-
-:global([data-theme='light'] .panel-error p) {
-  color: #8d590d;
-}
-
-:global([data-theme='light'] .panel-error button) {
-  border-color: rgba(156, 101, 17, 0.34);
-  color: #7f500b;
-}
-
-:global([data-theme='light'] .panel-footer) {
-  border-top-color: rgba(157, 105, 22, 0.2);
-  background: rgba(255, 255, 255, 0.9);
-}
-
-:global([data-theme='light'] .panel-page-link) {
-  border-color: rgba(157, 102, 18, 0.38);
-  background:
-    linear-gradient(90deg, rgba(190, 127, 29, 0.1), transparent),
-    rgba(255, 252, 246, 0.86);
-  color: #81510b;
+  border-color: var(--graph-page-link-hover-border);
+  background: var(--graph-page-link-hover-bg);
+  color: var(--graph-page-link-hover-color);
 }
 
 @keyframes panel-spin {
@@ -1232,7 +763,7 @@ async function toggleCompletion() {
 
 @media (max-width: 980px) {
   .node-control-panel {
-    width: min(460px, calc(100vw - 32px));
+    width: min(380px, calc(100vw - 32px));
   }
 }
 
@@ -1248,10 +779,6 @@ async function toggleCompletion() {
   .panel-section {
     padding-right: 18px;
     padding-left: 18px;
-  }
-
-  .panel-meta-grid {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 

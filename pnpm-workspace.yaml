@@ -1,0 +1,7 @@
+shellEmulator: true
+
+packages:
+  - web
+
+allowBuilds:
+  esbuild: false

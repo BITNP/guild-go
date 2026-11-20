@@ -3,10 +3,11 @@
 FROM node:24-alpine AS web
 WORKDIR /src
 RUN corepack enable
-COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./web/
-RUN cd web && pnpm install --frozen-lockfile
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY web/package.json ./web/
+RUN pnpm --filter guild-go-web install --frozen-lockfile
 COPY web ./web
-RUN mkdir -p internal/web && cd web && pnpm build
+RUN mkdir -p internal/web && pnpm --filter guild-go-web build
 
 FROM golang:1.27-alpine AS build
 WORKDIR /src

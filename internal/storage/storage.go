@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -32,6 +33,17 @@ type Store interface {
 	Put(ctx context.Context, key string, data []byte, contentType string) error
 	Get(ctx context.Context, key string) (io.ReadCloser, string, int64, error)
 	Delete(ctx context.Context, key string) error
+}
+
+// DeleteBestEffort deletes each object key with a bounded timeout and logs failures.
+func DeleteBestEffort(store Store, keys []string) {
+	for _, key := range keys {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := store.Delete(ctx, key); err != nil {
+			slog.Warn("delete attachment object failed", "key", key, "error", err)
+		}
+		cancel()
+	}
 }
 
 // NewCommentKey returns an unguessable object key under the guild-go prefix.

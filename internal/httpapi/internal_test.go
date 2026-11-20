@@ -19,7 +19,6 @@ import (
 	"git.bitnp.net/BITNP/guild-go/internal/apperr"
 	"git.bitnp.net/BITNP/guild-go/internal/auth"
 	"git.bitnp.net/BITNP/guild-go/internal/comments"
-	"git.bitnp.net/BITNP/guild-go/internal/config"
 	"git.bitnp.net/BITNP/guild-go/internal/database"
 	"git.bitnp.net/BITNP/guild-go/internal/events"
 	"git.bitnp.net/BITNP/guild-go/internal/httpapi"
@@ -55,7 +54,7 @@ func (s *stubInternalAuthorizer) EnsureSubjects(_ context.Context, subjects []st
 }
 
 func TestInternalRoutesDisabledWithoutToken(t *testing.T) {
-	handler := httpapi.New(config.Config{}, nil, &auth.Service{}, nil, nil, nil, nil).Handler()
+	handler := httpapi.New(nil, &auth.Service{}, nil, nil, nil).Handler()
 	for _, route := range []string{
 		"GET /api/internal/users",
 		"GET /api/internal/overview",
@@ -94,7 +93,7 @@ func TestInternalAuthValidation(t *testing.T) {
 		},
 		validEnsure: map[string]bool{"bob": true},
 	}
-	handler := httpapi.New(config.Config{}, nil, &auth.Service{}, nil, nil, nil, nil).
+	handler := httpapi.New(nil, &auth.Service{}, nil, nil, nil).
 		WithInternalAPI("secret-internal-token", authzStub).
 		Handler()
 
@@ -229,9 +228,9 @@ func TestInternalCreateNodeWithDatabase(t *testing.T) {
 	checker := access.New(pool)
 	store := storage.NewMemoryStore()
 	commentSvc := comments.NewService(comments.NewRepository(pool), userSvc, checker, store)
-	nodeSvc := nodes.NewService(nodes.NewRepository(pool), userSvc, checker, store)
+	nodeSvc := nodes.NewService(nodes.NewRepository(pool), userSvc, commentSvc, checker, store)
 
-	handler := httpapi.New(config.Config{}, pool, &auth.Service{}, userSvc, nodeSvc, commentSvc, store).
+	handler := httpapi.New(pool, &auth.Service{}, userSvc, nodeSvc, commentSvc).
 		WithInternalAPI("bot-token", userSvc).
 		Handler()
 
@@ -371,7 +370,7 @@ func TestInternalServiceFeedAuthAndQueries(t *testing.T) {
 	}
 
 	// Note: WithInternalFeed alone does not require InternalAuthorizer / X-Act-As-Subject.
-	handler := httpapi.New(config.Config{}, nil, &auth.Service{}, nil, nil, nil, nil).
+	handler := httpapi.New(nil, &auth.Service{}, nil, nil, nil).
 		WithInternalFeed("service-secret", feed, events.NewBroker()).
 		Handler()
 
@@ -460,7 +459,7 @@ func TestInternalEventsStreamSSELivePush(t *testing.T) {
 		},
 	}
 
-	handler := httpapi.New(config.Config{}, nil, &auth.Service{}, nil, nil, nil, nil).
+	handler := httpapi.New(nil, &auth.Service{}, nil, nil, nil).
 		WithInternalFeed("stream-secret", feed, broker).
 		Handler()
 
